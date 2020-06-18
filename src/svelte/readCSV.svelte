@@ -2,7 +2,9 @@
   import { getContext } from 'svelte';
   import Papa from 'papaparse'
   import readHeadersAndValidate from './validateCSVHeaders.js'
+  import validateCSVContent from './validateCSVContent.js'
   import FieldsConfirmationModal from './fieldsModalContent.svelte'
+  import DataConfirmationModal from './dataModalContent.svelte'
 
   const { open } = getContext('simple-modal');
 
@@ -15,14 +17,24 @@
   let validation = undefined
   let requiredFields //they're not all required, but most
   let targetFile = {}
+  let fileSummary
+  let goAheadAndUpload = false
 
   //UI related variables
   let hovering = false
 
   //Watchers
-  $: requiredFields, onRequiredFieldsUpdated()
+  $: requiredFields, async () => {
+    console.log('confirming file content')
+    fileSummary = await validateCSVContent(targetFile, requiredFields)
+    open(DataConfirmationModal, {fileSummary, onOkay: contentModalOkay})
+  }
+  $: goAheadAndUpload, async () => {
+    console.log('uploading metadat')
+    await uploadFileAndMetadata(fileSummary)
+    console.log('uploaded, well done!!')
+  }
   
-
   //EVENT HANDLERS
 
   //TODO onclick method - file open
@@ -60,8 +72,9 @@
     if(targetFile && (targetFile.type == 'text/csv' || targetFile.type == 'application/vnd.ms-excel')){
       validation = await readHeadersAndValidate(targetFile, Realtime)
       
-      open(FieldsConfirmationModal, {validation}) //the modal okay then handles the next steps
-      
+      console.log('confirming fields')
+      open(FieldsConfirmationModal, {validation, onOkay: fieldsModalOkay}, {closeOnOuterClick: false}) //the modal okay then handles the next steps
+
     }
     else {
       alert('Please upload a Darwin Core CSV file') //TODO show a modal here
@@ -70,107 +83,12 @@
 
   }
 
-  const onFieldsModalOkay = async fieldsObj => {
+  const fieldsModalOkay = async fieldsObj => {
     requiredFields = fieldsObj
   }
 
-  const checkFileContents = async () => {
-    
-    let totalRows = 0
-    let recordIDs = []
-    let recordIDsMissing = false
-    let recordsMissingCountryAlsoMissingID = false
-    let duplicatedRecordIDs = []
-    let rowsWithoutCountry = []
-    let recordsMissingLocalityAlsoMissingID = false
-    let rowsWithoutLocality = []
-    let localityRecordIDMap = {} //a dictionary to map georeferences back to records - to send to textpack
-
-    //read the file and validate - recordID is unique and locality contains data
-    let recordID
-    return new Promise((resolve, reject) => {
-      Papa.parse(targetFile, {
-        step: function(row, parser) {
-          recordID = null
-          totalRows++
-          let country = row.data[requiredFields.countryField].trim()
-          let locality = row.data[requiredFields.localityField].trim()
-          if(!row.data[requiredFields.rowIDField] || !row.data[requiredFields.rowIDField].trim()) {
-            recordIDsMissing = true
-            
-            if(!country){
-              recordsMissingCountryAlsoMissingID = true
-            }
-
-            if(!locality) {
-              recordsMissingLocalityAlsoMissingID = true
-            }
-
-          }
-          else {
-            recordID = row.data[requiredFields.rowIDField].trim().toLowerCase()
-            
-            if(recordsIDs.includes(recordID)) {
-              duplicatedRecordIDs.push(recordIDs)
-            }
-            else {
-              recordIDs.push(recordID)
-            }
-
-            if(!country) {
-              rowsWithoutCountry.push(recordID)
-            }
-            //TODO we need to validate countries also against a master list
-
-            if(!locality) {
-              rowsWithoutLocality.push(recordID)
-            }
-
-            if(country && locality){
-              let cleanedLocality = locality.replace(/\w+/g, ' ')
-              if (cleanedLocality.endsWith('.')){
-                cleanedLocality = cleanedLocality.substring(0, cleanedLocality.length-1)
-              }
-
-              if(!row.data[requiredFields.collectorField] || !row.data[requiredFields.collectorField].trim()) {
-                cleanedLocality += ' -- ' + row.data[requiredFields.collectorField].trim()
-              }
-
-              //add to the dictionary
-              if(localityRecordIDMap[country]){
-                if(localityRecordIDMap[country][cleanedLocality]){
-                  localityRecordIDMap[country][cleanedLocality].push(recordID)
-                }
-                else {
-                  localityRecordIDMap[country][cleanedLocality] = [recordID]
-                }
-              }
-              else {
-                localityRecordIDMap[country] = {}
-                localityRecordIDMap[country][cleanedLocality] = [recordID]
-              }
-            }
-          }  
-        },
-        complete: function() {
-          console.log("All done parsing file!");
-          let result = {
-            totalRows,
-            recordIDsMissing,
-            recordsMissingCountryAlsoMissingID,
-            duplicatedRecordIDs,
-            rowsWithoutCountry,
-            recordsMissingLocalityAlsoMissingID,
-            rowsWithoutLocality,
-            localityRecordIDMap
-          }
-          resolve(result)
-        },
-        error(err){
-          reject(new Error(`error reading file: ${err.message}`))
-        }
-      });
-    })
+  const contentModalOkay = async () =>{
+    goAheadAndUpload = true
   }
 
   const uploadFileAndMetadata = async (fileSummary) => {
@@ -214,7 +132,6 @@
 
   const onRequiredFieldsUpdated = async () => {
     try {
-      let fileSummary = await checkFileContents()
       //TODO give message to go ahead or not based on file contents
       //if go ahead then
       await uploadFileAndMetadata(fileSummary)

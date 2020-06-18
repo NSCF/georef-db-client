@@ -5,8 +5,6 @@ import 'firebase/database'
 //import 'firebase/firebase-functions'
 import 'firebase/firebase-storage'
 
-console.log(Object.keys(firebase))
-
 const firebaseConfig = {
   apiKey: "AIzaSyBwK_DbeqcjfjRbqlZcrYnFYMn8GmbarHQ",
   authDomain: "georef-745b9.firebaseapp.com",
@@ -18,8 +16,6 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-
-console.log(Object.keys(firebase))
 
 const Realtime = firebase.database()
 const Firestore = firebase.firestore()

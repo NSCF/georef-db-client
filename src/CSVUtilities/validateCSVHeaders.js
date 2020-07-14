@@ -1,6 +1,9 @@
+
+
 import Papa from 'papaparse'
-import validateFields from './validateDarwinCoreFields.js'
-import getDWCTerms from './parseDWCReference.js'
+import validateFields from '../dwcUtilities/validateDarwinCoreTerms.js'
+import getDWCTerms from '../dwcUtilities/getDWCTerms.js'
+
 
 let readHeadersAndValidate = async (targetFile) => {
 

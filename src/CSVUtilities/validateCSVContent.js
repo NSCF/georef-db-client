@@ -27,6 +27,7 @@ let validateCSVContent = (targetFile, requiredFields) => {
           
           if(!country){
             recordsMissingCountryAlsoMissingID = true
+            
           }
 
           if(!locality) {

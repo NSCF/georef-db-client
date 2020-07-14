@@ -1,12 +1,7 @@
 <script>
-import { getContext } from 'svelte';
-import Select from 'svelte-select';
 
-export let validation
-
-const { close } = getContext('simple-modal');
-export let onOkay = () => {};
-
+export let validationResult
+export let requiredFields
 
 let darwinCoreFields = []
 let notDarwinCore
@@ -84,9 +79,9 @@ function _onCancel() {
   otherFields = undefined
   possibleIdentifierFields = undefined
 
+  recordIDfield = undefined
   countryField = undefined
   localityField = undefined
-  recordIDfield = undefined
   collectorField = undefined
 
   includesCountry = undefined
@@ -210,7 +205,6 @@ function checkRequiredFields(){
   else if (darwinCoreFields.includes('dwc:recordedBy')){
     collectorField = 'dwc:recordedBy'
   }
-
   console.log('all done checking fields')
 }
 

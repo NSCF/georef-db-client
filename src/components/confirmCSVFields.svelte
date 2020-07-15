@@ -1,7 +1,9 @@
 <script>
-
+import { createEventDispatcher } from 'svelte';
 import Select from 'svelte-select';
 import validateCSVHeaders from '../CSVUtilities/validateCSVHeaders.js'
+
+const dispatch = createEventDispatcher();
 
 export let file
 
@@ -18,9 +20,9 @@ let possibleIdentifierFields
 // ||s indicate options in order of preference, one is required 
 //not ideal that this is hard coded here but thats what it is for now. 
 let requiredFieldsList = [
+  {key: 'recordIDField', targetfields: 'dwc:occurrenceID || dwc:eventID || dwc:localityID', required: true},
   {key: 'countryField', targetfields: 'dwc:country', required: true},
   {key: 'localityField', targetfields: 'dwc:verbatimLocality || dwc:locality', required: true},
-  {key: 'recordIDField', targetfields: 'dwc:occurrenceID || dwc:eventID || dwc:localityID', required: true},
   {key: 'collectorsField', targetfields: 'dwc:recordedBy', required: false},
 ]
 
@@ -29,16 +31,17 @@ let requiredFields = { }
 let requiredFieldsMissing = false
 
 //watchers
-$: file, async() => {
-  if(file){
-    console.log('we should be validating the file here')
-    validationResult = await validateCSVHeaders(targetFile)
-  }
-}
+$: validate(file)
 
 $: validationResult, updateVars()
 
 //Methods
+async function validate(targetFile) {
+  if(targetFile){
+    validationResult = await validateCSVHeaders(targetFile)
+  }
+}
+
 function updateVars() {
   
   resetVars()
@@ -74,11 +77,11 @@ function updateVars() {
         }
         else {
           requiredFields[requiredFieldsItem.key] = null
-          requiredFieldsMissing = true
         }
       }
     }
-    console.log(requiredFields)
+
+    checkRequiredFields()
 
     if(!requiredFields['recordIDField']) {
       let catNumField = darwinCoreFields.find(dwc => dwc == 'catalogNumber' || dwc.split(':')[1] == 'catalogNumber')
@@ -101,12 +104,35 @@ function resetVars() {
 
 }
 
-function handleSelect(selectedValue){
-  requiredFields['recordIDField'] = selectedValue.value //TODO I have to $set this
+function handleSelect(ev){
+  requiredFields.recordIDField = ev.detail.value 
+  checkRequiredFields()
 }
 
-function handleNextClick(event){
-  //TODO emit the requiredfields
+function checkRequiredFields(){
+  let isMissing = false
+  for (let requiredFieldsItem of requiredFieldsList) {
+    if(requiredFieldsItem.required) {
+      if (!requiredFields[requiredFieldsItem.key]) {
+        isMissing = true
+        break
+      }
+    }
+  }
+  if(isMissing){
+    requiredFieldsMissing = true
+  }
+  else {
+    requiredFieldsMissing = false
+  }
+}
+
+function handleNextClick(){
+  dispatch('fields-confirmed', requiredFields);
+}
+
+function handleStartOver(){
+  dispatch('fields-confirm-cancelled')
 }
 
 </script>
@@ -151,12 +177,25 @@ function handleNextClick(event){
       {/if}
     {/each}
   {/if}
-  {#if !requiredFieldsMissing && !requiredFields['recordIDfield']}
+  {#if requiredFieldsMissing && !requiredFields['recordIDField']}
     <h4 style="color:tomato">Unique row identifier required</h4>
     <p>Please select a field that uniquely identifies rows in the dataset. Recommended Darwin Core fields are occurrenceID, eventID, or localityID, but other fields like catalog numbers or barcodes can be used as long as they are unique per row</p>
-    <Select items={possibleIdentifierFields} on:select={handleSelect}></Select>
+    <div style="width:500px;text-align:center">
+      <Select items={possibleIdentifierFields} on:select={handleSelect}></Select>
+    </div> 
   {/if}
-  <button disabled={!requiredFields.recordIDField} style="float:right;">Next...</button>
+  {#if !requiredFieldsMissing}
+    <h4>Fields to be used for georeferencing:</h4>
+    {#each requiredFieldsList as requiredFieldsItem}
+      {#if requiredFieldsItem.required}
+        <p>{requiredFieldsItem.key} (required): <i>{requiredFields[requiredFieldsItem.key]}</i></p>
+      {:else}
+        <p>{requiredFieldsItem.key} (recommended): <i>{requiredFields[requiredFieldsItem.key] || 'none'}</i></p>
+      {/if}
+    {/each}
+  {/if}
+  <button disabled={!requiredFields.recordIDField} style="width:200px;float:right;" on:click={handleNextClick}>Next...</button>
+  <button  style="width:200px;float:right;margin-right:20px;" on:click={handleStartOver}>I'll start over</button>
   <div style="clear:both;"/>
 {/if}
 

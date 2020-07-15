@@ -25,6 +25,11 @@ function handleFieldsConfirmed(event){
 	currentPage = 'ConfirmData'
 }
 
+function handleFieldsConfirmCanceled() {
+	fileForGeoref = null
+	currentPage = 'ChooseFile'
+}
+
 </script>
 
 <main>
@@ -34,7 +39,7 @@ function handleFieldsConfirmed(event){
 			<ChooseFile on:file-selected={handleFileSelected} fileMIMETypes={['text/csv', 'application/vnd.ms-excel']}/>
 		{/if}
 		{#if currentPage == 'ConfirmFields'}
-			<ConfirmFields file={fileForGeoref} on:fields-confirmed={handleFieldsConfirmed}/>
+			<ConfirmFields file={fileForGeoref} on:fields-confirmed={handleFieldsConfirmed} on:fields-confirm-cancelled={handleFieldsConfirmCanceled}/>
 		{/if}
 		{#if currentPage == 'WellDone'}
 			<WellDone />

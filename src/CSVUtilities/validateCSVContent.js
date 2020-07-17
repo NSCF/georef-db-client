@@ -1,8 +1,17 @@
 import Papa from 'papaparse'
-import convert from 'xml-js'
 
 let validateCSVContent = (targetFile, requiredFields) => {
   return new Promise((resolve, reject) => {
+
+    if (!targetFile){
+      reject('file data required')
+      return
+    }
+
+    if(!requiredFields){
+      reject('required fields object must be provided')
+      return
+    }
 
     //just some cleaning/validation
     Object.keys(requiredFields).forEach(key => {
@@ -16,11 +25,12 @@ let validateCSVContent = (targetFile, requiredFields) => {
 
     if(!requiredFields.recordIDField || !requiredFields.countryField || !requiredFields.localityField){
       reject('required fields not provided')
+      return
     }
     
     //otherwise let's get going....
     let totalRows = 0
-    let recordIDs = []
+    let uniqueRecordIDs = []
     let recordIDsMissing = false
     let recordsMissingCountryAlsoMissingID = false
     let duplicatedRecordIDs = []
@@ -28,97 +38,89 @@ let validateCSVContent = (targetFile, requiredFields) => {
     let recordsMissingLocalityAlsoMissingID = false
     let rowsWithoutLocality = []
     let localityRecordIDMap = {} //a dictionary to map georeferences back to records - to send to textpack
-
-    //we use TGN country names as the standard
-    let countries = new Set()
+    let countriesSummary = {}
 
     let recordID, country, locality
-    Papa.parse(targetFile, {
-      step: function(row, parser) {
+    Papa.parse(targetFile, { header: true,
+      step: function(row) {
         totalRows++
         
         recordID = row.data[requiredFields.recordIDField]
         if(recordID && recordID.trim()) {
           recordID = recordID.trim()
+          row.data[requiredFields.recordIDField] = recordID
         }
         else {
-          recordID = null
+          row.data[requiredFields.recordIDField] = null
+          recordIDsMissing = true
         }
         
         country = row.data[requiredFields.countryField]
         if(country && country.trim()) {
           country = country.trim()
+          row.data[requiredFields.countryField] = country
+          if(countriesSummary[country]){
+            countriesSummary[country]++
+          }
+          else {
+            countriesSummary[country] = 1
+          }
         }
         else {
-          country = null
+          row.data[requiredFields.countryField] = null
+          if(recordID){
+            rowsWithoutCountry.push(recordID)
+          }
+          else {
+            recordsMissingCountryAlsoMissingID = true
+          }
         }
 
         locality = row.data[requiredFields.localityField]
         if(locality && locality.trim()) {
           locality = locality.trim()
+          row.data[requiredFields.localityField] = locality
         }
         else {
-          locality = null
-        }
-
-        if(!recordID) {
-          recordIDsMissing = true
-          
-          if(!country || ! country.trim()){
-            recordsMissingCountryAlsoMissingID = true
-          }
-
-          if(!locality || !locality.trim()) {
-            recordsMissingLocalityAlsoMissingID = true
-          }
-
-        }
-        else {
-          recordID = row.data[requiredFields.rowIDField].trim().toLowerCase()
-          
-          if(recordsIDs.includes(recordID)) {
-            duplicatedRecordIDs.push(recordIDs)
+          row.data[requiredFields.localityField] = null
+          if(recordID){
+            if(!rowsWithoutCountry.includes(recordID)){
+              rowsWithoutLocality.push(recordID)
+            }
           }
           else {
-            recordIDs.push(recordID)
+            recordsMissingLocalityAlsoMissingID = true
+          }
+        }
+
+        if(recordID && country && locality){
+          let localityCollector = locality.replace(/\s+/g, ' ')
+          if (localityCollector.endsWith('.')){
+            localityCollector = localityCollector.substring(0, localityCollector.length-1)
           }
 
-          if(!country || !country.trim()) {
-            rowsWithoutCountry.push(recordID)
-          }
-          else{
-            countries.add(country.trim().toLowerCase())
+          if(requiredFields.collectorField && row.data[requiredFields.collectorField] && row.data[requiredFields.collectorField].trim()) {
+            let collector = row.data[requiredFields.collectorField].trim().replace(/\s+/g, ' ').replace(/\|/g, "; ")
+            localityCollector += ' -- ' + collector
           }
 
-          if(!locality || !locality.trim()) {
-            rowsWithoutLocality.push(recordID)
-          }
-
-          if(recordID && country && locality){
-            let localityCollector = locality.replace(/\w+/g, ' ')
-            if (localityCollector.endsWith('.')){
-              localityCollector = localityCollector.substring(0, localityCollector.length-1)
-            }
-
-            if(requiredFields.collectorField && row.data[requiredFields.collectorField] && row.data[requiredFields.collectorField].trim()) {
-              localityCollector += ' -- ' + row.data[requiredFields.collectorField].trim().replace(/\|/g, "; ")
-            }
-
-            //build the dictionary
-            if(localityRecordIDMap[country]){
-              if(localityRecordIDMap[country][localityCollector]){
-                localityRecordIDMap[country][localityCollector].push(recordID)
-              }
-              else {
-                localityRecordIDMap[country][localityCollector] = [recordID]
-              }
+          //build the dictionary
+          if(localityRecordIDMap[country]){
+            if(localityRecordIDMap[country][localityCollector]){
+              localityRecordIDMap[country][localityCollector].push(recordID)
             }
             else {
-              localityRecordIDMap[country] = {}
               localityRecordIDMap[country][localityCollector] = [recordID]
             }
           }
-        }  
+          else {
+            localityRecordIDMap[country] = {}
+            localityRecordIDMap[country][localityCollector] = [recordID]
+          }
+        }
+
+        recordID = country = locality = null
+        
       },
       complete: function() {
         console.log("All done parsing file!");
@@ -130,7 +132,8 @@ let validateCSVContent = (targetFile, requiredFields) => {
           rowsWithoutCountry,
           recordsMissingLocalityAlsoMissingID,
           rowsWithoutLocality,
-          localityRecordIDMap
+          localityRecordIDMap,
+          countriesSummary
         }
         resolve(result)
       },

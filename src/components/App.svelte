@@ -13,6 +13,7 @@ let currentPage = 'ChooseFile'
 //locals
 let fileForGeoref
 let requiredFields
+let stuffToUpload
 
 //METHODS
 function handleFileSelected(event){
@@ -22,17 +23,18 @@ function handleFileSelected(event){
 }
 
 function handleFieldsConfirmed(event){
-	requiredFields = event.detail.requiredFields
+	requiredFields = event.detail
 	currentPage = 'ConfirmData'
 }
 
 function handleConfirmCanceled() {
-	fileForGeoref = null
+	fileForGeoref = requiredFields = stuffToUpload = null
 	currentPage = 'ChooseFile'
 }
 
-function handleFileContentsConfirmed() {
-		currentPage = 'UploadData'
+function handleFileContentsConfirmed(ev) {
+		stuffToUpload = event.detail
+		currentPage = 'WellDone'
 }
 
 </script>
@@ -47,7 +49,7 @@ function handleFileContentsConfirmed() {
 			<ConfirmFields file={fileForGeoref} on:fields-confirmed={handleFieldsConfirmed} on:fields-confirm-cancelled={handleConfirmCanceled}/>
 		{/if}
 		{#if currentPage == 'ConfirmData'}
-			<ConfirmData file={fileForGeoref} {requiredFields} on:data-confirmed={handleFileContentsConfirmed} on:data-confirm-cancelled={handleConfirmCanceled}/>
+			<ConfirmData file={fileForGeoref} requiredFields={requiredFields} on:data-confirmed={handleFileContentsConfirmed} on:data-confirm-cancelled={handleConfirmCanceled}/>
 		{/if}
 		{#if currentPage == 'WellDone'}
 			<WellDone />

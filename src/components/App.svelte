@@ -1,7 +1,8 @@
 <script>
 import Modal from 'svelte-simple-modal';
 import ChooseFile from './chooseFile.svelte'
-import ConfirmFields from './confirmCSVfields.svelte'
+import ConfirmFields from './confirmCSVFields.svelte'
+import ConfirmData from './confirmCSVData.svelte'
 import WellDone from './welldone.svelte'
 
 //for 'page navigation'
@@ -25,9 +26,13 @@ function handleFieldsConfirmed(event){
 	currentPage = 'ConfirmData'
 }
 
-function handleFieldsConfirmCanceled() {
+function handleConfirmCanceled() {
 	fileForGeoref = null
 	currentPage = 'ChooseFile'
+}
+
+function handleFileContentsConfirmed() {
+		currentPage = 'UploadData'
 }
 
 </script>
@@ -39,7 +44,10 @@ function handleFieldsConfirmCanceled() {
 			<ChooseFile on:file-selected={handleFileSelected} fileMIMETypes={['text/csv', 'application/vnd.ms-excel']}/>
 		{/if}
 		{#if currentPage == 'ConfirmFields'}
-			<ConfirmFields file={fileForGeoref} on:fields-confirmed={handleFieldsConfirmed} on:fields-confirm-cancelled={handleFieldsConfirmCanceled}/>
+			<ConfirmFields file={fileForGeoref} on:fields-confirmed={handleFieldsConfirmed} on:fields-confirm-cancelled={handleConfirmCanceled}/>
+		{/if}
+		{#if currentPage == 'ConfirmData'}
+			<ConfirmData file={fileForGeoref} {requiredFields} on:data-confirmed={handleFileContentsConfirmed} on:data-confirm-cancelled={handleConfirmCanceled}/>
 		{/if}
 		{#if currentPage == 'WellDone'}
 			<WellDone />

@@ -20,6 +20,7 @@ let showMissingCountries = false
 let showMissingCountriesButtonText = 'show'
 let showMissingLocalities = false
 let showMissingLocalitiesButtonText = 'show'
+let showButtonText
 
 //watchers
 $:file, getFileSummary()
@@ -40,15 +41,6 @@ async function checkCountries(){
     let countryNames = Object.keys(fileSummary.countriesSummary)
     if(countryNames.length){
       countriesCheck = await validateCountries(countryNames)
-      //this doesn't really belong here, but it's here for now
-      let georefCountries = Object.keys(fileSummary.localityRecordIDMap)
-      for (const georefCountry of georefCountries){
-        let localityCollectors = Object.keys(fileSummary.localityRecordIDMap[georefCountry])
-        uniqueToGeoreference += localityCollectors.length
-        for (const locCol of localityCollectors){
-          recordsToGeoreference += fileSummary.localityRecordIDMap[georefCountry][locCol].length
-        }
-      }
     }
     else {
       console.log('no countries to check')
@@ -58,9 +50,9 @@ async function checkCountries(){
 
 function handleNextClick(){
   dispatch('data-confirmed', 
-  //TODO - pick up here again
     {
-      somestuff: 'some stuff that we need for the next step'
+      localityRecordIDMap: fileSummary.localityRecordIDMap,
+      countryCodes: countriesCheck.countryCodes
     }
   )
 }

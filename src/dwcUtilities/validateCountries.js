@@ -1,9 +1,6 @@
 
 //uses REST Countries (https://restcountries.eu) as the standard for country names, just because it's accessible and relatively good
 // makes a few changes, eg where country name has brackets
-/*
-require('isomorphic-fetch')
-*/
 
 const validateCountries = async (countriesArray) => {
   //assumes a uniqe list of country names, but just in case not...

@@ -87,6 +87,8 @@ function toEmitOrNotToEmit(file){
   based on https://codepen.io/MSEdgeDev/pen/KzzNaZ
 -->
 <div id="wrapper" class="wrapper">
+  <div>Please note that georeferencing must be done separately for terrestrial, freshwater, and marine localities.</div>
+  <!-- TODO add appropriate warning classes to the above -->
   <div 
     id="fileDropBox"
     class="fileDropBox"
@@ -117,7 +119,8 @@ function toEmitOrNotToEmit(file){
     margin-top:40px;
   }
   .fileDropBox {
-    margin-left:100px;
+    margin:auto;
+    margin-top:100px;
     width: 20em;
     text-align: center;
     color: gray;

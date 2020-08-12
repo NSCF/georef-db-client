@@ -3,17 +3,20 @@ import Modal from 'svelte-simple-modal';
 import ChooseFile from './chooseFile.svelte'
 import ConfirmFields from './confirmCSVFields.svelte'
 import ConfirmData from './confirmCSVData.svelte'
+import RegisterDataset from './registerDataset.svelte'
+import PackAndLoad from './packAndLoad.svelte'
 import WellDone from './welldone.svelte'
 
 //for 'page navigation'
 // do we need a router??????
-let pages = ['ChooseFile', 'ConfirmFields', 'ConfirmData', 'UploadData', 'Georeference' ]
+let pages = ['ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeference' ]
 let currentPage = 'ChooseFile'
 
 //locals
 let fileForGeoref
 let requiredFields
-let stuffToUpload
+let georefInputs
+let datasetDetails
 
 //METHODS
 function handleFileSelected(event){
@@ -33,8 +36,19 @@ function handleConfirmCanceled() {
 }
 
 function handleFileContentsConfirmed(ev) {
-		stuffToUpload = event.detail
-		currentPage = 'WellDone'
+		georefInputs = ev.detail
+		console.log(georefInputs)
+		currentPage = 'RegisterDataset'
+}
+
+function handleRegisterDataset(ev) {
+	datasetDetails = ev.detail
+	console.log(datasetDetails)
+	currentPage = 'UploadData'
+}
+
+function handleUploadComplete(ev){
+	currentPage = 'WellDone'
 }
 
 </script>
@@ -50,6 +64,18 @@ function handleFileContentsConfirmed(ev) {
 		{/if}
 		{#if currentPage == 'ConfirmData'}
 			<ConfirmData file={fileForGeoref} requiredFields={requiredFields} on:data-confirmed={handleFileContentsConfirmed} on:data-confirm-cancelled={handleConfirmCanceled}/>
+		{/if}
+		{#if currentPage == 'RegisterDataset'}
+			<RegisterDataset on:register-dataset={handleRegisterDataset}/>
+		{/if}
+		{#if currentPage == 'UploadData'}
+			<PackAndLoad 
+				localityRecordIDMap={georefInputs.localityRecordIDMap} 
+				countryCodes={georefInputs.countryCodes}
+				{datasetDetails}
+				{fileForGeoref}
+				on:upload-complete={handleUploadComplete}
+			/>
 		{/if}
 		{#if currentPage == 'WellDone'}
 			<WellDone />

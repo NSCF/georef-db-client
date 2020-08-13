@@ -29,7 +29,7 @@ const handleSubmit = _ => {
       email,
       datasetName,
       collectionCode,
-      domain
+      domain: domain.value
   })
 }
 

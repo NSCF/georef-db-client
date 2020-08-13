@@ -87,8 +87,6 @@ function toEmitOrNotToEmit(file){
   based on https://codepen.io/MSEdgeDev/pen/KzzNaZ
 -->
 <div id="wrapper" class="wrapper">
-  <div>Please note that georeferencing must be done separately for terrestrial, freshwater, and marine localities.</div>
-  <!-- TODO add appropriate warning classes to the above -->
   <div 
     id="fileDropBox"
     class="fileDropBox"
@@ -104,6 +102,7 @@ function toEmitOrNotToEmit(file){
   >
     <p>Drag and drop a Darwin Core CSV file here or click to select</p>
   </div>
+  <div class='warning'>Please note that georeferencing must be done separately for terrestrial, freshwater, and marine localities.</div>
 </div>
 <input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
 
@@ -116,11 +115,12 @@ function toEmitOrNotToEmit(file){
  .wrapper {
     width:500px;
     margin:0 auto;
-    margin-top:40px;
+    margin-top:20px;
+
   }
   .fileDropBox {
     margin:auto;
-    margin-top:100px;
+    margin-bottom:20px;
     width: 20em;
     text-align: center;
     color: gray;
@@ -140,5 +140,12 @@ function toEmitOrNotToEmit(file){
 
   .active {
     border: 10px dashed grey;
+  }
+
+  .warning {
+    background-color: #ffd47d;
+    border-radius: 5px;
+    border-width: 20px;
+    border: 2px solid #c98f18;
   }
 </style>

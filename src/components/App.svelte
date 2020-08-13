@@ -19,6 +19,11 @@ let georefInputs
 let datasetDetails
 
 //METHODS
+
+function handleGoToDatasets(ev){
+	currentPage = "datasets"
+}
+
 function handleFileSelected(event){
 	fileForGeoref = event.detail.file
 	console.log('we got file', fileForGeoref.name)
@@ -55,6 +60,8 @@ function handleUploadComplete(ev){
 
 <main>
 	<h1>Welcome to the georeferencer</h1>
+	<button on:click={handleGoToDatasets}>Go to datasets</button>
+	<h2 style="color:#363636">OR</h2>
 	<Modal>
 		{#if currentPage == 'ChooseFile'}
 			<ChooseFile on:file-selected={handleFileSelected} fileMIMETypes={['text/csv', 'application/vnd.ms-excel']}/>

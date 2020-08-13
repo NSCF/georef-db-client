@@ -21,8 +21,10 @@ $: localityGroups, lockAndLoad() //I couldn't help myself...
 $: allDone, dispatch('upload-complete')
 
 const getLocGroups = async () => { 
-  localityGroups = await groupLocalities(localityRecordIDMap, datasetDetails.datasetID, countryCodes)
-  console.log('localitygroups updated')
+  if(localityRecordIDMap){
+    localityGroups = await groupLocalities(localityRecordIDMap, datasetDetails.datasetID, countryCodes)
+    console.log('localitygroups updated')
+  }
 }
 
 const lockAndLoad = async () => {
@@ -40,10 +42,11 @@ const lockAndLoad = async () => {
       datasetDetails.recordsCompleted = 0
       datasetDetails.groupCount = localityGroups.locGroups.length
       datasetDetails.groupsComplete = 0
-      datasetDetails.dateCreated = Firestore.FieldValue.serverTimestamp()
+      datasetDetails.dateCreated = Date.now()
       datasetDetails.lastGeoreference = ''
       datasetDetails.completed = false
       datasetDetails.dateCompleted = null
+      datasetDetails.countriesIncluded = localityGroups.includedCountryCodes
 
       console.log('prepping for data upload')
       let dataLoaders = []
@@ -66,6 +69,9 @@ const lockAndLoad = async () => {
           batch = Firestore.batch() // a new one
           nextCommit += 500
         }
+
+        i++
+
       }
 
       //first is the ref for the dataset doc, second is the snapshot of the file upload

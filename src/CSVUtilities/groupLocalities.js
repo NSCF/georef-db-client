@@ -116,7 +116,8 @@ const groupLocalities = async (localityRecordIDMap, datasetID, countryCodes) => 
     return {
       locGroups,
       failedCalls,
-      totalRecordCount
+      totalRecordCount,
+      includedCountryCodes
     }
       
   } 

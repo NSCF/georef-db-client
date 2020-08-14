@@ -78,10 +78,9 @@ const lockAndLoad = async () => {
       try {
         console.log('saving data')
         let loadResults = await Promise.all(dataLoaders)
-        console.log('uploading file')
-        let fileStorageURL = await loadResults[1].ref().getDownloadURL()
-        console.log('updating dataset record')
-        await loadResults[0].update({ datasetURL: url })
+        let fileStorageURL = await loadResults[1].ref.getDownloadURL()
+        console.log('updating dataset record with file URL')
+        await loadResults[0].update({ datasetURL: fileStorageURL })
         allDone = true
       }
       catch(ex){

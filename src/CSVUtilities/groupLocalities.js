@@ -61,7 +61,8 @@ const groupLocalities = async (localityRecordIDMap, datasetID, countryCodes) => 
             locStringCount: locRecords.length,
             locRecords,
             groupRecordCount, 
-            completed: false
+            completed: false,
+            
           }
 
           locGroups.push(recordGroup)

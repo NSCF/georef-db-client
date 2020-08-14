@@ -1,4 +1,5 @@
 import {  Firestore  } from '../src/firebase.js'
+import groupLocalities from './CSVUtilities/groupLocalities.js'
 
 const testFirebase = async _ => {
 
@@ -29,16 +30,29 @@ const testFirebase = async _ => {
 
 const emptyCollection = async (collection, wherefield, wherevalue) => {
   if(collection) {
-    let counter = 0
+
+    console.log('starting empty collection')
+
+
     let query = Firestore.collection(collection)
     if(wherefield && wherevalue) {
       query = query.where(wherefield, '==', wherevalue)
     }
 
     let snap = await query.get()
-    for (let doc of snap.docs){
-      await doc.ref.delete()
+    let deletes = []
+    let counter = 0
+    let groupSize = 50
+    while (counter < snap.docs.length){
+      deletes.push(snap.docs[counter].ref.delete())
+      if (counter % groupSize == 0 || counter == snap.docs.length - 1){
+        await Promise.all(deletes)
+        deletes = []
+        console.log('deleted some records')
+      }
+
       counter++
+
     }
 
     console.log(`${counter} record${counter > 1? 's' : ''} deleted from '${collection}'`)

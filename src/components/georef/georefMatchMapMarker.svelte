@@ -15,7 +15,8 @@ let marker = new google.maps.Marker({
     fillColor: 'green', 
     fillOpacity: 1,
     strokeColor: 'green'
-  }
+  }, 
+  zIndex: 0
 })
 
 let circle = new google.maps.Circle({
@@ -54,6 +55,7 @@ const updateMarkerDisplay = _ => {
       fillOpacity: 1,
       strokeColor: 'blue'
     })
+    marker.setZIndex(1)
   }
   else {
     marker.setIcon({
@@ -63,6 +65,7 @@ const updateMarkerDisplay = _ => {
       fillOpacity: 1,
       strokeColor: 'green'
     })
+    marker.setZIndex(0)
   }
 }
 

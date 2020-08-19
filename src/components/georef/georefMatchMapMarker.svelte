@@ -5,6 +5,30 @@ import {onDestroy} from 'svelte'
 export let georefIndex
 export let map
 
+const getRadiusM = (accuracy, unit) => {
+  if (!isNaN(accuracy) && 
+    accuracy > 0 &&
+    unit && 
+    unit.trim() && 
+    ['m', 'km', 'mi'].includes(unit.toLowerCase())){
+    unit = unit.trim().toLowerCase()
+    if (unit == 'm'){
+      return accuracy
+    }
+    else  if (unit == 'km') {
+      return accuracy * 1000
+    }
+    else {
+      return Math.round(accuracy / 0.00062137)
+    }
+  }
+  else return 0
+}
+
+let accuracy = $geoRefs.georefArray[georefIndex].accuracy
+let accuracyUnit = $geoRefs.georefArray[georefIndex].accuracyUnit
+let accuracyM = getRadiusM(accuracy, accuracyUnit)
+
 let center = new google.maps.LatLng($geoRefs.georefArray[georefIndex].decimalLatitude, $geoRefs.georefArray[georefIndex].decimalLongitude);
 let marker = new google.maps.Marker({
   position: center,
@@ -19,16 +43,21 @@ let marker = new google.maps.Marker({
   zIndex: 0
 })
 
-let circle = new google.maps.Circle({
-  strokeColor: "#FF0000",
-  strokeOpacity: 0.8,
-  strokeWeight: 2,
-  fillColor: "#FF0000",
-  fillOpacity: 0.2,
-  center,
-  map,
-  radius:$geoRefs.georefArray[georefIndex].radiusM
-});
+let circle 
+
+if(accuracyM){
+  circle = new google.maps.Circle({
+    strokeColor: "#FF0000",
+    strokeOpacity: 0.8,
+    strokeWeight: 2,
+    fillColor: "#FF0000",
+    fillOpacity: 0.2,
+    center,
+    map,
+    radius: accuracyM
+  });
+
+}
 
 marker.addListener('click', _ => {
   
@@ -71,7 +100,9 @@ const updateMarkerDisplay = _ => {
 
 onDestroy( _ => {
   marker.setMap(null)
-  circle.setMap(null)
+  if(circle) {
+    circle.setMap(null)
+  }
 })
 
 </script>

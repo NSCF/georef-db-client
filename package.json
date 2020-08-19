@@ -24,6 +24,7 @@
   "dependencies": {
     "firebase": "^7.14.6",
     "fuse.js": "^6.2.0",
+    "geo-coordinates-parser": "^1.2.5",
     "papaparse": "^5.2.0",
     "shortid": "^2.2.15",
     "sirv-cli": "^0.4.4",

@@ -31,6 +31,7 @@ let georefSources = [
 ]
 
 let formGeoref
+let preEditGeoref //for checking if georefs really edited
 let editable = false
 let newGeoref = false
 
@@ -41,7 +42,7 @@ let selectedSources
 
 let accuracyUnitSelect
 
-$:geoRef, updateFromNewGeoref()
+$: geoRef, updateFromNewGeoref()
 
 $: georefDateOkay = /^(19|20)\d\d-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/.test(formGeoref.georefDate) && new Date(formGeoref.georefDate) < Date.now()
 $: verifiedDateOkay = /^(19|20)\d\d-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/.test(formGeoref.verifiedDate) && new Date(formGeoref.verifiedDate) < Date.now()
@@ -57,7 +58,7 @@ const updateFromNewGeoref = _ => {
   if(geoRef){
     
     formGeoref = geoRef
-    formGeoref.georefID = null
+    preEditGeoref = null
     editable = false
     newGeoref = false
 
@@ -103,11 +104,14 @@ const updateCoords = _ => {
 }
 
 const handleEditClick = _ => {
+  preEditGeoref = Object.assign({}, formGeoref)
+  formGeoref.georefID = null
   editable = true
 }
 
 const handleNewClick = _ => {
   formGeoref = {}
+  preEditGeoref = null
   coordinatesString = ''
   coordinatesError = false
   selectedProtocol = null
@@ -140,7 +144,7 @@ const handleGeorefVerifiedDateCalendarClick = _ => {
   }
 }
 
-const handleFormSubmit = _ => {
+const handleUseGeoref = _ => {
   //this is where validation happens
   let invalidFields = []
 
@@ -159,7 +163,23 @@ const handleFormSubmit = _ => {
     alert(message)
   }
   else {
-    dispatch('set-georef', {geoRef: formGeoref})
+    //first check if it's actually been edited...
+    for (let key of Object.keys(formGeoref)){
+      
+      if (key == 'georefID') {
+        continue
+      }
+
+      if (!preEditGeoref[key] && !formGeoref[key]) {
+        continue
+      }
+
+      if (preEditGeoref[key] != formGeoref[key]){
+        dispatch('set-georef', {geoRef: formGeoref})
+        return;
+      }
+    }
+    dispatch('set-georef', {geoRef: preEditGeoref}) //nothing has changed
   }
 
 }
@@ -169,7 +189,7 @@ const handleFormSubmit = _ => {
 <!-- ############################################## -->
 <!-- HTML -->
 
-<form on:submit|preventDefault={handleFormSubmit}>
+<form on:submit|preventDefault={handleUseGeoref}>
   <div style="text-align:right">
     <span class="material-icons iconbutton"  class:icongrey={!editable} title="Edit"  class:icongreen={editable}  on:click={handleEditClick}>create</span>
     <span class="material-icons iconbutton"  style="font-weight:bold" title="New"  class:icongrey={!newGeoref}  class:icongreen={newGeoref} on:click={handleNewClick}>add</span>

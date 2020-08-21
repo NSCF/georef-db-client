@@ -3,8 +3,6 @@ import { geoRefs } from './georefStore.js'
 import {createEventDispatcher} from 'svelte'
 import MatchListRow from './georefMatchListRow.svelte'
 
-const dispatch = createEventDispatcher();
-
 </script>
 
 <!-- ############################################## -->

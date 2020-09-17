@@ -6,150 +6,19 @@ import MatchList from './georefMatchList.svelte'
 import MatchMap from './georefMatchMap.svelte'
 import GeorefForm from './georefForm.svelte'
 
-import { geoRefs } from './georefStore.js'
-
-import {Firestore} from '../../firebase.js'
-import {onMount} from 'svelte'
-
-let pendingRecordGroup
-let nextFetched = false
-
-let recordGroup = {locRecords: []} //empty to start, to get from Firebase
-let recordGroupRef
-let datsetID = '' //to get from firebase
-let selectedLocs
-
+let datasetID
 let selectedGeoref
 let datasetComplete = false
 
-$: if(nextFetched) {
-  if (recordGroup == null){
-    setCurrentRecordGroup() //we need this because we might have to wait for the next group
-  }
-}
-
-$: incompleteGroupLocs = recordGroup.locRecords.filter(x=>x.completed == false)
-
-$: $geoRefs.currentGeoref, selectedGeoref = $geoRefs.currentGeoref //send it to the form
-
-onMount(async _ => { //TODO update this to maintain a list of available (not locked) groups
-  await fetchNextRecordGroup()
-
-
-})
-
-onDestroy(async _ => {
-  //release the pending record if there is one
-})
-
-const fetchNextRecordGroup = async _ => {
-  console.log('fetching record group from Firestore')
-  
-  nextFetched = false
-  let query = Firestore.collection('recordGroups')
-  .where('completed', '==', false)
-  .where("groupLocked", "==", false)
-  .orderBy("locStringCount", "desc").limit(1)
-
-  let snap = await query.get()
-  if(!snap.empty) {
-    //try to lock it
-    let recordRef = snap.docs[0].ref
-    Firestore.runTransaction(transaction => {
-      return transaction.get(recordRef).then(doc => {
-        let record = doc.data()
-        if(record.groupLocked){ //it was locked since last read
-          return Promise.reject()
-        }
-        else {
-          transaction.update(recordRef, {groupLocked: true})
-          return record
-        }
-      })
-    }).then(record => {
-      //the lock was successful
-      pendingRecordGroup = record
-      nextFetched = true
-    }).catch( async _ => {
-      //the lock was unsuccessful
-      await fetchNextRecordGroup() 
-    })
-  }
-  else {
-    nextFetched = true //even though there isn't one
-    pendingRecordGroup = null
-  }
-}
-
-const setCurrentRecordGroup = _ => {
-  if(nextFetched){
-    if(pendingRecordGroup){
-      recordGroup = pendingRecordGroup
-      pendingRecordGroup = null
-      recordGroup.locRecords.forEach(x => {
-        if (!x.completed){
-          x.complete = false
-        } 
-      })
-      fetchNextRecordGroup() // no await as we assume it will happen in the background while georeferencing this group
-    } 
-    else {
-      datasetComplete = true
-    }
-  }
-}
-
-const handleSelectedLocs = ev => {
-  selectedLocs = ev.detail.selectedLocs
-  //get the geoRefs from Meili for each loc and group into unique, but for now
-  let candidateGeorefs = [
-    {
-      id: 12345,
-      locality: 'Kimberley',
-      decimalLatitude: -28.742523, 
-      decimalLongitude: 24.759596,
-      sources: 'one source | another source',
-      accuracy: 20,
-      accuracyUnit: 'km',
-      clicked: false
-    }, 
-    {
-      locality: 'near Kimberley',
-      decimalLatitude: -28.742523, 
-      decimalLongitude: 24.759596,
-      accuracy: 20,
-      accuracyUnit: 'km',
-      clicked: false
-    }, 
-    {
-      locality: 'Riverton, near Kimberley',
-      decimalLatitude: -28.517959, 
-      decimalLongitude: 24.699433,
-      radiusM: 1000, 
-      accuracy: 1000,
-      accuracyUnit: 'm',
-      clicked: false
-    }, 
-    {
-      locality: '5km N Kimberley',
-      decimalLatitude: -28.696470,  
-      decimalLongitude: 24.755523,
-      radiusM: 2000, 
-      accuracy: 2,
-      accuracyUnit: 'km',
-      clicked: false
-    }
-  ]
-
-  geoRefs.georefArray = candidateGeorefs
-
-}
-
+//NB TODO all this new georef stuff must be delegated to georefRecordGroup
 const handleSetGeoref = async ev => {
   let geoRef = ev.detail.geoRef
+  console.log('got the georef!')
+  /*
   let selectedLocRecordIDs = selectedLocs.reduce((a,b) => [...a, ...b.recordIDs], [])
   if(geoRef.georefID) { //it's an existing georef
     // update the georef on firebase to indicate used in this dataset
+    //TODO sort this out with a many to many
     if(geoRef.assocDatasets[datasetID]){
       geoRef.assocDatasets[datasetID] = [...geoRef.assocDatasets[datasetID], ...selectedLocRecordIDs]
       geoRef.totalAssRecords += selectedLocRecordIDs.length
@@ -194,58 +63,60 @@ const handleSetGeoref = async ev => {
   }
   
 
-
+  */
 }
 
-const markComplete = _ => {
-  selectedLocs.forEach(loc =>loc.completed = true)
-  incompleteGroupLocs = recordGroup.locRecords.filter(x => !x.completed)
-}
-
-const handleBackToDatasets = _ => {
+const handleBackToDatasets =  _ => {
   //TODO
 }
+
 </script>
 
 <!-- ############################################## -->
 {#if !datasetComplete}
   
-  <div class="row">
-    <div class="column">
-      {#if nextFetched}
-        <RecordGroup groupLocs={incompleteGroupLocs} on:selected-locs={handleSelectedLocs}></RecordGroup>
-      {:else }
-        One moment please...
-      {/if}
+  <div class="grid-container">
+    <div class="recordgroup-container">
+      <RecordGroup {datasetID} {selectedGeoref}></RecordGroup>
     </div>
-    <div class="column" style="background-color:#bbb;">
+    <div class="matchlist-container">
       <MatchList />
+    </div>
+    <div class="matchmap-container">
       <MatchMap />
     </div>
-    <div class="column">
+    <div class="georef-form-container">
       <GeorefForm geoRef={selectedGeoref} on:set-georef={handleSetGeoref}/>
     </div>
   </div>
 {:else}
   <div style="text-align:center;margin-top:300px">
-    <h3>All the records for this dataset have been georeferenced</h3>
+    <h3>There are no more records in this dataset</h3>
     <button on:click={handleBackToDatasets}>Back to datasets...</button>
   </div>
 {/if}
 
 <!-- ############################################## -->
 <style>
-* {
-  box-sizing: border-box;
+.grid-container {
+  display: grid;
+  grid-template-columns: 20% auto 20%;
+  grid-column-gap:10px;
 }
 
-.row {
-  display: flex;
+.recordgroup-container {
+  grid-row: 1 / 3
 }
 
-/* Create two equal columns that sits next to each other */
-.column {
-  flex: 30%;
-  padding: 10px;
+.matchlist-container {
+  grid-row: 1 / 2
+}
+
+.matchmap-container {
+  grid-row: 2 / 3
+}
+
+.georef-form-container {
+  grid-row: 1 / 3
 }
 </style>

@@ -6,6 +6,7 @@ import {createEventDispatcher} from 'svelte'
 let dispatch = createEventDispatcher();
 
 export let geoRef
+export let verification
 
 let accuracyUnits = [ 'm', 'km', 'mi']
 
@@ -30,7 +31,7 @@ let georefSources = [
   'NSCF georeference database'
 ]
 
-let formGeoref
+let formGeoref = {}
 let preEditGeoref //for checking if georefs really edited
 let editable = false
 let newGeoref = false
@@ -40,7 +41,7 @@ let coordinatesError = false
 let selectedProtocol
 let selectedSources
 
-let accuracyUnitSelect
+let accuracyUnitSelect = {}
 
 $: geoRef, updateFromNewGeoref()
 
@@ -50,7 +51,6 @@ $: verifiedDateOkay = /^(19|20)\d\d-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/.t
 $: coordinatesString, updateCoords()
 
 $: if(!formGeoref.accuracy) {formGeoref.accuracyUnit = null; accuracyUnitSelect.selectedIndex = "-1"} //resetting if accuracy emptied
-
 $: if(selectedProtocol) {formGeoref.protocol = selectedProtocol.value}
 $: if(selectedSources) {formGeoref.sources = selectedSources.map(x=>x.value).join(' | ')}
 
@@ -58,10 +58,17 @@ const updateFromNewGeoref = _ => {
   if(geoRef){
     
     formGeoref = geoRef
-    preEditGeoref = null
-    editable = false
-    newGeoref = false
-
+    
+    if (!verification) {
+      preEditGeoref = null
+      editable = false
+      newGeoref = false
+    }
+    else {
+      preEditGeoref = Object.assign({},formGeoref)
+      editable = true
+    }
+    
     coordinatesString = geoRef.decimalLatitude + ',' + geoRef.decimalLongitude
 
     if(geoRef.protocol) {
@@ -106,6 +113,9 @@ const updateCoords = _ => {
 const handleEditClick = _ => {
   preEditGeoref = Object.assign({}, formGeoref)
   formGeoref.georefID = null
+  formGeoref.verifiedBy = null
+  formGeoref.verifierRole = null
+  formGeoref.verifiedDate = null
   editable = true
 }
 
@@ -133,7 +143,7 @@ const handleGeorefDateCalendarClick = _ => {
 }
 
 const handleGeorefVerifiedDateCalendarClick = _ => {
-  if(editable) {
+  if(verification) {
     if (formGeoref.verifiedBy && formGeoref.verifiedBy.trim()) {
       let now = new Date()
       formGeoref.verifiedDate = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences
@@ -144,7 +154,7 @@ const handleGeorefVerifiedDateCalendarClick = _ => {
   }
 }
 
-const handleUseGeoref = _ => {
+const handleFormSubmit = _ => {
   //this is where validation happens
   let invalidFields = []
 
@@ -157,6 +167,12 @@ const handleUseGeoref = _ => {
   if(!formGeoref.georefDate) invalidFields.push('georef date')
   if(!formGeoref.protocol) invalidFields.push('protocol')
   if(!formGeoref.sources) invalidFields.push('sources')
+
+  if (verification){
+    if(!formGeoref.verifiedBy) invalidFields.push('verified by')
+    if(!formGeoref.verifierRole) invalidFields.push('verifier role')
+    if(!formGeoref.verifiedDate) invalidFields.push('verified date')
+  }
 
   if(invalidFields.length) {
     let message = 'The following fields are incomplete: ' + invalidFields.join('; ')
@@ -175,13 +191,20 @@ const handleUseGeoref = _ => {
       }
 
       if (preEditGeoref[key] != formGeoref[key]){
-        dispatch('set-georef', {geoRef: formGeoref})
-        return;
+        if(verification) {
+          formGeoref.verified = true
+          dispatch('verify-georef', {geoRef: formGeoref})
+          return;
+        }
+        else {
+          dispatch('set-georef', {geoRef: formGeoref})
+          return;
+        }
       }
     }
-    dispatch('set-georef', {geoRef: preEditGeoref}) //nothing has changed
+    //we assume this would only ever happen with setting georefs and not verifications because we can't here unless the verification fields are complete, and we shouldn't be sending verified records for verification
+    dispatch('set-georef', {geoRef: preEditGeoref}) //nothing has changed and we still need the old ID
   }
-
 }
 
 </script>
@@ -189,11 +212,13 @@ const handleUseGeoref = _ => {
 <!-- ############################################## -->
 <!-- HTML -->
 
-<form on:submit|preventDefault={handleUseGeoref}>
-  <div style="text-align:right">
-    <span class="material-icons iconbutton"  class:icongrey={!editable} title="Edit"  class:icongreen={editable}  on:click={handleEditClick}>create</span>
-    <span class="material-icons iconbutton"  style="font-weight:bold" title="New"  class:icongrey={!newGeoref}  class:icongreen={newGeoref} on:click={handleNewClick}>add</span>
-  </div>
+<form on:submit|preventDefault={handleFormSubmit}>
+  {#if !verification}
+    <div style="text-align:right">
+      <span class="material-icons iconbutton"  class:icongrey={!editable} title="Edit"  class:icongreen={editable}  on:click={handleEditClick}>create</span>
+      <span class="material-icons iconbutton"  style="font-weight:bold" title="New"  class:icongrey={!newGeoref}  class:icongreen={newGeoref} on:click={handleNewClick}>add</span>
+    </div>
+  {/if}
   <div>
     <label for="loc" style="width:100%;text-align:right">locality</label><br/>
     <input class:hasError={editable && !formGeoref.locality} type="text" id="loc" style="width:100%" readonly={!editable} bind:value={formGeoref.locality}/>
@@ -213,6 +238,10 @@ const handleUseGeoref = _ => {
         {/each}
       </select>
     </div>
+  </div>
+  <div>
+    <label for="WKT" style="width:100%;text-align:right"><a href="https://dwc.tdwg.org/terms/#dwc:footprintWKT" target="_blank">georef WKT</a></label>
+    <textarea id="WKT" rows="3" readonly={!editable} bind:value={formGeoref.WKT}/>
   </div>
   <div class="oneliner">
     <label for="datum">datum</label>
@@ -249,13 +278,22 @@ const handleUseGeoref = _ => {
   </div>
   <div class="oneliner">
     <label for="verifiedBy">verified by</label>
-    <input type="text" id="verifiedBy" style="width:50%" readonly={!editable} bind:value={formGeoref.verifiedBy}/>
+    <input type="text" id="verifiedBy" style="width:50%" readonly={!verification} bind:value={formGeoref.verifiedBy}/>
+  </div>
+  <div class="oneliner">
+    <label for="verifierRole">datum</label>
+    <input id="verifierRole" class:hasError={verification && !formGeoref.verifierRole} list="verifierRoles" name="verifierRole" style="width:50%" readonly={!verification} bind:value={formGeoref.verifierRole}>
+    <datalist id="verifierRoles">
+      <option value="QC">
+      <option value="curator">
+      <option value="collector">
+    </datalist>
   </div>
   <div class="oneliner">
     <label for="verifiedDate">verified date</label>
     <div class="fields">
       <div class="flex">
-        <input class:hasError={editable && formGeoref.verifiedBy && !verifiedDateOkay} type="text" id="verifiedDate" autocomplete="off" readonly={!editable} bind:value={formGeoref.verifiedDate}/>
+        <input class:hasError={verification && formGeoref.verifiedBy && !verifiedDateOkay} type="text" id="verifiedDate" autocomplete="off" readonly={!verification} bind:value={formGeoref.verifiedDate}/>
         <span class="material-icons calendaricon" on:click={handleGeorefVerifiedDateCalendarClick}>date_range</span>
       </div>
     </div>
@@ -264,15 +302,21 @@ const handleUseGeoref = _ => {
     <label for="remarks" style="width:100%;text-align:right">remarks</label>
     <textarea id="remarks" rows="3" readonly={!editable} bind:value={formGeoref.remarks}/>
   </div>
-  <div style="text-align:center">
-    <button class="georefbutton">Use this georeference</button>
-  </div>
+  {#if verification}
+    <div style="text-align:center">
+      <button class="georefbutton">Save changes</button>
+    </div>
+  {:else}
+    <div style="text-align:center">
+      <button class="georefbutton">Use this georeference</button>
+    </div>
+  {/if}
 </form>
 
 <!-- ############################################## -->
 <style>
 form {
-  width:30vw
+  width:100%
 }
 
 label {
@@ -281,6 +325,10 @@ label {
   text-align: right;
   color:grey;
   font-weight: bolder;
+}
+
+label > a {
+  color:grey;
 }
 
 textarea {
@@ -295,7 +343,7 @@ textarea {
 
 .oneliner > .fields {
   display:inline-block;
-  width:50%
+  width:80%
 }
 .oneliner > .fields > .flex {
   display: flex;

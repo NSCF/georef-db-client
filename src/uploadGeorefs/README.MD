@@ -1,0 +1,1 @@
+This is just a set of utility functions (Node, not svelte) for uploading georeferences to meilisearch from various sources to begin with. Once they are uploaded from these sources, then the main georeference database is on Firebase and if for any reason they need to be uploaded again they should be loaded from there

@@ -4,5 +4,6 @@
 .DS_Store
 
 /src/temp.js
+/src/keys.js
 
 .vscode

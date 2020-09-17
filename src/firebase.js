@@ -20,6 +20,7 @@ firebase.initializeApp(firebaseConfig);
 const Realtime = firebase.database()
 const Firestore = firebase.firestore()
 const Storage = firebase.storage()
+const FieldValue = firebase.firestore.FieldValue
 /*
 const Auth = firebase.auth()
 const Functions = firebase.app().functions('europe-west1')
@@ -29,6 +30,7 @@ const Functions = firebase.app().functions('europe-west1')
 export { 
   Realtime,
   Firestore, 
+  FieldValue,
   //Auth, 
   //Functions, 
   Storage 

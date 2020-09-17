@@ -65,7 +65,30 @@ const emptyCollection = async (collection, wherefield, wherevalue) => {
   }
 }
 
-export default {
+const countRecords = async (collection, wherefield, wherevalue) => {
+  let query = Firestore.collection(collection).where(wherefield, '==', wherevalue)
+  let snap = await query.get()
+  return snap.size
+}
+
+const getRecordGroup = async () => {
+  let query = Firestore.collection('recordGroups')
+  .where('completed', '==', false)
+  .where("groupLocked", "==", false)
+  .orderBy("locStringCount", "desc").limit(1)
+
+  let snap = await query.get()
+  if(snap.empty) {
+    return null
+  }
+  else {
+    return snap.docs[0].data().groupKey + '; count: ' + snap.docs[0].data().groupRecordCount
+  }
+}
+
+export {
+  getRecordGroup,
+  countRecords,
   testFirebase,
   emptyCollection
 }

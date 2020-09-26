@@ -1,0 +1,24 @@
+{
+  "mappings": {
+    "dynamic": false, 
+    "properties": {
+      "domain":  { 
+        "type": "text",
+      	"analyzer": "simple"
+      },
+      "locality":  { 
+        "type": "text",
+        "analyzer": "georefNgram"
+      } 
+    }
+  }, 
+  "settings": {
+    "index.max_ngram_diff": 2,
+    "index.analysis.tokenizer.customNgram.type": "nGram",
+    "index.analysis.tokenizer.customNgram.min_gram": "4",
+    "index.analysis.tokenizer.customNgram.max_gram": "6",
+    "index.analysis.analyzer.georefNgram.type": "custom",
+    "index.analysis.analyzer.georefNgram.filter": "lowercase",
+    "index.analysis.analyzer.georefNgram.tokenizer": "customNgram"
+  }
+}

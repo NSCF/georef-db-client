@@ -1,37 +1,36 @@
-const keys = require('../keys.js')
+const {Client} = require('@elastic/elasticsearch')
 const csv = require('fast-csv')
-const MeiliSearch = require('meilisearch')
 const fs = require('fs');
 const path = require('path');
 const iconv = require('iconv-lite')
 
+const keys = require('../keys.js')
 const brahmsToGeoref = require('./brahmsToGeoref.js');
-const { join } = require('geo-coordinates-parser/testformats');
-
-
-const meiliURL = 'http://134.122.111.44/'
 
 const csvDir = String.raw`C:\Users\engelbrechti\Google Drive\SANBI NSCF\NSCF Data WG\Current projects\Georeferencing tool\Existing georeferences and gazetteers\BODATSA georeferences`
-const csvFile = String.raw`NorthWest_distinct.csv`
-const meiliIndex = 'ZAF-TER'
+const csvFile = String.raw`Swaziland_distinct.csv`
+const domain = 'SWZ-TER'
 
 const originalGeorefSource = 'SANBI BODATSA'
 const protocol = 'SANBI Protocol'
 
 //TODO upload these to Firestore first
 
-const meiliClient = new MeiliSearch({
-  host: meiliURL,
-  apiKey: keys.meili,
+const client = new Client({
+  cloud: {
+    id: keys.elastic.cloudid,
+  },
+  auth: {
+    username: keys.elastic.user,
+    password: keys.elastic.password
+  }
 })
-
-let index = meiliClient.getIndex(meiliIndex)
 
 let csvRecords = []
 let addedRecordCount = 0
 let recordLocStrings = new Map()
 let georefsToAdd = []
-let meiliResponses = []
+
 fs.createReadStream(path.join(csvDir, csvFile))
     .pipe(iconv.decodeStream('win1251'))
     .pipe(iconv.encodeStream('utf-8'))
@@ -41,84 +40,37 @@ fs.createReadStream(path.join(csvDir, csvFile))
       csvRecords.push(record)
     })
     .on('end', async _ => {
-
+      console.log('finished reading file, uploading records')
       for (let csvRecord of csvRecords) {
         let georef = brahmsToGeoref(csvRecord, originalGeorefSource, protocol)
         if(!recordLocStrings.has(georef.locality)){
+          georef['domain'] = domain
           georefsToAdd.push(georef)
           recordLocStrings.set(georef.locality, true)
         }
       }
       
-      let firstInd = 0, lastInd = 100, step = 100
+      let firstInd = 0, step = 100
+      let lastInd = firstInd + step
       while (firstInd < georefsToAdd.length) {
-        let response = await index.addDocuments(georefsToAdd.slice(firstInd, lastInd))
-        meiliResponses.push(response)
-        addedRecordCount += 100
+        let records = georefsToAdd.slice(firstInd, lastInd)
+        let upload = records.flatMap(doc => [{ index: { _index: 'georefs' } }, doc]) //who knows, but see https://www.elastic.co/guide/en/elasticsearch/client/javascript-api/7.x/bulk_examples.html
+        try {
+          await client.bulk({
+            index: 'georefs',
+            refresh: true,
+            body: upload
+          })
+        }
+        catch(err) {
+          console.log('error uploading records', firstInd, 'to', lastInd)
+        }
+        addedRecordCount += records.length
+        console.log('records', firstInd, 'to', addedRecordCount, 'uploaded')
         firstInd += step
         lastInd += step
       }
 
+      console.log(`Sent ${addedRecordCount} georefs to ElasticSearch from ${csvFile}`)
 
-      
-
-      //we need to send the last batch if not sent already
-      if(georefsToAdd.length){
-        let response = await index.addDocuments(georefsToAdd)
-        meiliResponses.push(response)
-        addedRecordCount += georefsToAdd.length
-      }
-
-      console.log(`Sent ${addedRecordCount} georefs to meili from ${csvFile}`)
-      let length = meiliResponses.length //look at meiliResponses
-      let i = 0
     });
-
-const getSearchWords = text => {
-  let words = text.replace(/\s+/g, ' ').replace(/[\.,;]/g, '').split(' ')
-  words = words.map(x=>x.toLowerCase())
-
-  words.sort((a, b) => {
-    return b.length - a.length
-  })
-
-  let remove = ['the', 'on', 'in', 'at', 'along', 'a', 'by']
-
-  let words = words.filter(x => !remove.includes(x))
-
-  let joinbackwords = ['dist','distr', 'district', 'distrik', 'national', 'nature', 'park', 'reserve']
-
-  for (let backword of joinbackwords){
-    if(words.includes(backword)){
-      let index = words.indexOf[backword]
-      if(index > 0){
-        words[index] = words[index - 1] + ' ' + backword
-        words.splice(index - 1,1)
-      }
-    }
-  }
-
-  let joinforwardwords = ['farm']
-
-  for (let forwardword of joinbackwords){
-    if(words.includes(backword)){
-      let index = words.indexOf[backword]
-      if(index > 0){
-        words[index] = words[index - 1] + ' ' + backword
-        words.splice(index - 1,1)
-      }
-    }
-  }
-
-  words = words.filter(onlyUnique)
-
-  let prop = Math.pow(0.92, words.length) + 0.1
-
-  words = words.slice(0, Math.ceil(prop * words.length))
-
-  return words
-}
-
-const onlyUnique = (value, index, self) => { 
-  return self.indexOf(value) === index;
-}

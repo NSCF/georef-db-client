@@ -20,8 +20,8 @@ let possibleIdentifierFields
 // ||s indicate options in order of preference, one is required 
 //not ideal that this is hard coded here but thats what it is for now. 
 let requiredFieldsList = [
-  {key: 'recordIDField', targetfields: 'dwc:occurrenceID || dwc:eventID || dwc:localityID', required: true},
-  {key: 'countryField', targetfields: 'dwc:country', required: true},
+  {key: 'recordIDField', targetfields: 'dwc:occurrenceID', required: true},
+  {key: 'countryField', targetfields: 'dwc:country', required: false},
   {key: 'localityField', targetfields: 'dwc:verbatimLocality || dwc:locality', required: true},
   {key: 'collectorsField', targetfields: 'dwc:recordedBy', required: false},
 ]

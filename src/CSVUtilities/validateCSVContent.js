@@ -23,24 +23,22 @@ let validateCSVContent = (targetFile, requiredFields) => {
       }
     })
 
-    if(!requiredFields.recordIDField || !requiredFields.countryField || !requiredFields.localityField){
+    if(!requiredFields.recordIDField || !requiredFields.localityField){
       reject('required fields not provided')
       return
     }
     
     //otherwise let's get going....
     let totalRows = 0
-    let uniqueRecordIDs = []
+    let uniqueLocalityCollector = 0
+    let recordsToGeoreference = 0
     let recordIDsMissing = false
-    let recordsMissingCountryAlsoMissingID = false
     let duplicatedRecordIDs = []
-    let rowsWithoutCountry = []
     let recordsMissingLocalityAlsoMissingID = false
     let rowsWithoutLocality = []
     let localityRecordIDMap = {} //a dictionary to map georeferences back to records - to send to textpack
-    let countriesSummary = {}
 
-    let recordID, country, locality
+    let recordID, locality
     Papa.parse(targetFile, { header: true,
       step: function(row) {
         totalRows++
@@ -54,27 +52,6 @@ let validateCSVContent = (targetFile, requiredFields) => {
           row.data[requiredFields.recordIDField] = null
           recordIDsMissing = true
         }
-        
-        country = row.data[requiredFields.countryField]
-        if(country && country.trim()) {
-          country = country.trim()
-          row.data[requiredFields.countryField] = country
-          if(countriesSummary[country]){
-            countriesSummary[country]++
-          }
-          else {
-            countriesSummary[country] = 1
-          }
-        }
-        else {
-          row.data[requiredFields.countryField] = null
-          if(recordID){
-            rowsWithoutCountry.push(recordID)
-          }
-          else {
-            recordsMissingCountryAlsoMissingID = true
-          }
-        }
 
         locality = row.data[requiredFields.localityField]
         if(locality && locality.trim()) {
@@ -84,16 +61,14 @@ let validateCSVContent = (targetFile, requiredFields) => {
         else {
           row.data[requiredFields.localityField] = null
           if(recordID){
-            if(!rowsWithoutCountry.includes(recordID)){
-              rowsWithoutLocality.push(recordID)
-            }
+            rowsWithoutLocality.push(recordID)
           }
           else {
             recordsMissingLocalityAlsoMissingID = true
           }
         }
 
-        if(recordID && country && locality){
+        if(recordID && locality){
           let localityCollector = locality.replace(/\s+/g, ' ')
           if (localityCollector.endsWith('.')){
             localityCollector = localityCollector.substring(0, localityCollector.length-1)
@@ -105,35 +80,30 @@ let validateCSVContent = (targetFile, requiredFields) => {
           }
 
           //build the dictionary
-          if(localityRecordIDMap[country]){
-            if(localityRecordIDMap[country][localityCollector]){
-              localityRecordIDMap[country][localityCollector].push(recordID)
-            }
-            else {
-              localityRecordIDMap[country][localityCollector] = [recordID]
-            }
+          if(localityRecordIDMap[localityCollector]){
+            localityRecordIDMap[localityCollector].push(recordID)
+            recordsToGeoreference++
           }
           else {
-            localityRecordIDMap[country] = {}
-            localityRecordIDMap[country][localityCollector] = [recordID]
+            localityRecordIDMap[localityCollector] = [recordID]
+            recordsToGeoreference++
+            uniqueLocalityCollector++
           }
         }
 
-        recordID = country = locality = null
+        recordID = locality = null
         
       },
       complete: function() {
         console.log("All done parsing file!");
         let result = {
           totalRows,
+          recordsToGeoreference,
           recordIDsMissing,
-          recordsMissingCountryAlsoMissingID,
           duplicatedRecordIDs,
-          rowsWithoutCountry,
           recordsMissingLocalityAlsoMissingID,
           rowsWithoutLocality,
           localityRecordIDMap,
-          countriesSummary
         }
         resolve(result)
       },

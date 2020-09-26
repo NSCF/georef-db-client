@@ -1,126 +1,116 @@
-const groupLocalities = async (localityRecordIDMap, datasetID, countryCodes) => {
+const groupLocalities = async (localityRecordIDMap, datasetID) => {
   if(localityRecordIDMap && typeof localityRecordIDMap == 'object' && Object.keys(localityRecordIDMap).length > 0){
     
-    let locGroups = []
-    let failedCalls = 0
-    let groupLocCalls = {}
-    let textPackURL = 'https://us-central1-georefmaps.cloudfunctions.net/grouplocalities '
-
-    let countries = Object.keys(localityRecordIDMap)
-    let includedCountryCodes = []
-    
-    for (let country of countries ){
-      if(countryCodes.hasOwnProperty(country)){ //validated countries only
-        includedCountryCodes.push(countryCodes[country])
-        groupLocCalls[country] = fetch(textPackURL, {
-          method: 'POST', 
-          mode: 'cors',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({localityCollector: Object.keys(localityRecordIDMap[country])}) 
-        });
+    //if it's less that a certain number just return all as a group, no point grouping. These better georeferenced individually
+    //this is a first catch, I've left in the response 400 below just in case...
+    if(Object.keys(localityRecordIDMap).length <= 20) { //
+      let groupLocalities = []
+      let groupRecordCount = 0
+      for (let key of Object.keys(localityRecordIDMap)){
+        groupLocalities.push({
+          loc: key,
+          recordIDs: localityRecordIDMap[key]
+        })
+        groupRecordCount += localityRecordIDMap[key].length
       }
+
+      let group = {
+        datasetID,
+        groupKey = 'All localities',
+        groupLocked: false,
+        locStringCount: groupLocalities.length,
+        groupLocalities,
+        groupRecordCount, 
+        completed: false
+      }
+
+      return [group]
     }
-
+    
+    //else
+    let textPackURL = 'https://us-central1-georefmaps.cloudfunctions.net/grouplocalities '
+    
     console.log('grouping localities')
-    await Promise.all(Object.values(groupLocCalls))
-      //each value is now a response object
+    let response = await fetch(textPackURL, {
+      method: 'POST', 
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({localityCollector: Object.keys(localityRecordIDMap)}) 
+    })
+
+    
     let totalRecordCount = 0
+    if(response.status == 200) {
+      let textpackgroups = await response.json()
+      let georefGroups = []
+      for(let [groupKey, group] of Object.entries(textpackgroups)){
+        //get the recordIDs for each in groupLocs
+        let groupLocalities = []
+        let groupRecordCount = 0
+        for(let loc of group){
+          let recordIDs = localityRecordIDMap[loc]
+          if(recordIDs){
+            groupRecordCount += recordIDs.length
+          }
+          else {
+            let i = 0 //debug, there is a problem
+          }
 
-    for (let [country, prom] of Object.entries(groupLocCalls)) {
-      let response = await prom.then()
-      if(response.status == 200) {
-        let textpackgroups = await response.json()
+          groupLocalities.push({ loc, recordIDs })  
+          loc = recordIDs = null
+        }
         
-        for(let [groupKey, group] of Object.entries(textpackgroups)){
-          //get the recordIDs for each in groupLocs
-          let locRecords = []
-          let groupRecordCount = 0
-          for(let loc of group){
-            let recordIDs = localityRecordIDMap[country][loc]
-            let recordCount
-            if(recordIDs){
-              recordCount = recordIDs.length
-              groupRecordCount += recordCount
-            }
-            else {
-              let i = 0 //there is a problem
-            }
-
-            locRecords.push({ loc, recordIDs, recordCount })  
-            loc = recordIDs = recordCount = null
-          }
-          
-          let recordGroup = {
-            countryCode: countryCodes[country],
-            datasetID,
-            groupKey,
-            groupLocked: false,
-            locStringCount: locRecords.length,
-            locRecords,
-            groupRecordCount, 
-            completed: false,
-            
-          }
-
-          locGroups.push(recordGroup)
-          totalRecordCount += groupRecordCount
-
+        let group = {
+          datasetID,
+          groupKey,
+          groupLocked: false,
+          locStringCount: locRecords.length,
+          groupLocalities,
+          groupRecordCount, 
+          completed: false
         }
+
+        georefGroups.push(group)
+
       }
-      else if (response.status == 400){
-        let body = await response.text()
-        if (body == "It only makes sense to group large numbers of localities"){
-          //then the whole lot is a group
-          let countryCode = countryCodes[country]
-          let locRecords = []
-          let groupRecordCount = 0
-          let countryLocalities = Object.keys(localityRecordIDMap[country])
-          for (let loc of countryLocalities){
-            let recordIDs = localityRecordIDMap[country][loc]
-            let recordCount 
-            if(recordIDs){
-              recordCount = recordIDs.length
-              groupRecordCount += recordCount
-            }
-            else {
-              let i = 0 //there is a problem
-            }
-            locRecords.push({loc, recordIDs, recordCount})
-          }
-
-          let recordGroup = {
-            countryCode,
-            datasetID,
-            groupKey: locRecords[0].loc,
-            groupLocked: false,
-            locStringCount: locRecords.length,
-            locRecords,
-            groupRecordCount, 
-            completed: false
-          }
-
-          locGroups.push(recordGroup)
-          totalRecordCount += groupRecordCount
+      return georefGroups
+    }
+    else if (response.status == 400){
+      let body = await response.text()
+      if (body == "It only makes sense to group large numbers of localities"){
+        //then the whole lot is a group
+        let groupLocalities = []
+        let groupRecordCount = 0
+        for (let key of Object.keys(localityRecordIDMap)){
+          groupLocalities.push({
+            loc: key,
+            recordIDs: localityRecordIDMap[key]
+          })
+          groupRecordCount += localityRecordIDMap[key].length
         }
-        else {
-          failedCalls++
+
+        let group = {
+          datasetID,
+          groupKey = 'All localities',
+          groupLocked: false,
+          locStringCount: groupLocalities.length,
+          groupLocalities,
+          groupRecordCount, 
+          completed: false
         }
+
+        return [group]
       }
       else {
-        failedCalls++
+        throw new Error('call to textpack failed with message: ' + body)
       }
     }
-    
-    return {
-      locGroups,
-      failedCalls,
-      totalRecordCount,
-      includedCountryCodes
+    else {
+      throw new Error('call to textpack failed with status: ' + response.status)
     }
-      
   } 
   else {
     throw new Error('invalid data provided')

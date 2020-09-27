@@ -7,9 +7,17 @@ import RegisterDataset from './registerDataset.svelte'
 import PackAndLoad from './packAndLoad.svelte'
 import WellDone from './welldone.svelte'
 
+import DatasetList from './datasetsListPage.svelte'
+import DatasetDetail from './admin/datasetDetail.svelte'
+
+import Georeferencer from './georef/georef.svelte'
+
 //for 'page navigation'
 // do we need a router??????
 let pages = ['ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeference' ]
+let datasetPages = ['datsetList', 'datasetDetail']
+let georeferencePage = 'georef' //just the one
+
 let currentPage = 'ChooseFile'
 
 //locals
@@ -17,12 +25,23 @@ let fileForGeoref
 let requiredFields
 let georefInputs
 let datasetDetails
+let selectedDataset
+
+//WATCHERS
+$: georefInputs, copyGeorefInputsToClipBoard()
+
+function copyGeorefInputsToClipBoard(){
+	if(georefInputs){
+		var text = JSON.stringify(georefInputs, undefined, 2)
+		navigator.clipboard.writeText(text).then(function() {
+			console.log('Async: Copying to clipboard was successful!');
+		}, function(err) {
+			console.error('Async: Could not copy text: ', err);
+		});
+	}
+}
 
 //METHODS
-
-function handleGoToDatasets(ev){
-	currentPage = "datasets"
-}
 
 function handleFileSelected(event){
 	fileForGeoref = event.detail.file
@@ -56,15 +75,25 @@ function handleUploadComplete(ev){
 	currentPage = 'WellDone'
 }
 
+function handleToDatasets(){
+	currentPage = 'datasetList'
+}
+
+
+function handleDatasetSelected(ev){
+	selectedDataset = ev.detail
+	currentPage='datasetDetail'
+}
+
 </script>
 
 <main>
-	<h1>Welcome to the georeferencer</h1>
-	<button on:click={handleGoToDatasets}>Go to datasets</button>
-	<h2 style="color:#363636">OR</h2>
 	<Modal>
 		{#if currentPage == 'ChooseFile'}
-			<ChooseFile on:file-selected={handleFileSelected} fileMIMETypes={['text/csv', 'application/vnd.ms-excel']}/>
+			<ChooseFile 
+			on:file-selected={handleFileSelected} 
+			on:to-datasets={handleToDatasets}
+			fileMIMETypes={['text/csv', 'application/vnd.ms-excel']}/>
 		{/if}
 		{#if currentPage == 'ConfirmFields'}
 			<ConfirmFields file={fileForGeoref} on:fields-confirmed={handleFieldsConfirmed} on:fields-confirm-cancelled={handleConfirmCanceled}/>
@@ -78,7 +107,6 @@ function handleUploadComplete(ev){
 		{#if currentPage == 'UploadData'}
 			<PackAndLoad 
 				localityRecordIDMap={georefInputs.localityRecordIDMap} 
-				countryCodes={georefInputs.countryCodes}
 				{datasetDetails}
 				{fileForGeoref}
 				on:upload-complete={handleUploadComplete}
@@ -86,6 +114,15 @@ function handleUploadComplete(ev){
 		{/if}
 		{#if currentPage == 'WellDone'}
 			<WellDone />
+		{/if}
+		{#if currentPage == 'datasetList'}
+			<DatasetList on:dataset-selected={handleDatasetSelected}/>
+		{/if}
+		{#if currentPage == 'datasetDetail'}
+			<DatasetDetail dataset={selectedDataset} />
+		{/if}
+		{#if currentPage == 'georef'}
+			<Georeferencer datasetID={selectedDataset.datasetID} />
 		{/if}
 	</Modal>
 	
@@ -99,12 +136,7 @@ function handleUploadComplete(ev){
 		margin: 0 auto;
 	}
 
-	h1 {
-		color: #ff3e00;
-		text-transform: uppercase;
-		font-size: 4em;
-		font-weight: 100;
-	}
+
 
 	@media (min-width: 640px) {
 		main {

@@ -16,9 +16,8 @@ const groupLocalities = async (localityRecordIDMap, datasetID) => {
 
       let group = {
         datasetID,
-        groupKey = 'All localities',
+        groupKey: 'All localities',
         groupLocked: false,
-        locStringCount: groupLocalities.length,
         groupLocalities,
         groupRecordCount, 
         completed: false
@@ -41,13 +40,12 @@ const groupLocalities = async (localityRecordIDMap, datasetID) => {
       body: JSON.stringify({localityCollector: Object.keys(localityRecordIDMap)}) 
     })
 
-    
-    let totalRecordCount = 0
     if(response.status == 200) {
       let textpackgroups = await response.json()
       let georefGroups = []
-      for(let [groupKey, group] of Object.entries(textpackgroups)){
+      for(let groupKey of Object.keys(textpackgroups)){
         //get the recordIDs for each in groupLocs
+        let group = textpackgroups[groupKey]
         let groupLocalities = []
         let groupRecordCount = 0
         for(let loc of group){
@@ -63,17 +61,21 @@ const groupLocalities = async (localityRecordIDMap, datasetID) => {
           loc = recordIDs = null
         }
         
-        let group = {
+        let result = {
           datasetID,
           groupKey,
           groupLocked: false,
-          locStringCount: locRecords.length,
           groupLocalities,
           groupRecordCount, 
           completed: false
         }
 
-        georefGroups.push(group)
+        //for debugging
+        if(result.groupLocalities.length > 1){
+          let i = 0
+        }
+
+        georefGroups.push(result)
 
       }
       return georefGroups
@@ -92,17 +94,16 @@ const groupLocalities = async (localityRecordIDMap, datasetID) => {
           groupRecordCount += localityRecordIDMap[key].length
         }
 
-        let group = {
+        let result = {
           datasetID,
-          groupKey = 'All localities',
+          groupKey: 'All localities',
           groupLocked: false,
-          locStringCount: groupLocalities.length,
           groupLocalities,
           groupRecordCount, 
           completed: false
         }
 
-        return [group]
+        return [result]
       }
       else {
         throw new Error('call to textpack failed with message: ' + body)

@@ -60,6 +60,10 @@ function handleDragDrop(evt){
   toEmitOrNotToEmit(targetFile)
 }
 
+function handleGoToDatasets(ev){
+	dispatch('to-datasets')
+}
+
 //HELPERS
 function toEmitOrNotToEmit(file){
   if(file && (fileMIMETypes.includes(file.type))){
@@ -80,12 +84,17 @@ function toEmitOrNotToEmit(file){
   }
 }
 
+
+
 </script>
 
 <!--##############################################-->
 <!--
   based on https://codepen.io/MSEdgeDev/pen/KzzNaZ
 -->
+<h1>Welcome to the georeferencer</h1>
+<button on:click={handleGoToDatasets}>Go to datasets</button>
+<h2 style="color:#363636">OR</h2>
 <div id="wrapper" class="wrapper">
   <div 
     id="fileDropBox"
@@ -108,10 +117,12 @@ function toEmitOrNotToEmit(file){
 
 <!--##############################################-->
 <style>
-* {
-    font-family: segoe, sans-serif;
-  }
-
+	h1 {
+		color: #ff3e00;
+		text-transform: uppercase;
+		font-size: 4em;
+		font-weight: 100;
+	}
  .wrapper {
     width:500px;
     margin:0 auto;

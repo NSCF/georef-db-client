@@ -85,8 +85,14 @@ function updateVars() {
 
     if(!requiredFields['recordIDField']) {
       let catNumField = darwinCoreFields.find(dwc => dwc == 'catalogNumber' || dwc.split(':')[1] == 'catalogNumber')
-      let optionFields = [catNumField, ...otherFields].filter(field => field && field.trim())
-      possibleIdentifierFields = optionFields.map(f => ({value: f, label: f }))
+      if(otherFields && otherFields.length){
+        let optionFields = [catNumField, ...otherFields].filter(field => field && field.trim())
+        possibleIdentifierFields = optionFields.map(f => ({value: f, label: f }))
+      }
+      else {
+        possibleIdentifierFields = [{value: catNumField, label: catNumField }]
+      }
+      
     }
   }
 }
@@ -143,6 +149,7 @@ function handleStartOver(){
  <!-- TODO what if no internet connection -->
   spinner goes here
 {:else}
+  <h2>Please confirm the fields in your dataset</h2>
   {#if darwinCoreFields && darwinCoreFields.length}
     <h4>Darwin Core fields:</h4>
     <p><i>{darwinCoreFields.join(', ')}</i></p>
@@ -170,16 +177,16 @@ function handleStartOver(){
     {#each requiredFieldsList as requiredFieldsItem}
       {#if !requiredFields[requiredFieldsItem.key]}
         {#if requiredFieldsItem.required}
-          <p>Required: {requiredFieldsItem.targetfields.replace(/\s*\|\|\s*/g, ' OR ')}</p>
+          <p>{requiredFieldsItem.targetfields.replace(/\s*\|\|\s*/g, ' OR ')}</p>
         {:else}
-          <p>Recommended: {requiredFieldsItem.targetfields.replace(/\s*\|\|\s*/g, ' OR ')}</p>
+          <p>{requiredFieldsItem.targetfields.replace(/\s*\|\|\s*/g, ' OR ')}</p>
         {/if}
       {/if}
     {/each}
   {/if}
   {#if requiredFieldsMissing && !requiredFields['recordIDField']}
-    <h4 style="color:tomato">Unique row identifier required</h4>
-    <p>Please select a field that uniquely identifies rows in the dataset. Recommended Darwin Core fields are occurrenceID, eventID, or localityID, but other fields like catalog numbers or barcodes can be used as long as they are unique per row</p>
+    <h3 style="color:tomato">A unique row identifier field is required</h3>
+    <p>Please select a field that uniquely identifies rows in the dataset. Recommended Darwin Core fields are occurrenceID and catalogNumber, but other fields like can be used as long as they are unique per row</p>
     <div style="width:500px;text-align:center">
       <Select items={possibleIdentifierFields} on:select={handleSelect}></Select>
     </div> 
@@ -195,11 +202,18 @@ function handleStartOver(){
     {/each}
   {/if}
   <button disabled={!requiredFields.recordIDField} style="width:200px;float:right;" on:click={handleNextClick}>Next...</button>
-  <button  style="width:200px;float:right;margin-right:20px;" on:click={handleStartOver}>I'll start over</button>
+  {#if requiredFieldsMissing}
+    <button  style="width:200px;float:right;margin-right:20px;" on:click={handleStartOver}>I'll start over</button>
+  {/if}
   <div style="clear:both;"/>
 {/if}
 
 <!-- ############################################################# -->
 <style>
-
+h2 {
+		color: #ff3e00;
+		text-transform: uppercase;
+		font-size: 2em;
+		font-weight: 100;
+	}
 </style>

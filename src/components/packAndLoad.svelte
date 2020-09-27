@@ -13,14 +13,27 @@ let localityGroups = undefined
 let errorsInGettingGroups = false
 
 let uploadErrors = false
+let uploadErrorMessage = ''
 let allDone = false
 
 $: localityRecordIDMap, getLocGroups()
 $: localityGroups, lockAndLoad() //I couldn't help myself...
-$: allDone, dispatch('upload-complete')
+$: if(allDone) dispatch('upload-complete')
 
 const getLocGroups = async () => { 
   if(localityRecordIDMap){
+    //first test database permissions, get one group
+    try {
+      console.log('testing Firestore permissions')
+      let res = await Firestore.collection('recordGroups').doc('00aBJzjYjGvXJnZhb67H').get()
+    }
+    catch(err) {
+      console.log(err.message)
+      uploadErrors = true
+      uploadErrorMessage = err.message
+      return
+    }
+
     try {
       localityGroups = await groupLocalities(localityRecordIDMap, datasetDetails.datasetID)
       console.log('localitygroups updated')
@@ -84,6 +97,7 @@ const lockAndLoad = async () => {
     catch(ex){
       console.log("error loading data:", ex.message)
       uploadErrors = true;
+      uploadErrorMessage = ex.message
     }
   }
   //no else here
@@ -93,9 +107,11 @@ const lockAndLoad = async () => {
 
 <!-- ############################################## -->
 <!-- HTML -->
+<h2>One moment please while we process the localities</h2>
 <div>
   {#if uploadErrors}
-    <div>There was a problem with the upload</div>
+    <p>There was a problem with the upload:</p>
+    <p>{uploadErrorMessage}</p>
   {:else}
     We need a spinner here
   {/if}
@@ -103,4 +119,10 @@ const lockAndLoad = async () => {
 
 <!-- ############################################## -->
 <style>
+h2 {
+		color: #ff3e00;
+		text-transform: uppercase;
+		font-size: 2em;
+		font-weight: 100;
+	}
 </style>

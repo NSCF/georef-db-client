@@ -1,6 +1,8 @@
 <script>
-import {onMount} from 'svelte'
+import {onMount, createEventDispatcher} from 'svelte'
 import { Firestore } from '../../firebase.js'
+
+let dispatch = createEventDispatcher()
 
 let datasets = new Promise(resolve => {console.log('initiated datasets')})
 let lastVisible
@@ -68,6 +70,7 @@ const showNext = _ => {
 
 const emitDataset = dataset => {
   console.log('emitting dataset', dataset.datasetID)
+  dispatch('dataset-selected', dataset)
 }
 </script>
 
@@ -80,27 +83,31 @@ const emitDataset = dataset => {
   <div></div><!-- This is needed otherwise the table doesnt show  -->
   <table>
     <tr>
-      {#each tableHeader as key}
-        <th>{key}</th>
-      {/each}
+      <th>Dataset</th> <!-- dataset name-->
+      <th>Collection</th>
+      <th>Region</th>
+      <th>Domain</th>
+      <th>Created</th>
+      <th>Completed</th>
+      <th>Total Records</th>
+      <th>Locality Groups</th>
+      <th>Records Complete</th>
+      <th>Groups Complete</th>
+      <th>Last Georef</th>
     </tr>
     {#each records as dataset}
       <tr class="tr-hover" on:click={emitDataset(dataset)}>
-        {#each tableRowKeys as rowKey, index}
-          {#if index < 5}
-            <td>{dataset[rowKey]}</td>
-          {:else if index == 5}
-            <td>{dataset.countriesIncluded.join(',')}</td>
-          {:else if index == 6}
-            <td>{getLocalDate(dataset.dateCreated)}</td>
-          {:else if index == 7}
-            <td>{getLocalDateTime(dataset.lastGeoreference)}</td>
-          {:else if index == 8}
-            <td>{Math.round(dataset.recordsCompleted / dataset.recordCount * 100)}%</td>
-          {:else}
-            <td>{dataset.dateCompleted ? getLocalDate(dataset.dateCompleted) : ''}</td>
-          {/if}
-        {/each}
+        <td>{dataset.datasetName || null}</td>
+        <td>{dataset.collectionCode || null}</td>
+        <td>{dataset.region || null}</td>
+        <td>{dataset.domain || null}</td>
+        <td>{dataset.dateCreated ? getLocalDate(dataset.dateCreated) : ''}</td>
+        <td>{dataset.completed}</td>
+        <td>{dataset.recordCount}</td>
+        <td>{dataset.groupCount}</td>
+        <td>{dataset.recordsCompleted} ({Math.round(dataset.recordsCompleted / dataset.recordCount * 100)}%)</td>
+        <td>{dataset.groupsComplete} ({Math.round(dataset.groupsComplete / dataset.groupsCount * 100)}%)</td>
+        <td>{dataset.lastGeoreference? getLocalDateTime(dataset.lastGeoreference) : null}</td>
       </tr>
     {/each}
   </table>

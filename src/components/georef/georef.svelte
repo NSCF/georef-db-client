@@ -6,7 +6,7 @@ import MatchList from './georefMatchList.svelte'
 import MatchMap from './georefMatchMap.svelte'
 import GeorefForm from './georefForm.svelte'
 
-let datasetID
+export let datasetID
 let selectedGeoref
 let datasetComplete = false
 

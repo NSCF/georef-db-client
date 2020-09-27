@@ -19,6 +19,7 @@ let showMissingCountriesButtonText = 'show'
 let showMissingLocalities = false
 let showMissingLocalitiesButtonText = 'show'
 let showButtonText
+let showDuplicateRecordIDs = false
 
 //watchers
 $:file, getFileSummary()
@@ -30,6 +31,10 @@ $:if(showMissingCountries) {
 
 async function getFileSummary(){
   fileSummary = await validateCSVContent(file, requiredFields)
+}
+
+function toggleShowDuplicatesRecordIDs() {
+  showDuplicateRecordIDs = !showDuplicateRecordIDs
 }
 
 function handleNextClick(){
@@ -51,19 +56,32 @@ function handleStartOver(){
 {#if !fileSummary}
   Another spinner here
 {:else}
-  <h2>File summary:</h2>
+  <h2>Please check your file summary before proceeding:</h2>
   <h4>This file contains {fileSummary.totalRows} records</h4>
   <h4>{fileSummary.recordsToGeoreference} (~{Math.round(fileSummary.recordsToGeoreference/fileSummary.totalRows * 100)}%) qualify for georeferencing</h4>
-  <h4>There are {fileSummary.uniqueLocalityCollector} unique locality{requiredFields.collectorField? '/collector': ''} values that will be grouped during georeferencing</h4>
-  {#if fileSummary.uniqueLocalityCollector <= 20}
-    <h4>It doesn't make sense to use bulk georeferencing for this number of localities. Rather start over, extract the unique localities from your dataset and use the manual georeferencing option.</h4>
+  <h3>There are {fileSummary.uniqueLocalityCollectorCount} unique locality{requiredFields.collectorField? '/collector': ''} values that will be grouped during georeferencing</h3>
+  {#if fileSummary.uniqueLocalityCollectorCount <= 20}
+    <p>It doesn't make sense to use bulk georeferencing for this number of localities. Rather start over, extract the unique localities from your dataset and use the manual georeferencing option.</p>
     <button  style="width:200px;float:right;margin-right:20px;" on:click={handleStartOver}>I'll start over</button>
   {:else}
     {#if fileSummary.recordIDsMissing}
       <h3 style="color:tomoto">There are records missing IDs. If you continue rows with no IDs will be discarded</h3>
     {/if}
-    {#if fileSummary.duplicatedRecordIDs}
-      <h3 style="color:tomato">Some record IDs are duplicated. Please ensure every row has a unique ID, otherwise these will be discarded</h3>
+    {#if fileSummary.recordsMissingLocalityAlsoMissingID}
+      <h3 style="color:tomoto">There are records missing IDs AND locality values. If you continue these will be discarded</h3>
+    {/if}
+    {#if fileSummary.duplicatedRecordIDs.length}
+      <h3 style="color:tomato">There are {fileSummary.duplicateRecordCount} duplicated records for {fileSummary.duplicatedRecordIDs.length} recordID values. Please ensure every row has a unique ID, otherwise these will be discarded</h3>
+      <button on:click={toggleShowDuplicatesRecordIDs}>
+        {#if showDuplicateRecordIDs}
+          hide
+        {:else}
+          show
+        {/if}
+      </button>
+      {#if showDuplicateRecordIDs}
+        <p><i>{fileSummary.duplicatedRecordIDs.join('; ')}</i></p>
+      {/if}
     {/if}
     {#if fileSummary.rowsWithoutLocality && fileSummary.rowsWithoutLocality.length}
       {#if fileSummary.rowsWithoutLocality.length <= 20}
@@ -77,6 +95,7 @@ function handleStartOver(){
         {/if}
       {/if}
     {/if}
+    <br/>
     <button disabled={!requiredFields.recordIDField} style="width:200px;float:right;" on:click={handleNextClick}>Next...</button>
     <button  style="width:200px;float:right;margin-right:20px;" on:click={handleStartOver}>I'll start over</button>
     <div style="clear:both;"/>
@@ -86,5 +105,10 @@ function handleStartOver(){
 
 <!-- ############################################################# -->
 <style>
-
+h2 {
+		color: #ff3e00;
+		text-transform: uppercase;
+		font-size: 2em;
+		font-weight: 100;
+	}
 </style>

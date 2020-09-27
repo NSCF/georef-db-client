@@ -15,7 +15,7 @@ const domainOptions = [
 
 let regionOptions
 
-let regionsSelectOptions
+let regionsSelectOptions = []
 
 let contactName
 let email
@@ -31,8 +31,10 @@ $: regionOptions, addRegionSelectOptions()
 $: completed = contactName && email && datasetName && collectionCode && region && domain
 
 onMount(async _ => {
+  console.log('fetch georef regions')
   let snap = await Realtime.ref('settings/georefRegions').once('value')
   regionOptions = snap.val() //its an object where keys are regions and values are countries in those regions
+  console.log('georef regions fetched')
 })
 
 const addRegionSelectOptions = _ => {
@@ -44,10 +46,10 @@ const addRegionSelectOptions = _ => {
         label: key
       })
     }
-    regionsSelectOptions =  opts
+    regionsSelectOptions = opts
   }
   else {
-    regionsSelectOptions = null
+    regionsSelectOptions = []
   }
 }
 
@@ -67,7 +69,8 @@ const handleSubmit = _ => {
 
 <!-- ############################################## -->
 <!-- HTML -->
-
+<h2>Please add the details for this dataset</h2>
+<p>Note that only you and administrators will be able to see the dataset</p>
 <form class="content">
   <label>Contact Name</label>
   <input type="text" bind:value={contactName} />
@@ -78,9 +81,13 @@ const handleSubmit = _ => {
   <label>Dataset name</label>
   <input type="text" bind:value={datasetName} placeholder="e.g. NMSA crabs 2019" />
   <label>Target region</label>
-  <Select items={regionsSelectOptions} bind:selectedValue={region}/>
+  <div style="margin-bottom:0.5em">
+    <Select items={regionsSelectOptions} bind:selectedValue={region}/>
+  </div>
   <label>Domain</label>
-  <Select items={domainOptions} bind:selectedValue={domain}/>
+  <div style="margin-bottom:0.5em">
+    <Select items={domainOptions} bind:selectedValue={domain}/>
+  </div>
   <label>Remarks</label>
   <textarea bind:value={remarks} />
 </form>
@@ -90,6 +97,13 @@ const handleSubmit = _ => {
 <!-- ############################################## -->
 <style>
 
+h2 {
+		color: #ff3e00;
+		text-transform: uppercase;
+		font-size: 2em;
+		font-weight: 100;
+	}
+
 .content {
     display: grid;
     grid-template-columns: 20% 40%;
@@ -97,6 +111,10 @@ const handleSubmit = _ => {
   }
 button {
   float: right;
+}
+
+label {
+  text-align: right
 }
 
 </style>

@@ -30,7 +30,7 @@ const getLocalDateTime = timestamp => {
 }
 
   const handleStartGeoreferencing = _ => {
-    dispatch('start-georeferencing', dataset.datasetID)
+    dispatch('start-georeferencing')
   }
 
   const handleDownloadDataset = async _ => {
@@ -111,7 +111,7 @@ const getLocalDateTime = timestamp => {
   <label>Dataset URL</label>
   <span>{dataset.datasetURL}</span>
 </form>
-<button>Start georeferencing</button>
+<button on:click={handleStartGeoreferencing}>Start georeferencing</button>
 <button>Back to datasets</button>
 <button on:click={handleDownloadDataset}>Download dataset with georeferences</button>
 <button on:click={handleDownloadGeorefs}>Download georeferences only</button>

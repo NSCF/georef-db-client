@@ -1,4 +1,5 @@
 <script>
+import {createEventDispatcher} from 'svelte'
 import shortid from 'shortid'
 
 import RecordGroup from './georefRecordGroup.svelte'
@@ -6,9 +7,29 @@ import MatchList from './georefMatchList.svelte'
 import MatchMap from './georefMatchMap.svelte'
 import GeorefForm from './georefForm.svelte'
 
-export let datasetID
+let dispatch = createEventDispatcher()
+
+export let dataset
+
+let currentRecordGroup = new Promise() //unresolved, to be replaced later
+let currentCandidateGeorefs = new Promise() //ditto
+
+let pendingRecordGroup = new Promise()
+let pendingCandidateGeorefs = new Promise()
+
+let skip = 0 //so we can skip a record group later if we don't want to georeference it
+
 let selectedGeoref
 let datasetComplete = false
+
+onMount(async _ => { 
+  currentRecordGroup = fetchNextRecordGroup(0)
+  pendingRecordGroup = fetchNextRecordGroup(1)
+})
+
+onDestroy(async _ => {
+  //TODO release the pending record if there is one
+})
 
 //NB TODO all this new georef stuff must be delegated to georefRecordGroup
 const handleSetGeoref = async ev => {
@@ -67,7 +88,7 @@ const handleSetGeoref = async ev => {
 }
 
 const handleBackToDatasets =  _ => {
-  //TODO
+  dispatch('back-to-datasets')
 }
 
 </script>
@@ -77,7 +98,8 @@ const handleBackToDatasets =  _ => {
   
   <div class="grid-container">
     <div class="recordgroup-container">
-      <RecordGroup {datasetID} {selectedGeoref}></RecordGroup>
+      <RecordGroup datasetID={dataset.datasetID} {selectedGeoref}></RecordGroup>
+      <button on:click={handleBackToDatasets}>Back to datasets...</button>
     </div>
     <div class="matchlist-container">
       <MatchList />

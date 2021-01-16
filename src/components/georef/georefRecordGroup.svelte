@@ -6,17 +6,14 @@ import shortid from 'shortid'
 
 const dispatch = createEventDispatcher();
 
-export let datasetID = 'WjPG1sfl6' //TODO remove when finalized
+export let datasetID
 export let selectedGeoref
 
-let selectMessage = "Select the items below that represent the same locality and then choose and apply the appropriate georeference to the right"
+let selectMessage = "Select the items below that represent the same locality and then choose and apply the appropriate georeference"
 
-let pendingRecordGroupSnap
-let fetchRecordOffset = 0
-let changesMade = false
 
-let recordGroupSnap
-let recordGroup = {locRecords: []} //empty to start, to get from Firebase
+
+
 
 let incompleteGroupLocs
 
@@ -33,16 +30,93 @@ $: incompleteGroupLocs, toNextOrNotToNext()
 
 $: selectedGeoref, updateLocGeorefs() //this is the heavy lifting
 
-onMount(async _ => { //TODO update this to maintain a list of available (not locked) groups
-  recordGroupSnap = await fetchNextRecordGroup(fetchRecordOffset)
-  console.log('records fetched from firebase')
-  console.log(recordGroup)
-  pendingRecordGroupSnap = fetchNextRecordGroup(fetchRecordOffset)
-})
 
-onDestroy(async _ => {
-  //release the pending record if there is one
-})
+
+const fetchNextRecordGroup = async skip => {
+  console.log('fetching record group from Firestore')
+  
+  let query = Firestore.collection('recordGroups')
+  .where('datasetID', '==', datasetID)
+  .where('completed', '==', false)
+  .where("groupLocked", "==", false)
+  
+  if(skip && skip > 0) {
+    query = query.offset(skip)
+  }
+
+  let snap = await query.get()
+  if(!snap.empty) {
+    //try to lock it
+    let docRef = snap.docs[0].ref
+    try {
+      let success = await Firestore.runTransaction(async transaction => {
+        let docSnap = await transaction.get(docRef)
+        let doc = await docSnap.data()
+        if(doc.groupLocked){ //it was locked since last read
+          return false
+        }
+        else {
+          await transaction.update(docRef, {groupLocked: true})
+          return true
+        }
+      })
+
+      if (!success){
+        return fetchNextRecordGroup() //recursive, I'm really hoping this is right- it would theoretically stop on snap.empty
+      }
+      else {
+        return snap.docs[0].data() //resolve to the data we want
+      }
+    }
+    catch(err) {
+      //Apparently this only happens if we are offline
+      throw err
+    }
+    
+  }
+  else {
+    return null //this signals no more records to georeference
+  }
+}
+
+const fetchCandidateGeorefs = async _ => {
+  if(recordGroup.locRecords && recordGroup.locRecords.length){
+    let georefFetches = []//promise array
+
+    //see https://stackoverflow.com/questions/30003353/can-es6-template-literals-be-substituted-at-runtime-or-reused
+    let search
+    let urltemplate = `\`https://us-central1-georef-745b9.cloudfunctions.net/getlocalities?search=\${search}&index=southernafricater\``
+    const url = t => eval(t)
+    for (let locRecord of recordGroup.locRecords){
+      search = encodeURI(locRecord.loc)
+      georefFetches.push(fetch(url(urltemplate)).then(r => r.json()).catch(err => err))
+    }
+
+    await Promise.all(georefFetches)
+
+    //get the uniques and record who they belong to
+    let georefIndex = {}
+    let uniqueGeorefIDs = new Set()
+    let candidateGeorefs = []
+    for (let [georefs, index] of georefFetches.entries()){
+      georefIndex[index] = georefs.map(x => x['_id']) // this is the georef IDs for each locString
+      for (let georef of georefs){
+        if(!uniqueGeorefIDs.has(georef['_id'])){
+          uniqueGeorefIDs.add(georef['_id'])
+          candidateGeorefs.push(georef)
+        }
+      }
+    }
+
+    candidateGeorefs.sort((a, b) => a['_score'] - b['_score'])
+
+    return {
+      georefIndex,
+      candidateGeorefs
+    }
+    
+  }
+}
 
 const createGeoref = async (georef, datasetID, recordIDs) => {
   let docRef = await Firestore.collection('georefs').add(georef)
@@ -50,6 +124,7 @@ const createGeoref = async (georef, datasetID, recordIDs) => {
     georefID: georef.georefID,
   }
   georefLoc[datasetID] = recordIDs
+
   try{
     await Firestore.collection('georefDatasetRecords').add(georefLoc)
     return Promise.resolve()
@@ -96,39 +171,9 @@ const updateRecordGroup = async _ => {
   }
 }
 
-const fetchNextRecordGroup = async offSet => {
-  console.log('fetching record group from Firestore')
-  
-  let query = Firestore.collection('recordGroups')
-  .where('datasetID', '==', datasetID)
-  .where('completed', '==', false)
-  .where("groupLocked", "==", false)
-  .orderBy("locStringCount", "desc").limit(1)
 
-  if(offSet && offSet > 0){
-    query = query.offset(offSet)
-  }
 
-  let snap = await query.get()
-  if(!snap.empty) {
-    //try to lock it
-    let recordRef = snap.docs[0].ref
-    return Firestore.runTransaction(async transaction => {
-      let nextSnap = await transaction.get(recordRef)
-      let thisRecordGroup = nextSnap.data()
-      if(thisRecordGroup.groupLocked){ //it was locked since last read
-        return Promise.reject()
-      }
-      else {
-        await transaction.update(recordRef, {groupLocked: true})
-        return Promise.resolve(nextSnap) 
-      }
-    })
-  }
-  else {
-    return Promise.resolve()
-  }
-}
+
 
 const handleSelectedLocs = ev => {
   selectedLocs = ev.detail.selectedLocs
@@ -207,7 +252,7 @@ const updateLocGeorefs = _ => { //this is the heavy lifting
       let save = recordGroupSnap.ref.update(recordGroup)
       recordsGroupsSaving.push(save)
       recordGroupSnap = pendingRecordGroupSnap
-      pendingRecordGroupSnap = fetchNextRecordGroup(fetchRecordOffset)
+      pendingRecordGroupSnap = fetchNextRecordGroup(skip)
     }
 
     //This is really important because it executes each in sequence so that we don't try adding 
@@ -228,9 +273,9 @@ const handleSkip = _ => {
     recordsGroupsSaving.push(save)
   }
 
-  fetchRecordOffset++
+  skip++
   recordGroupSnap = pendingRecordGroupSnap
-  pendingRecordGroupSnap = fetchNextRecordGroup(fetchRecordOffset)
+  pendingRecordGroupSnap = fetchNextRecordGroup(skip)
   
 }
 
@@ -245,7 +290,6 @@ const handleSkip = _ => {
   {:then}
     {#if recordGroup}
       {#if incompleteGroupLocs && incompleteGroupLocs.length}
-      
         <p><i>{selectMessage}</i></p>
         <select multiple bind:value={selectedLocs}>
           {#each incompleteGroupLocs as locRecord}

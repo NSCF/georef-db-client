@@ -82,7 +82,16 @@ function handleToDatasets(){
 
 function handleDatasetSelected(ev){
 	selectedDataset = ev.detail
-	currentPage='datasetDetail'
+	currentPage = 'datasetDetail'
+}
+
+function handleStartGeoreferencing(){
+	currentPage = 'georef'
+}
+
+function handleBackToDatasets() {
+	selectedDataset = null
+	currentPage = 'datasetList'
 }
 
 </script>
@@ -119,10 +128,10 @@ function handleDatasetSelected(ev){
 			<DatasetList on:dataset-selected={handleDatasetSelected}/>
 		{/if}
 		{#if currentPage == 'datasetDetail'}
-			<DatasetDetail dataset={selectedDataset} />
+			<DatasetDetail dataset={selectedDataset} on:start-georeferencing={handleStartGeoreferencing}/>
 		{/if}
 		{#if currentPage == 'georef'}
-			<Georeferencer datasetID={selectedDataset.datasetID} />
+			<Georeferencer datasetID={selectedDataset} />
 		{/if}
 	</Modal>
 	

@@ -1,5 +1,5 @@
 <script>
-import { geoRefs } from './georefStore.js'
+import { dataStore } from './dataStore.js'
 
 export let georefIndex
 
@@ -24,9 +24,9 @@ const handleRowClick = _ => {
 <!-- ############################################## -->
 <!-- HTML -->
 
-<tr class:active="{$geoRefs.georefArray[georefIndex].clicked}" on:click={handleRowClick}>
-  {#each Object.keys($geoRefs.georefArray[georefIndex]) as key}
-    <td>{$geoRefs.georefArray[georefIndex][key]}</td>
+<tr class:active="{$dataStore.georefArray[georefIndex].clicked}" on:click={handleRowClick}>
+  {#each Object.keys($dataStore.georefArray[georefIndex]) as key}
+    <td>{$dataStore.georefArray[georefIndex][key]}</td>
   {/each}
 </tr>
 

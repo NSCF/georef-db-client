@@ -56,7 +56,7 @@ const getDatasets = async _ => {
     lastVisible = snap.docs[snap.docs.length-1]
     return Promise.resolve(temp)
   }
-  return Promise.reject()
+  return Promise.reject(new Error('No more datasets'))
 }
 
 const refresh = _ => {
@@ -106,16 +106,17 @@ const emitDataset = dataset => {
         <td>{dataset.recordCount}</td>
         <td>{dataset.groupCount}</td>
         <td>{dataset.recordsCompleted} ({Math.round(dataset.recordsCompleted / dataset.recordCount * 100)}%)</td>
-        <td>{dataset.groupsComplete} ({Math.round(dataset.groupsComplete / dataset.groupsCount * 100)}%)</td>
+        <td>{dataset.groupsComplete} ({Math.round(dataset.groupsComplete / dataset.groupCount * 100)}%)</td>
         <td>{dataset.lastGeoreference? getLocalDateTime(dataset.lastGeoreference) : null}</td>
       </tr>
     {/each}
   </table>
-  <button on:click={refresh} >Start over</button>
-  <button on:click={showNext} >Show next</button>
+  
 {:catch err}
-<p style="color:tomato">{err}</p>
+<p style="color:tomato">{err.message}</p>
 {/await}
+<button on:click={refresh} >Start over</button>
+<button on:click={showNext} >Show next</button>
 
 <!-- ############################################## -->
 <style>

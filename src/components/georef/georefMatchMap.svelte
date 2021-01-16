@@ -1,6 +1,6 @@
 <!-- Note that this depends on having the google maps api script in your index.html file -->
 <script>
-import { geoRefs } from './georefStore.js'
+import { dataStore } from './dataStore.js'
 import {onDestroy, createEventDispatcher} from 'svelte'
 import MapMarker from './georefMatchMapMarker.svelte'
 
@@ -19,11 +19,11 @@ window.initMap = function ready() {
   mapReady = true
 }
 
-$:if ($geoRefs && $geoRefs.georefArray.length && mapReady) setBounds()
+$:if ($dataStore && $dataStore.georefArray.length && mapReady) setBounds()
 
 const setBounds = _ => {
   let bounds = new google.maps.LatLngBounds()
-    for (let geoRef of $geoRefs.georefArray){
+    for (let geoRef of $dataStore.georefArray){
       let center = new google.maps.LatLng(geoRef.decimalLatitude, geoRef.decimalLongitude);
       bounds.extend(center);
     }
@@ -43,7 +43,7 @@ const setBounds = _ => {
 
 <div class="mapview" bind:this={container}>
   {#if map}
-		{#each $geoRefs.georefArray as geoRef, georefIndex}
+		{#each $dataStore.georefArray as geoRef, georefIndex}
       <MapMarker {georefIndex} {map} />
     {/each}
 	{/if}

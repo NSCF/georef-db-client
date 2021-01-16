@@ -5,7 +5,8 @@ import convert from 'geo-coordinates-parser'
 import {createEventDispatcher} from 'svelte'
 let dispatch = createEventDispatcher();
 
-export let geoRef
+import { dataStore } from './dataStore.js'
+
 export let verification
 
 let accuracyUnits = [ 'm', 'km', 'mi']

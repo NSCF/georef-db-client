@@ -93,7 +93,7 @@ function toEmitOrNotToEmit(file){
   based on https://codepen.io/MSEdgeDev/pen/KzzNaZ
 -->
 <h1>Welcome to the georeferencer</h1>
-<button on:click={handleGoToDatasets}>Go to datasets</button>
+<button class="datasets-button" on:click={handleGoToDatasets}><strong>GO TO DATASETS</strong></button>
 <h2 style="color:#363636">OR</h2>
 <div id="wrapper" class="wrapper">
   <div 
@@ -111,7 +111,7 @@ function toEmitOrNotToEmit(file){
   >
     <p>Drag and drop a Darwin Core CSV file here or click to select</p>
   </div>
-  <div class='warning'>Please note that georeferencing must be done separately for terrestrial, freshwater, and marine localities.</div>
+  <div class='warning'><strong>Please note that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine localities</strong></div>
 </div>
 <input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
 
@@ -152,11 +152,21 @@ function toEmitOrNotToEmit(file){
   .active {
     border: 10px dashed grey;
   }
+  .datasets-button {
+    width: 300px;
+    height: 100px;
+    background-color: rgb(109, 190, 196);
+    color: white;
+    font-size: 1.5em;
+    border-radius: 10px;
+    border: 4px solid rgb(8, 66, 70);
+  }
 
   .warning {
     background-color: #ffd47d;
-    border-radius: 5px;
+    color: rgb(110, 145, 145);
+    border-radius: 10px;
     border-width: 20px;
-    border: 2px solid #c98f18;
+    border: 4px solid #c98f18;
   }
 </style>

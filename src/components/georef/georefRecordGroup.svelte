@@ -1,36 +1,43 @@
 <script>
 import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 import { Firestore, FieldValue } from '../../firebase.js'
-import { geoRefs } from './georefStore.js'
+
+import { dataStore } from './dataStore.js'
+
 import shortid from 'shortid'
 
 const dispatch = createEventDispatcher();
 
 export let datasetID
-export let selectedGeoref
 
-let selectMessage = "Select the items below that represent the same locality and then choose and apply the appropriate georeference"
+let notGeoreferenced
+let changesMade = false //a flag for whether to update on the database when skipping or not
 
+$: $dataStore.recordGroup, filterGroupLocalities()
 
-
-
-
-let incompleteGroupLocs
+//filter only those not yet georeferened
+const filterGroupLocalities = _ => {
+  if($dataStore.recordGroup && $dataStore.recordGroup.groupLocalities.length){
+    console.log('filtering records')
+    notGeoreferenced = $dataStore.recordGroup.groupLocalities.filter(x => !x.georefID)
+  }
+  else {
+    notGeoreferenced = null
+  }
+}
 
 let selectedLocs = []
 
 let recordsGroupsSaving = [] //for Promise.all before leaving
 let georefsSaving = []
 
-$: recordGroupSnap, updateRecordGroup()
+//$: recordGroupSnap, updateRecordGroup()
 /*
 $: incompleteGroupLocs = recordGroup.locRecords.filter(x=>!x.completed)
 $: incompleteGroupLocs, toNextOrNotToNext()
 */
 
-$: selectedGeoref, updateLocGeorefs() //this is the heavy lifting
-
-
+//$: selectedGeoref, updateLocGeorefs() //this is the heavy lifting
 
 const fetchNextRecordGroup = async skip => {
   console.log('fetching record group from Firestore')
@@ -171,10 +178,6 @@ const updateRecordGroup = async _ => {
   }
 }
 
-
-
-
-
 const handleSelectedLocs = ev => {
   selectedLocs = ev.detail.selectedLocs
   //get the geoRefs from Meili for each loc and group into unique, but for now
@@ -285,28 +288,20 @@ const handleSkip = _ => {
 <!-- HTML -->
 <div class="select-container">
 <h4>Locality strings</h4>
-  {#await recordGroupSnap}
-    One moment please...
-  {:then}
-    {#if recordGroup}
-      {#if incompleteGroupLocs && incompleteGroupLocs.length}
-        <p><i>{selectMessage}</i></p>
-        <select multiple bind:value={selectedLocs}>
-          {#each incompleteGroupLocs as locRecord}
-            <option value={locRecord}>
-              {locRecord.loc}
-            </option>
-          {/each}
-        </select>
-        <button disabled={selectedLocs.length} on:click={handleSkip}>Skip these for later...</button>
-      {/if}
-    {:else}
-      <p>One moment please...</p>
-    {/if}
-  {/await}
+  {#if notGeoreferenced && notGeoreferenced.length}
+    <p><i>Select the items below that represent the same locality and then choose and apply or create an appropriate georeference</i></p>
+    <select multiple bind:value={selectedLocs}>
+      {#each notGeoreferenced as groupLoc}
+        <option value={groupLoc}>
+          {groupLoc.loc}
+        </option>
+      {/each}
+    </select>
+    <button disabled={selectedLocs.length} on:click={handleSkip}>Skip these for later...</button>
+  {:else}
+    waiting for record group
+  {/if}
 </div>
-
-
 
 <!-- ############################################## -->
 <style>
@@ -319,7 +314,7 @@ const handleSkip = _ => {
 select {
   width:100%;
   height: 500px;
+  white-space:pre-wrap;
 }
-
 
 </style>

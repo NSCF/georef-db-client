@@ -131,7 +131,7 @@ function handleBackToDatasets() {
 			<DatasetDetail dataset={selectedDataset} on:start-georeferencing={handleStartGeoreferencing}/>
 		{/if}
 		{#if currentPage == 'georef'}
-			<Georeferencer datasetID={selectedDataset} />
+			<Georeferencer dataset={selectedDataset} />
 		{/if}
 	</Modal>
 	

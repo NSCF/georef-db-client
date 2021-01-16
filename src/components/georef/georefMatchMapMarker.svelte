@@ -1,5 +1,5 @@
 <script>
-import { geoRefs } from './georefStore.js'
+import { dataStore } from './dataStore.js'
 import {onDestroy} from 'svelte'
 
 export let georefIndex
@@ -25,11 +25,11 @@ const getRadiusM = (accuracy, unit) => {
   else return 0
 }
 
-let accuracy = $geoRefs.georefArray[georefIndex].accuracy
-let accuracyUnit = $geoRefs.georefArray[georefIndex].accuracyUnit
+let accuracy = $dataStore.georefArray[georefIndex].accuracy
+let accuracyUnit = $dataStore.georefArray[georefIndex].accuracyUnit
 let accuracyM = getRadiusM(accuracy, accuracyUnit)
 
-let center = new google.maps.LatLng($geoRefs.georefArray[georefIndex].decimalLatitude, $geoRefs.georefArray[georefIndex].decimalLongitude);
+let center = new google.maps.LatLng($dataStore.georefArray[georefIndex].decimalLatitude, $dataStore.georefArray[georefIndex].decimalLongitude);
 let marker = new google.maps.Marker({
   position: center,
   map, 
@@ -61,22 +61,22 @@ if(accuracyM){
 
 marker.addListener('click', _ => {
   
-  if($geoRefs.georefArray[georefIndex].clicked) {
+  if($dataStore.georefArray[georefIndex].clicked) {
     console.log('you already clicked me')
   }
   else {
-    if($geoRefs.currentGeoref) {
-      $geoRefs.currentGeoref.clicked = false
+    if($dataStore.currentGeoref) {
+      $dataStore.currentGeoref.clicked = false
     }
-    $geoRefs.georefArray[georefIndex].clicked = true
-    $geoRefs.currentGeoref = $geoRefs.georefArray[georefIndex]
+    $dataStore.georefArray[georefIndex].clicked = true
+    $dataStore.currentGeoref = $dataStore.georefArray[georefIndex]
   }     
 })
 
-$: $geoRefs.georefArray[georefIndex], updateMarkerDisplay()
+$: $dataStore.georefArray[georefIndex], updateMarkerDisplay()
 
 const updateMarkerDisplay = _ => {
-  if($geoRefs.georefArray[georefIndex].clicked){
+  if($dataStore.georefArray[georefIndex].clicked){
     marker.setIcon({
       path: google.maps.SymbolPath.CIRCLE,
       scale: 5, 

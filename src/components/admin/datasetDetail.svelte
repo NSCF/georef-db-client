@@ -29,51 +29,104 @@ const getLocalDateTime = timestamp => {
   return dtParts.join(' ')
 }
 
-  const handleStartGeoreferencing = _ => {
-    dispatch('start-georeferencing')
-  }
+const handleStartGeoreferencing = _ => {
+  dispatch('start-georeferencing')
+}
 
-  const handleDownloadDataset = async _ => {
-    //TODO needs comfirmation modal
+const clearLockedRecordGroups = async _ => {
+  //unlock any locked records, needs pagination
+  let first = Firestore.collection('recordGroups')
+  .where('datasetID', '==', dataset.datasetID)
+  .where("groupLocked", "==", true)
+  .limit(100)
+
+  let firstquerysnap = await first.get() //nb this is a querysnapshot and hence snap.docs an array
+  if(!firstquerysnap.empty) {
+    let updateCount = 0
+    const batch = Firestore.batch()
+    for (let docSnap of firstquerysnap.docs){
+      batch.update(docSnap.ref, {groupLocked: false})
+    }
+
+    await batch.commit()
+
+    updateCount += firstquerysnap.docs.length
+
+    let lastSnap = firstquerysnap.docs[firstquerysnap.docs.length - 1]
+    let cont = true
     
-    //test permissions first
-    try {
-      console.log('testing Firestore permissions')
-      let res = await Firestore.collection('recordGroups').doc('00aBJzjYjGvXJnZhb67H').get()
-    }
-    catch(err) {
-      console.log(err.message)
-      downloadErrorMessage = err.message
-      downloadErrors = true
-      return
-    }
+    while(cont){
+      let next = Firestore.collection('recordGroups')
+      .where('datasetID', '==', dataset.datasetID)
+      .where("groupLocked", "==", true)
+      .startAt(lastSnap)
+      .limit(100)
 
-    //fetch the file
-    //fetch the georeferences from Elastic
-    //fetch the recordGroups
-    //join everything up and save to the users computer
-    //mark on Firestore with last download timestamp (who, when and what)
+      let nextquerysnap = await next.get()
+      if(nextquerysnap.empty){
+        cont = false // stop the loop
+      }
+      else {
+        const batch = Firestore.batch()
+        for (let docSnap of nextquerysnap.docs){
+          batch.update(docSnap.ref, {groupLocked: false})
+        }
 
+        await batch.commit()
+
+        updateCount += nextquerysnap.docs.length
+
+        lastSnap = nextquerysnap.docs[nextquerysnap.docs.length - 1]
+      }
+    }
+    alert(`${updateCount} record group${updateCount > 1? 's': ''} unlocked`)
+  }
+  else {
+    alert(`No record groups to unlock`)
+  }
+}
+
+const handleDownloadDataset = async _ => {
+  //TODO needs comfirmation modal
+  
+  //test permissions first
+  try {
+    console.log('fetching dataset')
+    let res = await Firestore.collection('recordGroups').doc(dataset.datasetID).get()
+  }
+  catch(err) {
+    console.log(err.message)
+    downloadErrorMessage = err.message
+    downloadErrors = true
+    return
   }
 
-  const handleDownloadGeorefs = async _ => {
-    //TODO needs comfirmation modal
-    try {
-      console.log('testing Firestore permissions')
-      let res = await Firestore.collection('recordGroups').doc('00aBJzjYjGvXJnZhb67H').get()
-    }
-    catch(err) {
-      console.log(err.message)
-      downloadErrorMessage = err.message
-      downloadErrors = true
-      return
-    }
+  //fetch the file
+  //fetch the georeferences from Elastic
+  //fetch the recordGroups
+  //join everything up and save to the users computer
+  //mark on Firestore with last download timestamp (who, when and what)
 
-    //fetch the georeferences from Elastic
-    //fetch the recordGroups
-    //join everything up and save to the users computer
-    //mark on Firestore with last download timestamp (who, when and what)
+}
+
+const handleDownloadGeorefs = async _ => {
+  //TODO needs comfirmation modal
+  try {
+    console.log('testing Firestore permissions')
+    let res = await Firestore.collection('recordGroups').doc('00aBJzjYjGvXJnZhb67H').get()
   }
+  catch(err) {
+    console.log(err.message)
+    downloadErrorMessage = err.message
+    downloadErrors = true
+    return
+  }
+
+  //fetch the georeferences from Elastic
+  //fetch the recordGroups
+  //join everything up and save to the users computer
+  //mark on Firestore with last download timestamp (who, when and what)
+}
 </script>
 
 <!-- ############################################## -->
@@ -112,6 +165,7 @@ const getLocalDateTime = timestamp => {
   <span>{dataset.datasetURL}</span>
 </form>
 <button on:click={handleStartGeoreferencing}>Start georeferencing</button>
+<button on:click = {clearLockedRecordGroups}>Clear locked record groups</button> <!--TODO add only for admins-->
 <button>Back to datasets</button>
 <button on:click={handleDownloadDataset}>Download dataset with georeferences</button>
 <button on:click={handleDownloadGeorefs}>Download georeferences only</button>

@@ -11,11 +11,12 @@ const dispatch = createEventDispatcher();
 export let datasetID
 
 let notGeoreferenced
+let selectedLocs = []
 let changesMade = false //a flag for whether to update on the database when skipping or not
 
-$: $dataStore.recordGroup, filterGroupLocalities()
-
 //filter only those not yet georeferened
+//canning this for now
+/*
 const filterGroupLocalities = _ => {
   if($dataStore.recordGroup && $dataStore.recordGroup.groupLocalities.length){
     console.log('filtering records')
@@ -25,8 +26,45 @@ const filterGroupLocalities = _ => {
     notGeoreferenced = null
   }
 }
+*/
 
-let selectedLocs = []
+const handleGroupLocClick = (ev, index) => {
+  ev.preventDefault()
+  if(ev.ctrlKey){
+    $dataStore.recordGroup.groupLocalities[index].selected = !$dataStore.recordGroup.groupLocalities[index].selected
+  }
+  else if (ev.shiftKey){
+    let maxSelectedIndex
+    for (let i = 0; i < $dataStore.recordGroup.groupLocalities.length; i++){
+      if ($dataStore.recordGroup.groupLocalities[i].selected){
+        maxSelectedIndex = i
+      }
+    }
+
+    for (let g of $dataStore.recordGroup.groupLocalities){
+      g.selected = false
+    }
+
+    if(maxSelectedIndex< index){
+      [index, maxSelectedIndex] = [maxSelectedIndex, index]
+    }
+
+    if(index < maxSelectedIndex){
+      for (let i = index; i <= maxSelectedIndex; i++){
+        $dataStore.recordGroup.groupLocalities[i].selected = true
+      }
+    }
+    else {
+      $dataStore.recordGroup.groupLocalities[index].selected = true
+    }
+  }
+  else {
+    for (let g of $dataStore.recordGroup.groupLocalities){
+      g.selected = false
+    }
+    $dataStore.recordGroup.groupLocalities[index].selected = true
+  }
+}
 
 let recordsGroupsSaving = [] //for Promise.all before leaving
 let georefsSaving = []
@@ -39,91 +77,6 @@ $: incompleteGroupLocs, toNextOrNotToNext()
 
 //$: selectedGeoref, updateLocGeorefs() //this is the heavy lifting
 
-const fetchNextRecordGroup = async skip => {
-  console.log('fetching record group from Firestore')
-  
-  let query = Firestore.collection('recordGroups')
-  .where('datasetID', '==', datasetID)
-  .where('completed', '==', false)
-  .where("groupLocked", "==", false)
-  
-  if(skip && skip > 0) {
-    query = query.offset(skip)
-  }
-
-  let snap = await query.get()
-  if(!snap.empty) {
-    //try to lock it
-    let docRef = snap.docs[0].ref
-    try {
-      let success = await Firestore.runTransaction(async transaction => {
-        let docSnap = await transaction.get(docRef)
-        let doc = await docSnap.data()
-        if(doc.groupLocked){ //it was locked since last read
-          return false
-        }
-        else {
-          await transaction.update(docRef, {groupLocked: true})
-          return true
-        }
-      })
-
-      if (!success){
-        return fetchNextRecordGroup() //recursive, I'm really hoping this is right- it would theoretically stop on snap.empty
-      }
-      else {
-        return snap.docs[0].data() //resolve to the data we want
-      }
-    }
-    catch(err) {
-      //Apparently this only happens if we are offline
-      throw err
-    }
-    
-  }
-  else {
-    return null //this signals no more records to georeference
-  }
-}
-
-const fetchCandidateGeorefs = async _ => {
-  if(recordGroup.locRecords && recordGroup.locRecords.length){
-    let georefFetches = []//promise array
-
-    //see https://stackoverflow.com/questions/30003353/can-es6-template-literals-be-substituted-at-runtime-or-reused
-    let search
-    let urltemplate = `\`https://us-central1-georef-745b9.cloudfunctions.net/getlocalities?search=\${search}&index=southernafricater\``
-    const url = t => eval(t)
-    for (let locRecord of recordGroup.locRecords){
-      search = encodeURI(locRecord.loc)
-      georefFetches.push(fetch(url(urltemplate)).then(r => r.json()).catch(err => err))
-    }
-
-    await Promise.all(georefFetches)
-
-    //get the uniques and record who they belong to
-    let georefIndex = {}
-    let uniqueGeorefIDs = new Set()
-    let candidateGeorefs = []
-    for (let [georefs, index] of georefFetches.entries()){
-      georefIndex[index] = georefs.map(x => x['_id']) // this is the georef IDs for each locString
-      for (let georef of georefs){
-        if(!uniqueGeorefIDs.has(georef['_id'])){
-          uniqueGeorefIDs.add(georef['_id'])
-          candidateGeorefs.push(georef)
-        }
-      }
-    }
-
-    candidateGeorefs.sort((a, b) => a['_score'] - b['_score'])
-
-    return {
-      georefIndex,
-      candidateGeorefs
-    }
-    
-  }
-}
 
 const createGeoref = async (georef, datasetID, recordIDs) => {
   let docRef = await Firestore.collection('georefs').add(georef)
@@ -270,16 +223,7 @@ const updateLocGeorefs = _ => { //this is the heavy lifting
 }
 
 const handleSkip = _ => {
-  
-  if (changesMade) {
-    let save = Firestore.collection('recordGroups').ref(recordGroupSnap.ref).update(recordGroup)
-    recordsGroupsSaving.push(save)
-  }
-
-  skip++
-  recordGroupSnap = pendingRecordGroupSnap
-  pendingRecordGroupSnap = fetchNextRecordGroup(skip)
-  
+  dispatch('skip-recordgroup')
 }
 
 </script>
@@ -288,15 +232,20 @@ const handleSkip = _ => {
 <!-- HTML -->
 <div class="select-container">
 <h4>Locality strings</h4>
-  {#if notGeoreferenced && notGeoreferenced.length}
+  {#if $dataStore.recordGroup}
     <p><i>Select the items below that represent the same locality and then choose and apply or create an appropriate georeference</i></p>
-    <select multiple bind:value={selectedLocs}>
-      {#each notGeoreferenced as groupLoc}
-        <option value={groupLoc}>
-          {groupLoc.loc}
-        </option>
+    <div class="div-select" >
+      {#each $dataStore.recordGroup.groupLocalities as groupLoc, i}
+        <div hidden={groupLoc.georefID}>
+          <div class:div-selected="{groupLoc.selected}" on:click="{ev => handleGroupLocClick(ev,i)}">
+            <p>{groupLoc.loc}</p>
+          </div>
+          {#if i < $dataStore.recordGroup.groupLocalities.length - 1}
+            <!-- <hr/> -->
+          {/if}
+        </div>
       {/each}
-    </select>
+    </div>
     <button disabled={selectedLocs.length} on:click={handleSkip}>Skip these for later...</button>
   {:else}
     waiting for record group
@@ -311,10 +260,14 @@ const handleSkip = _ => {
   height:100%;
 }
 
-select {
+.div-select {
   width:100%;
   height: 500px;
-  white-space:pre-wrap;
+  overflow:auto;
+}
+
+.div-selected {
+  background-color:aliceblue 
 }
 
 </style>

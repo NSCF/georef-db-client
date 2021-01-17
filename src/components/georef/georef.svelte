@@ -32,11 +32,7 @@ onMount(async _ => {
 })
 
 onDestroy(async _ => {
-  console.log('updating locked recordGroup')
-  await $dataStore.recordGroupRef.update({groupLocked: false})
-  $dataStore.recordGroup = null
-  $dataStore.recordGroupRef = null
-  return
+  await releaseRecordGroup()
 })
 
 const fetchNextRecordGroup = async skip => {
@@ -46,9 +42,10 @@ const fetchNextRecordGroup = async skip => {
   .where('datasetID', '==', dataset.datasetID)
   .where('completed', '==', false)
   .where("groupLocked", "==", false)
+  .orderBy('groupID')
   
   if(skip && skip > 0) {
-    query = query.offset(skip)
+    query = query.startAfter($dataStore.recordGroupSnap)
   }
 
   query = query.limit(1)
@@ -74,7 +71,8 @@ const fetchNextRecordGroup = async skip => {
         fetchNextRecordGroup() //recursive, I'm really hoping this is right- it would theoretically stop on snap.empty
       }
       else {
-        $dataStore.recordGroupRef = docRef
+        console.log('adding data to datastore')
+        $dataStore.recordGroupSnap = snap.docs[0]
         $dataStore.recordGroup = snap.docs[0].data()
       }
     }
@@ -85,25 +83,32 @@ const fetchNextRecordGroup = async skip => {
     
   }
   else {
-    //TODO this signals no more records to georeference
+    //this signals no more records to georeference
+    alert('no more records to georeference in this dataset')
+    $dataStore.recordGroupSnap = null
+    $dataStore.recordGroup = null
+    $dataStore.candidateGeorefs = null
+    $dataStore.selectedGeoref = null
+    dispatch('back-to-datasets')
   }
 }
 
 const fetchCandidateGeorefs = async _ => {
-  if(recordGroup.locRecords && recordGroup.locRecords.length){
+  if($dataStore.recordGroup.locRecords && $dataStore.recordGroup.locRecords.length){
     let georefFetches = []//promise array
 
-    //see https://stackoverflow.com/questions/30003353/can-es6-template-literals-be-substituted-at-runtime-or-reused
-    let search
-    let urltemplate = `\`https://us-central1-georef-745b9.cloudfunctions.net/getlocalities?search=\${search}&index=southernafricater\``
-    const url = t => eval(t)
-    for (let locRecord of recordGroup.locRecords){
-      search = encodeURI(locRecord.loc)
-      georefFetches.push(fetch(url(urltemplate)).then(r => r.json()).catch(err => err))
+    for (let locRecord of $dataStore.recordGroup.locRecords){
+      georefFetches.push(fetchGeorefsForLoc(locRecord.loc))
     }
 
-    await Promise.all(georefFetches)
-
+    try {
+      await Promise.all(georefFetches)
+    }
+    catch(err){
+      alert('err getting georefs:', err.message)
+      return
+    }
+    
     //get the uniques and record who they belong to
     let georefIndex = {}
     let uniqueGeorefIDs = new Set()
@@ -126,6 +131,33 @@ const fetchCandidateGeorefs = async _ => {
     }
     
   }
+}
+
+//just a helper for above
+const fetchGeorefsForLoc = async locString => {
+  search = encodeURI(locString)
+  let url = `https://us-central1-georef-745b9.cloudfunctions.net/getlocalities?search=${search}&index=southernafricater`
+  let response = await fetch(url)
+  let data = await response.json()
+  return data
+}
+
+const releaseRecordGroup = async _ => {
+  if($dataStore.recordGroupSnap.ref){
+    console.log('updating locked recordGroup')
+    await $dataStore.recordGroupSnap.ref.update({groupLocked: false})
+    $dataStore.recordGroup = null
+    $dataStore.candidateGeorefs = null
+    $dataStore.selectedGeoref = null
+  }
+
+  return
+}
+
+const handleSkipRecordGroup = async _ => {
+  await releaseRecordGroup();
+  skip++
+  fetchNextRecordGroup(skip)
 }
 
 //NB TODO all this new georef stuff must be delegated to georefRecordGroup
@@ -184,7 +216,9 @@ const handleSetGeoref = async ev => {
   */
 }
 
-const handleBackToDatasets =  _ => {
+const handleBackToDatasets =  async _ => {
+  await releaseRecordGroup()
+  $dataStore.recordGroupSnap = null
   dispatch('back-to-datasets')
 }
 
@@ -195,7 +229,7 @@ const handleBackToDatasets =  _ => {
   
   <div class="grid-container">
     <div class="recordgroup-container">
-      <RecordGroup datasetID={dataset.datasetID}></RecordGroup>
+      <RecordGroup datasetID={dataset.datasetID} on:skip-recordgroup={handleSkipRecordGroup}></RecordGroup>
       <button on:click={handleBackToDatasets}>Back to datasets...</button>
     </div>
     <!-- <div class="matchlist-container">

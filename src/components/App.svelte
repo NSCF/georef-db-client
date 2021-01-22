@@ -12,6 +12,8 @@ import DatasetDetail from './admin/datasetDetail.svelte'
 
 import Georeferencer from './georef/georef.svelte'
 
+import Yard from './yard.svelte'
+
 //for 'page navigation'
 // do we need a router??????
 let pages = ['ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeference' ]
@@ -94,10 +96,15 @@ function handleBackToDatasets() {
 	currentPage = 'datasetList'
 }
 
+function handleYardClick() {
+	currentPage = 'yard'
+}
+
 </script>
 
 <main>
 	<Modal>
+		<button on:click={handleYardClick}>To to yard</button>
 		{#if currentPage == 'ChooseFile'}
 			<ChooseFile 
 			on:file-selected={handleFileSelected} 
@@ -132,6 +139,9 @@ function handleBackToDatasets() {
 		{/if}
 		{#if currentPage == 'georef'}
 			<Georeferencer dataset={selectedDataset} />
+		{/if}
+		{#if currentPage == 'yard'}
+			<Yard />
 		{/if}
 	</Modal>
 	

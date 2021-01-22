@@ -2,8 +2,10 @@
 import { dataStore } from './dataStore.js'
 import {onDestroy} from 'svelte'
 
-export let georefIndex
+export let georefKey
 export let map
+
+//TODO how to switch these on and off with selections on the recordGroup
 
 const getRadiusM = (accuracy, unit) => {
   if (!isNaN(accuracy) && 
@@ -25,11 +27,11 @@ const getRadiusM = (accuracy, unit) => {
   else return 0
 }
 
-let accuracy = $dataStore.georefArray[georefIndex].accuracy
-let accuracyUnit = $dataStore.georefArray[georefIndex].accuracyUnit
+let accuracy = $dataStore.georefIndex[georefKey].uncertainty
+let accuracyUnit = $dataStore.georefIndex[georefKey].uncertaintyUnit
 let accuracyM = getRadiusM(accuracy, accuracyUnit)
 
-let center = new google.maps.LatLng($dataStore.georefArray[georefIndex].decimalLatitude, $dataStore.georefArray[georefIndex].decimalLongitude);
+let center = new google.maps.LatLng($dataStore.georefIndex[georefKey].decimalLatitude, $dataStore.georefIndex[georefKey].decimalLongitude);
 let marker = new google.maps.Marker({
   position: center,
   map, 
@@ -43,7 +45,7 @@ let marker = new google.maps.Marker({
   zIndex: 0
 })
 
-let circle 
+let circle //yes it needs to be here
 
 if(accuracyM){
   circle = new google.maps.Circle({
@@ -61,40 +63,42 @@ if(accuracyM){
 
 marker.addListener('click', _ => {
   
-  if($dataStore.georefArray[georefIndex].clicked) {
+  if($dataStore.georefIndex[georefKey].selected) {
     console.log('you already clicked me')
   }
   else {
-    if($dataStore.currentGeoref) {
-      $dataStore.currentGeoref.clicked = false
+    if($dataStore.selectedGeoref) {
+      $dataStore.selectedGeoref.selected = false
     }
-    $dataStore.georefArray[georefIndex].clicked = true
-    $dataStore.currentGeoref = $dataStore.georefArray[georefIndex]
-  }     
+    $dataStore.georefIndex[georefKey].selected = true
+    $dataStore.selectedGeoref = $dataStore.georefIndex[georefKey]
+  }    
 })
 
-$: $dataStore.georefArray[georefIndex], updateMarkerDisplay()
+$: $dataStore.selectedGeoref, updateMarkerDisplay()
 
 const updateMarkerDisplay = _ => {
-  if($dataStore.georefArray[georefIndex].clicked){
-    marker.setIcon({
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 5, 
-      fillColor: 'blue', 
-      fillOpacity: 1,
-      strokeColor: 'blue'
-    })
-    marker.setZIndex(1)
-  }
-  else {
-    marker.setIcon({
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 5, 
-      fillColor: 'green', 
-      fillOpacity: 1,
-      strokeColor: 'green'
-    })
-    marker.setZIndex(0)
+  if($dataStore.selectedGeoref){
+    if($dataStore.georefIndex[georefKey].selected){
+      marker.setIcon({
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 5, 
+        fillColor: 'blue', 
+        fillOpacity: 1,
+        strokeColor: 'blue'
+      })
+      marker.setZIndex(1)
+    }
+    else {
+      marker.setIcon({
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 5, 
+        fillColor: 'green', 
+        fillOpacity: 1,
+        strokeColor: 'green'
+      })
+      marker.setZIndex(0)
+    }
   }
 }
 

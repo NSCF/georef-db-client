@@ -1,33 +1,54 @@
 <script>
-import { Firestore, FieldValue } from '../../firebase.js'
+import { Firestore, FieldValue, Realtime as Firebase } from '../../firebase.js'
 import {onMount, onDestroy, createEventDispatcher} from 'svelte'
-import shortid from 'shortid'
+import { nanoid } from "nanoid/nanoid.js" //see https://github.com/ai/nanoid/issues/237
+
+import {
+    fetchAdmins, 
+    updateGeorefStats,
+    updateDatasetStats, 
+    fetchCandidateGeorefs
+  } from './georefFuncs.js'
 
 import { dataStore } from './dataStore.js'
 
 import RecordGroup from './georefRecordGroup.svelte'
-/*
 import MatchList from './georefMatchList.svelte'
 import MatchMap from './georefMatchMap.svelte'
 import GeorefForm from './georefForm.svelte'
-*/
+
+//some mock values for now
+let userID = 'iansuserid'
+let userName ='Engelbrecht, I.'
+let datasetRef = Firestore.collection('datasets').doc('9jp8aFSneKuDjjfOuJhR')
 
 let dispatch = createEventDispatcher()
 
 export let dataset
 
-let skip = 0 //so we can skip a record group later if we don't want to georeference it
 
-let selectedGeoref
-let datasetComplete = false
+let elasticindex
+
+let selectedLocGeorefRemarks
+
+let georefsAdded = 0 //this is the number of locality strings georeferenced
+let recordsGeoreferenced = 0 //this is the number of associated records georeferenced
+let datasetComplete = false //a flag to take us back to the datasets when this one is complete
+
+let selectedCount 
+$: if($dataStore.recordGroup){
+  selectedCount = $dataStore.recordGroup.groupLocalities.filter(x=>x.selected).length
+}
 
 onMount(async _ => { 
   try {
-    fetchNextRecordGroup(skip)
+    fetchNextRecordGroup(0)
   }
   catch(err){//only if offline
   //TODO handle error
   }
+
+  elasticindex = dataset.region.toLowerCase().replace(/\s+/g, '') + dataset.domain.toLowerCase()
   
 })
 
@@ -35,8 +56,15 @@ onDestroy(async _ => {
   await releaseRecordGroup()
 })
 
-const fetchNextRecordGroup = async skip => {
+const fetchNextRecordGroup = async lastSnap => {
   console.log('fetching record group from Firestore')
+
+  //let try clearning the datastore here because everthing gets reset
+  $dataStore.recordGroup = null
+  $dataStore.recordGroupSnap = null
+  $dataStore.georefIndex = null
+  $dataStore.locGeorefIndex = null
+  $dataStore.selectedGeoref = null
   
   let query = Firestore.collection('recordGroups')
   .where('datasetID', '==', dataset.datasetID)
@@ -44,8 +72,8 @@ const fetchNextRecordGroup = async skip => {
   .where("groupLocked", "==", false)
   .orderBy('groupID')
   
-  if(skip && skip > 0) {
-    query = query.startAfter($dataStore.recordGroupSnap)
+  if(lastSnap) {
+    query = query.startAfter(lastSnap)
   }
 
   query = query.limit(1)
@@ -68,19 +96,40 @@ const fetchNextRecordGroup = async skip => {
       })
 
       if (!success){
+        console.log('trying for recordgroup again')
         fetchNextRecordGroup() //recursive, I'm really hoping this is right- it would theoretically stop on snap.empty
       }
       else {
         console.log('adding data to datastore')
-        $dataStore.recordGroupSnap = snap.docs[0]
+        $dataStore.recordGroupSnap = snap.docs[0] 
         $dataStore.recordGroup = snap.docs[0].data()
+
+        //add keys to the record group locs
+        for (let loc of $dataStore.recordGroup.groupLocalities){
+          if(!loc.id){
+            loc.id = nanoid()
+          }
+        }
+
+        georefsAdded = 0
+        recordsGeoreferenced = 0
+        
+        console.log('fetching georefs')
+        try {
+          let candidateGeorefs = await fetchCandidateGeorefs($dataStore.recordGroup.groupLocalities, elasticindex)
+          $dataStore.georefIndex = candidateGeorefs.georefIndex
+          $dataStore.locGeorefIndex =  candidateGeorefs.locGeorefIndex
+        }
+        catch(err) {
+          console.log('error fetching georefs:', err.message)
+          alert('fetching georeferences failed')
+        }
       }
     }
     catch(err) {
       //Apparently this only happens if we are offline
       throw err
     }
-    
   }
   else {
     //this signals no more records to georeference
@@ -89,158 +138,257 @@ const fetchNextRecordGroup = async skip => {
     $dataStore.recordGroup = null
     $dataStore.candidateGeorefs = null
     $dataStore.selectedGeoref = null
-    dispatch('back-to-datasets')
+    datasetComplete = true
   }
-}
-
-const fetchCandidateGeorefs = async _ => {
-  if($dataStore.recordGroup.locRecords && $dataStore.recordGroup.locRecords.length){
-    let georefFetches = []//promise array
-
-    for (let locRecord of $dataStore.recordGroup.locRecords){
-      georefFetches.push(fetchGeorefsForLoc(locRecord.loc))
-    }
-
-    try {
-      await Promise.all(georefFetches)
-    }
-    catch(err){
-      alert('err getting georefs:', err.message)
-      return
-    }
-    
-    //get the uniques and record who they belong to
-    let georefIndex = {}
-    let uniqueGeorefIDs = new Set()
-    let candidateGeorefs = []
-    for (let [georefs, index] of georefFetches.entries()){
-      georefIndex[index] = georefs.map(x => x['_id']) // this is the georef IDs for each locString
-      for (let georef of georefs){
-        if(!uniqueGeorefIDs.has(georef['_id'])){
-          uniqueGeorefIDs.add(georef['_id'])
-          candidateGeorefs.push(georef)
-        }
-      }
-    }
-
-    candidateGeorefs.sort((a, b) => a['_score'] - b['_score'])
-
-    return {
-      georefIndex,
-      candidateGeorefs
-    }
-    
-  }
-}
-
-//just a helper for above
-const fetchGeorefsForLoc = async locString => {
-  search = encodeURI(locString)
-  let url = `https://us-central1-georef-745b9.cloudfunctions.net/getlocalities?search=${search}&index=southernafricater`
-  let response = await fetch(url)
-  let data = await response.json()
-  return data
 }
 
 const releaseRecordGroup = async _ => {
-  if($dataStore.recordGroupSnap.ref){
-    console.log('updating locked recordGroup')
+  if($dataStore.recordGroupSnap){
     await $dataStore.recordGroupSnap.ref.update({groupLocked: false})
-    $dataStore.recordGroup = null
-    $dataStore.candidateGeorefs = null
-    $dataStore.selectedGeoref = null
   }
+}
 
-  return
+const saveRecordGroup = async _ => {
+  if($dataStore.recordGroupSnap){
+    let withGeorefs = $dataStore.recordGroup.groupLocalities.filter(x => x.georefID).length
+    let total = $dataStore.recordGroup.groupLocalities.length
+    if(withGeorefs == total){
+      $dataStore.recordGroup.completed = true
+    }
+
+    $dataStore.recordGroup.groupLocked = false
+
+    //clean out the ids to avoid confusion later
+    for (let loc of $dataStore.recordGroup.groupLocalities){
+      delete loc.id
+    }
+
+    try {
+      await $dataStore.recordGroupSnap.ref.set($dataStore.recordGroup) //its an overwrite
+    }
+    catch(err){
+      alert('error saving record group:', err)
+      console.log('error saving record group; see console')
+      console.log(err)
+      console.log($dataStore.recordGroup)
+    }
+    
+    if(georefsAdded || recordsGeoreferenced) {
+      try {
+        await updateGeorefStats(Firebase, georefsAdded, recordsGeoreferenced, userID, userName)
+        await updateDatasetStats(Firestore, datasetRef, recordsGeoreferenced, userID)
+      }
+      catch(err) {
+        alert('there was an error updating stats:', err.message)
+      }
+    }
+  }
 }
 
 const handleSkipRecordGroup = async _ => {
-  await releaseRecordGroup();
-  skip++
-  fetchNextRecordGroup(skip)
-}
-
-//NB TODO all this new georef stuff must be delegated to georefRecordGroup
-const handleSetGeoref = async ev => {
-  let geoRef = ev.detail.geoRef
-  console.log('got the georef!')
-  /*
-  let selectedLocRecordIDs = selectedLocs.reduce((a,b) => [...a, ...b.recordIDs], [])
-  if(geoRef.georefID) { //it's an existing georef
-    // update the georef on firebase to indicate used in this dataset
-    //TODO sort this out with a many to many
-    if(geoRef.assocDatasets[datasetID]){
-      geoRef.assocDatasets[datasetID] = [...geoRef.assocDatasets[datasetID], ...selectedLocRecordIDs]
-      geoRef.totalAssRecords += selectedLocRecordIDs.length
-    }
-    else {
-      geoRef.assocDatasets[datasetID] = selectedLocRecordIDs
-      geoRef.totalAssRecords = selectedLocRecordIDs.length
-    }
-
-    geoRef.lastUsed = Date.now()
-    //update it here
+  //TODO must lock the UI for this
+  if(georefsAdded){
+    await saveRecordGroup()
   }
   else {
-    //create the new georef 
-    geoRef.georefID = shortid.generate()
-    geoRef.assocDatasets[datasetID] = selectedLocRecordIDs
-    geoRef.totalAssRecords = selectedLocRecordIDs.length
-    geoRef.dateCreated = Date.now()
-    geoRef.lastUsed = Date.now()
-    //TODO createdBy = logged in user name
-    //save it here
+    await releaseRecordGroup();
   }
 
-  //push to each of the record group locs
-  for (let selectedLoc of selectedLocs) {
-    for (let recordGroupLoc of recordGroup.locRecords){
-      if (selectedLoc.loc == recordGroupLoc.loc){
-        recordGroupLoc.georef = geoRef
-        recordGroupLoc.completed = true
-        break;
+  fetchNextRecordGroup($dataStore.recordGroupSnap)
+}
+
+//this is the heavy lifting
+const handleSetGeoref = async ev => {
+  //TODO NB we need to lock everything while the georef saves
+  let selectedLocs = $dataStore.recordGroup.groupLocalities.filter(x => x.selected)
+  if(selectedLocs.length){ //it has to be
+    let georef = ev.detail
+
+    //check whether anything has changed
+    let hasEdits = false
+    let isNew = false
+    if($dataStore.selectedGeoref) {//it may be completely new before a georef is selected
+      console.log('checking georef fields')
+      for (let [key, val] of Object.entries(georef)){
+        if(typeof val == 'string'){
+          if(!$dataStore.selectedGeoref[key] || $dataStore.selectedGeoref[key].trim() != val.trim()){
+            hasEdits = true
+            break;
+          }
+        }
+        else if (typeof val == 'number'){
+          if(/^-?\d+\.\d+$/.test(val)) { //its decimal
+            if(/^-?\d+\.\d+$/.test($dataStore.selectedGeoref[key])) { //they're both decimal
+              let diff = val - $dataStore.selectedGeoref[key]
+              if(Math.abs(diff) > 0.000001){
+                hasEdits = true
+                break
+              }
+            }
+          }
+        }
+        else {
+          if(val != $dataStore.selectedGeoref[key]){
+            hasEdits = true
+          }
+        }
       }
     }
-  }  
-
-  //TODO update the Meili records with these georeferences -- this is async on the db so we send and assume it works
-
-  //TODO if this is the last batch of locs being updated
-  //save it
-  if(!incompleteGroupLocs.length) {
-    await recordGroupRef.update(recordGroup)
-    recordGroup = null
-  }
+    else {
+      console.log('no georef selected, this is new')
+      isNew = true
+    }
   
+    if(hasEdits || isNew){ //we treat it as a new georef
+      console.log('updating georef ID and admin boundaries')
+      georef.georefID = nanoid()
 
-  */
+      //we need the admin divisions
+      console.log('fetching admin names')
+      try {
+        let admin = await fetchAdmins(georef.decimalLatitude, georef.decimalLongitude)
+        georef.country = admin.country
+        georef.stateProvince = admin.stateProvince
+        console.log('admin is', georef.country, georef.stateProvince)
+      }
+      catch(err){
+        alert('error updating country and stateProvince:',err.message)
+        return
+      }
+
+      if (isNew){
+        georef.originalGeorefSource = 'NSCF georeference database'
+        georef.verified = false
+        georef.dateCreated = Date.now()
+        georef.createdBy = userName
+      }
+      
+      //save it to elastic via our API
+      console.log('saving to georef database')
+      let url = 'https://us-central1-georef-745b9.cloudfunctions.net/addgeoref'
+      let res = await fetch(url, {
+        method: 'POST', 
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: (JSON.stringify({georef, index: elasticindex}))
+      })
+
+      if(res.status != 200) {
+        await navigator.clipboard.writeText(JSON.stringify(georef))
+        console.log('error saving georef, see clipboard')
+        let body = await res.json()
+        console.log(body)
+        alert('there was an error saving this new georeference:', body)
+        return
+      }
+
+      console.log('successfully saved')
+    }
+
+    console.log('updating record group with georef')
+  
+    for (let loc of selectedLocs){
+      loc.georefID = georef.georefID
+      loc.georefBy = userID
+      loc.georefDate = Date.now()
+      if(selectedLocGeorefRemarks) {
+        loc.georefRemarks = selectedLocGeorefRemarks
+      }
+      if(loc.recordIDs && loc.recordIDs.length) { //this really should never be necessary
+        recordsGeoreferenced += loc.recordIDs.length
+      }
+      loc.selected = false
+      selectedLocGeorefRemarks = null
+    }
+    
+    $dataStore.recordGroup.groupLocalities = $dataStore.recordGroup.groupLocalities //the svelte update trigger
+
+    for (let [key, val] of Object.entries($dataStore.georefIndex)){
+      val.selected = false
+    }
+
+    $dataStore.selectedGeoref = null
+
+    //$dataStore.georefIndex = $dataStore.georefIndex //svelte update
+
+    georefsAdded += selectedLocs.length
+    console.log(`${georefsAdded} georefs added`)
+  
+    //if these were the last ones
+    let withGeorefs = $dataStore.recordGroup.groupLocalities.filter(x => x.georefID).length
+    let total = $dataStore.recordGroup.groupLocalities.length
+    if(withGeorefs == total){
+      console.log('saving and moving to next record group')
+      await saveRecordGroup()
+      console.log('record group saved')
+      console.log('fetching next record group')
+      fetchNextRecordGroup($dataStore.recordGroupSnap)
+    }
+  }
+  else {
+    alert('localities must be selected to apply the georeference')
+    return
+  }
 }
 
 const handleBackToDatasets =  async _ => {
-  await releaseRecordGroup()
+  //TODO must lock the UI for this
+  if(georefsAdded){
+    await saveRecordGroup()
+  }
+  else {
+    await releaseRecordGroup();
+  }
+  
   $dataStore.recordGroupSnap = null
+  $dataStore.recordGroup = []
+  $dataStore.selectedGeoref = null
+  $dataStore.georefIndex = null
+
   dispatch('back-to-datasets')
+}
+
+const handleStartOver = _ => { //just clear out any georefIDs
+  if($dataStore.recordGroup){
+    for (let loc of $dataStore.recordGroup.groupLocalities){
+      loc.georefID = null
+    }
+     $dataStore.recordGroup.groupLocalities = $dataStore.recordGroup.groupLocalities
+  }
 }
 
 </script>
 
 <!-- ############################################## -->
 {#if !datasetComplete}
-  
   <div class="grid-container">
     <div class="recordgroup-container">
-      <RecordGroup datasetID={dataset.datasetID} on:skip-recordgroup={handleSkipRecordGroup}></RecordGroup>
-      <button on:click={handleBackToDatasets}>Back to datasets...</button>
+      <div style="height:70%">
+        <RecordGroup on:skip-recordgroup={handleSkipRecordGroup}></RecordGroup>
+      </div>
+      <div style="height:30%">
+        <br/>
+        <label for="slgr">Locality georef remarks</label>
+        <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder={`Add remarks about applying this georeference to ${!selectedCount || selectedCount > 1 ? 'these localities': 'this locality'} `} rows="2" />
+        <br/>
+        <button on:click={handleStartOver}>Reset georefs...</button>
+        <br/>
+        <button on:click={handleSkipRecordGroup}>Skip these for later...</button>
+        <br/>
+        <button on:click={handleBackToDatasets}>Back to datasets...</button>
+      </div>
     </div>
-    <!-- <div class="matchlist-container">
+    <div class="matchlist-container">
       <MatchList />
     </div>
     <div class="matchmap-container">
       <MatchMap />
     </div>
     <div class="georef-form-container">
-      <GeorefForm geoRef={selectedGeoref} on:set-georef={handleSetGeoref}/>
-    </div> -->
+      <h4>Georeference</h4>
+      <GeorefForm georef={$dataStore.selectedGeoref} buttonText={"Use this georeference"} on:set-georef={handleSetGeoref}/>
+    </div>
   </div>
 {:else}
   <div style="text-align:center;margin-top:300px">
@@ -253,23 +401,38 @@ const handleBackToDatasets =  async _ => {
 <style>
 .grid-container {
   display: grid;
+  height: 90vh;
+  width: 98vw;
   grid-template-columns: 20% auto 20%;
+  grid-template-rows: 50% 50%;
   grid-column-gap:10px;
 }
 
 .recordgroup-container {
-  grid-row: 1 / 3
+  grid-column: 1/1;
+  grid-row: 1 / 3;
 }
 
-/* .matchlist-container {
-  grid-row: 1 / 2
+.matchlist-container {
+  grid-column: 2/2; 
+  grid-row: 1 / 2;
+  overflow: auto;
 }
 
 .matchmap-container {
-  grid-row: 2 / 3
+  grid-column: 2/2;
+  grid-row: 2 / 2
 }
 
 .georef-form-container {
+  grid-column: 3/3;
   grid-row: 1 / 3
-} */
+} 
+
+label {
+  display: inline-block;
+  text-align: right;
+  color:grey;
+  font-weight: bolder;
+}
 </style>

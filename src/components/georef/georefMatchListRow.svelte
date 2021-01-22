@@ -1,21 +1,20 @@
 <script>
 import { dataStore } from './dataStore.js'
 
-export let georefIndex
+export let georefKey
 
 
 const handleRowClick = _ => {
   
-  if($geoRefs.georefArray[georefIndex].clicked){
+  if($dataStore.georefIndex[georefKey].selected){
     console.log('you already clicked me')
   }
   else {
-    if($geoRefs.currentGeoref) {
-      $geoRefs.currentGeoref.clicked = false
+    if($dataStore.selectedGeoref) {
+      $dataStore.selectedGeoref.selected = false
     }
-    $geoRefs.georefArray[georefIndex].clicked = true
-    $geoRefs.currentGeoref = $geoRefs.georefArray[georefIndex]
-
+    $dataStore.georefIndex[georefKey].selected = true
+    $dataStore.selectedGeoref = $dataStore.georefIndex[georefKey]
   }
 }
 
@@ -24,10 +23,12 @@ const handleRowClick = _ => {
 <!-- ############################################## -->
 <!-- HTML -->
 
-<tr class:active="{$dataStore.georefArray[georefIndex].clicked}" on:click={handleRowClick}>
-  {#each Object.keys($dataStore.georefArray[georefIndex]) as key}
-    <td>{$dataStore.georefArray[georefIndex][key]}</td>
-  {/each}
+<tr class:active="{$dataStore.georefIndex[georefKey].selected}" on:click={handleRowClick}>
+  <td>{$dataStore.georefIndex[georefKey].locality}</td>
+  <td>{$dataStore.georefIndex[georefKey].uncertainty ? 'yes': ''}</td>
+  <td>{$dataStore.georefIndex[georefKey].sources ? 'yes': ''}</td>
+  <td>{$dataStore.georefIndex[georefKey].protocol ? 'yes': ''}</td>
+  <td>{$dataStore.georefIndex[georefKey].verified ? 'yes': ''}</td>
 </tr>
 
 <!-- ############################################## -->

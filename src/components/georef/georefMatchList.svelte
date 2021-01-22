@@ -7,21 +7,29 @@ import MatchListRow from './georefMatchListRow.svelte'
 
 <!-- ############################################## -->
 <!-- HTML -->
+
 <table>
-{#if $dataStore && $dataStore.georefArray.length}
-  <tr>
-    {#each Object.keys($dataStore.georefArray[0]) as key}
-      <th>{key}</th>
-     {/each}
-  </tr>
-  {#each $dataStore.georefArray as geoRef, georefIndex}
-    <MatchListRow {georefIndex} />
-  {/each}
-{/if}
+  <h4>Candidate georeferences</h4>
+  {#if $dataStore.georefIndex && Object.keys($dataStore.georefIndex).length}
+    <tr>
+      <th>locality</th><th>uncertainty</th><th>sources</th><th>protocol</th><th>verified</th>
+    </tr>
+    {#each Object.keys($dataStore.georefIndex) as georefKey}
+      <MatchListRow {georefKey} />
+    {/each}
+  {:else}
+    waiting for georefs
+  {/if}
 </table>
 
 <!-- ############################################## -->
 <style>
+table {
+  width:100%;
+  max-height: 100%;
+  overflow:auto;
+}
+
 th {
   background-color: whitesmoke;
   text-align: left;

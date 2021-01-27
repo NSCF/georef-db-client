@@ -16,6 +16,7 @@ import RecordGroup from './georefRecordGroup.svelte'
 import MatchList from './georefMatchList.svelte'
 import MatchMap from './georefMatchMap.svelte'
 import GeorefForm from './georefForm.svelte'
+import Toast from '../toast.svelte'
 
 //some mock values for now
 let userID = 'iansuserid'
@@ -26,6 +27,8 @@ let dispatch = createEventDispatcher()
 
 export let dataset
 
+let savingGeoref = false
+let savingRecordGroup = false
 
 let elasticindex
 
@@ -41,15 +44,13 @@ $: if($dataStore.recordGroup){
 }
 
 onMount(async _ => { 
+  elasticindex = dataset.region.toLowerCase().replace(/\s+/g, '') + dataset.domain.toLowerCase()
   try {
     fetchNextRecordGroup(0)
   }
   catch(err){//only if offline
   //TODO handle error
   }
-
-  elasticindex = dataset.region.toLowerCase().replace(/\s+/g, '') + dataset.domain.toLowerCase()
-  
 })
 
 onDestroy(async _ => {
@@ -117,8 +118,14 @@ const fetchNextRecordGroup = async lastSnap => {
         console.log('fetching georefs')
         try {
           let candidateGeorefs = await fetchCandidateGeorefs($dataStore.recordGroup.groupLocalities, elasticindex)
-          $dataStore.georefIndex = candidateGeorefs.georefIndex
-          $dataStore.locGeorefIndex =  candidateGeorefs.locGeorefIndex
+          if(Object.keys(candidateGeorefs.georefIndex).length) {
+            $dataStore.georefIndex = candidateGeorefs.georefIndex
+            $dataStore.locGeorefIndex =  candidateGeorefs.locGeorefIndex
+          }
+          else {
+            console.log('no georefs!!!')
+          }
+          
         }
         catch(err) {
           console.log('error fetching georefs:', err.message)
@@ -152,7 +159,9 @@ const saveRecordGroup = async _ => {
   if($dataStore.recordGroupSnap){
     let withGeorefs = $dataStore.recordGroup.groupLocalities.filter(x => x.georefID).length
     let total = $dataStore.recordGroup.groupLocalities.length
+    let groupComplete = false
     if(withGeorefs == total){
+      groupComplete = true
       $dataStore.recordGroup.completed = true
     }
 
@@ -163,6 +172,7 @@ const saveRecordGroup = async _ => {
       delete loc.id
     }
 
+    savingRecordGroup = true
     try {
       await $dataStore.recordGroupSnap.ref.set($dataStore.recordGroup) //its an overwrite
     }
@@ -171,17 +181,21 @@ const saveRecordGroup = async _ => {
       console.log('error saving record group; see console')
       console.log(err)
       console.log($dataStore.recordGroup)
+      savingRecordGroup = false
     }
     
     if(georefsAdded || recordsGeoreferenced) {
       try {
         await updateGeorefStats(Firebase, georefsAdded, recordsGeoreferenced, userID, userName)
-        await updateDatasetStats(Firestore, datasetRef, recordsGeoreferenced, userID)
+        await updateDatasetStats(Firestore, datasetRef, recordsGeoreferenced, userID, groupComplete)
       }
       catch(err) {
+        savingRecordGroup = false
         alert('there was an error updating stats:', err.message)
       }
     }
+
+    savingRecordGroup = false
   }
 }
 
@@ -243,6 +257,8 @@ const handleSetGeoref = async ev => {
       console.log('updating georef ID and admin boundaries')
       georef.georefID = nanoid()
 
+      savingGeoref = true
+
       //we need the admin divisions
       console.log('fetching admin names')
       try {
@@ -283,6 +299,7 @@ const handleSetGeoref = async ev => {
         return
       }
 
+      savingGeoref =  false
       console.log('successfully saved')
     }
 
@@ -358,16 +375,33 @@ const handleStartOver = _ => { //just clear out any georefIDs
   }
 }
 
+const copyLocality = async _ => {
+  let selected = $dataStore.recordGroup.groupLocalities.filter(x=>x.selected)
+  if(selected.length == 1){
+    await navigator.clipboard.writeText(selected[0].loc).then(_ => {
+      console.log('locality copied')
+      if(window.pushToast) {
+        window.pushToast('locality copied')
+      }
+    })
+  }
+}
+
 </script>
 
 <!-- ############################################## -->
 {#if !datasetComplete}
   <div class="grid-container">
     <div class="recordgroup-container">
-      <div style="height:70%">
-        <RecordGroup on:skip-recordgroup={handleSkipRecordGroup}></RecordGroup>
+      <h4>Locality strings</h4>
+      <p><i>Select the items below that represent the same locality and then choose and apply or create an appropriate georeference</i></p>
+      <div>
+        <button style="float:right" title="copy locality" disabled={!$dataStore.recordGroup || $dataStore.recordGroup.groupLocalities.filter(x=>x.selected).length != 1} on:click={copyLocality}><i class="material-icons md-dark">content_copy</i></button>
       </div>
-      <div style="height:30%">
+      <div class="recordgroup">
+        <RecordGroup busy={savingGeoref || savingRecordGroup} on:skip-recordgroup={handleSkipRecordGroup}></RecordGroup>
+      </div>
+      <div class="recordgroup-buttons">
         <br/>
         <label for="slgr">Locality georef remarks</label>
         <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder={`Add remarks about applying this georeference to ${!selectedCount || selectedCount > 1 ? 'these localities': 'this locality'} `} rows="2" />
@@ -387,9 +421,10 @@ const handleStartOver = _ => { //just clear out any georefIDs
     </div>
     <div class="georef-form-container">
       <h4>Georeference</h4>
-      <GeorefForm georef={$dataStore.selectedGeoref} buttonText={"Use this georeference"} on:set-georef={handleSetGeoref}/>
+      <GeorefForm georef={$dataStore.selectedGeoref} submitButtonText={"Use this georeference"} on:set-georef={handleSetGeoref}/>
     </div>
   </div>
+  <Toast />
 {:else}
   <div style="text-align:center;margin-top:300px">
     <h3>There are no more records in this dataset</h3>
@@ -401,32 +436,57 @@ const handleStartOver = _ => { //just clear out any georefIDs
 <style>
 .grid-container {
   display: grid;
-  height: 90vh;
-  width: 98vw;
-  grid-template-columns: 20% auto 20%;
-  grid-template-rows: 50% 50%;
-  grid-column-gap:10px;
+  height: 100%;
+  max-height:100%;
+  overflow:none;
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+  grid-template-columns: 1fr 3fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  grid-column-gap:1%;
 }
 
 .recordgroup-container {
-  grid-column: 1/1;
+  grid-column: 1/2;
   grid-row: 1 / 3;
+  display: flex;
+  flex-flow: column;
+  height: 100%;
+  min-height: 100%;
+  max-height: 100%;
+}
+
+.recordgroup {
+  flex-grow:0;
+  flex-basis:100%;
+  overflow:scroll;
+}
+
+.recordgroup-buttons {
+  text-align: center;
+  flex-basis:auto;
 }
 
 .matchlist-container {
+ 
   grid-column: 2/2; 
   grid-row: 1 / 2;
+  max-height: 100%;
   overflow: auto;
 }
 
 .matchmap-container {
+
   grid-column: 2/2;
   grid-row: 2 / 2
 }
 
 .georef-form-container {
   grid-column: 3/3;
-  grid-row: 1 / 3
+  grid-row: 1 / 3;
+  
+  max-height: 100%;
 } 
 
 label {
@@ -435,4 +495,14 @@ label {
   color:grey;
   font-weight: bolder;
 }
+
+button {
+  background-color: lightgray;
+}
+
+button:hover {
+  background-color:grey;
+  color:white;
+}
+
 </style>

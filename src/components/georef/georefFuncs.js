@@ -1,5 +1,7 @@
 //FUNCTIONS USED BY georef COMPONENT
 
+const Georef =require('./Georef.js')
+
 const fetchCandidateGeorefs = async (groupLocalities, elasticindex) => {
   //groupLocalities must be a set of {id: ..., loc: ... } objects
 
@@ -30,20 +32,30 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex) => {
     let locGeorefIndex = {} //it will be an object with locID : [georefID] array pairs
     
     if(fetchResults.length){
-      for (let [index, locGeorefs] of fetchResults.entries()){
-        let locID = groupLocalities[index].id
-        if(locGeorefs.length){
-          for (let elasticGeoref of locGeorefs){
-            if(!georefIndex[elasticGeoref._id]){
-              georefIndex[elasticGeoref._id] = elasticGeoref._source
+      for (let [index, elasticGeorefs] of fetchResults.entries()){
+        if(elasticGeorefs.length){
+          for (let elasticGeoref of elasticGeorefs){
+            
+            let georef
+            try {
+              georef = Object.assign(new Georef, elasticGeoref._source)
+              georef.decimalCoordinates = georef.decimalCoordinates //to throw the setter in case there is a problem
+            }
+            catch(err) {
+              //console.log('error with', elasticGeoref._id, elasticGeoref._source.locality, ':', err.message)
+              continue
             }
 
-            if(!locGeorefIndex[locID]){
-              locGeorefIndex[locID] = [ elasticGeoref._id ]
+            if(!georef.decimalCoordinatesOkay){
+              //console.log('error with coordinates for georef', elasticGeoref._id)
+              continue
             }
-            else {
-              locGeorefIndex[locID].push(elasticGeoref._id)
-            }       
+
+            //console.log('we\'re good for', georef.locality)
+
+            if(!georefIndex[georef.georefID]){
+              georefIndex[georef.georefID] = georef
+            }  
           }
         } 
       }
@@ -174,6 +186,8 @@ const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, u
   proms.push(updateLastGeorefsAddedBy)
 
   await Promise.all(proms)
+
+  console.log('georef count stats updated')
   
 }
 
@@ -209,7 +223,7 @@ let m = d.getMonth() + 1
 return `${y} ${m.toString().padStart(2, '0')}`
 }
 
-const updateDatasetStats = (Firestore, datasetRef, recordsGeoreferenced, userID) => {
+const updateDatasetStats = (Firestore, datasetRef, recordsGeoreferenced, userID, groupComplete) => {
   return Firestore.runTransaction(function(transaction) {
     // This code may get re-run multiple times if there are conflicts.
     return transaction.get(datasetRef).then(function(docSnap) {
@@ -217,16 +231,19 @@ const updateDatasetStats = (Firestore, datasetRef, recordsGeoreferenced, userID)
           throw "Document does not exist!";
       }
 
-      // Add one person to the city population.
-      // Note: this could be done without a transaction
-      //       by updating the population using FieldValue.increment()
       let data = docSnap.data()
       let update = {
-        groupsComplete: data.groupsComplete++, 
         recordsCompleted: data.recordsCompleted += recordsGeoreferenced, 
         lastGeoreference: Date.now(),
         lastGeoreferenceBy: userID
       }
+
+      if(groupComplete) {
+        console.log('updating groups completed')
+        console.log('Value of dataset.groupsComplete:', data.groupsComplete)
+        update.groupsComplete = data.groupsComplete++
+      }
+
       transaction.update(datasetRef, update);
     });
   }).then(function() {

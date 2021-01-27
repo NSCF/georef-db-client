@@ -12,6 +12,7 @@ import DatasetDetail from './admin/datasetDetail.svelte'
 
 import Georeferencer from './georef/georef.svelte'
 
+import Workshop from './workshop/workshop.svelte'
 import Yard from './yard.svelte'
 
 //for 'page navigation'
@@ -20,7 +21,7 @@ let pages = ['ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'U
 let datasetPages = ['datsetList', 'datasetDetail']
 let georeferencePage = 'georef' //just the one
 
-let currentPage = 'ChooseFile'
+let currentPage = 'workshop'
 
 //locals
 let fileForGeoref
@@ -81,7 +82,6 @@ function handleToDatasets(){
 	currentPage = 'datasetList'
 }
 
-
 function handleDatasetSelected(ev){
 	selectedDataset = ev.detail
 	currentPage = 'datasetDetail'
@@ -104,62 +104,98 @@ function handleYardClick() {
 
 <main>
 	<Modal>
-		<button on:click={handleYardClick}>To to yard</button>
-		{#if currentPage == 'ChooseFile'}
-			<ChooseFile 
-			on:file-selected={handleFileSelected} 
-			on:to-datasets={handleToDatasets}
-			fileMIMETypes={['text/csv', 'application/vnd.ms-excel']}/>
-		{/if}
-		{#if currentPage == 'ConfirmFields'}
-			<ConfirmFields file={fileForGeoref} on:fields-confirmed={handleFieldsConfirmed} on:fields-confirm-cancelled={handleConfirmCanceled}/>
-		{/if}
-		{#if currentPage == 'ConfirmData'}
-			<ConfirmData file={fileForGeoref} requiredFields={requiredFields} on:data-confirmed={handleFileContentsConfirmed} on:data-confirm-cancelled={handleConfirmCanceled}/>
-		{/if}
-		{#if currentPage == 'RegisterDataset'}
-			<RegisterDataset on:register-dataset={handleRegisterDataset}/>
-		{/if}
-		{#if currentPage == 'UploadData'}
-			<PackAndLoad 
-				localityRecordIDMap={georefInputs.localityRecordIDMap} 
-				{datasetDetails}
-				{fileForGeoref}
-				on:upload-complete={handleUploadComplete}
-			/>
-		{/if}
-		{#if currentPage == 'WellDone'}
-			<WellDone />
-		{/if}
-		{#if currentPage == 'datasetList'}
-			<DatasetList on:dataset-selected={handleDatasetSelected}/>
-		{/if}
-		{#if currentPage == 'datasetDetail'}
-			<DatasetDetail dataset={selectedDataset} on:start-georeferencing={handleStartGeoreferencing}/>
-		{/if}
-		{#if currentPage == 'georef'}
-			<Georeferencer dataset={selectedDataset} />
-		{/if}
-		{#if currentPage == 'yard'}
-			<Yard />
-		{/if}
+		<div class="flex-container">
+			<div class="header">
+				<img src="images/NSCF logo.jpg" alt="NSCF logo"  style="height:100%;float:left" />
+				<button on:click={handleYardClick}>To to yard</button>
+				Logo, login buttons, etc
+			</div>
+			<div class="content">
+				{#if currentPage == 'ChooseFile'}
+					<ChooseFile 
+					on:file-selected={handleFileSelected} 
+					on:to-datasets={handleToDatasets}
+					fileMIMETypes={['text/csv', 'application/vnd.ms-excel']}/>
+				{/if}
+				{#if currentPage == 'ConfirmFields'}
+					<ConfirmFields file={fileForGeoref} on:fields-confirmed={handleFieldsConfirmed} on:fields-confirm-cancelled={handleConfirmCanceled}/>
+				{/if}
+				{#if currentPage == 'ConfirmData'}
+					<ConfirmData file={fileForGeoref} requiredFields={requiredFields} on:data-confirmed={handleFileContentsConfirmed} on:data-confirm-cancelled={handleConfirmCanceled}/>
+				{/if}
+				{#if currentPage == 'RegisterDataset'}
+					<RegisterDataset on:register-dataset={handleRegisterDataset}/>
+				{/if}
+				{#if currentPage == 'UploadData'}
+					<PackAndLoad 
+						localityRecordIDMap={georefInputs.localityRecordIDMap} 
+						{datasetDetails}
+						{fileForGeoref}
+						on:upload-complete={handleUploadComplete}
+					/>
+				{/if}
+				{#if currentPage == 'WellDone'}
+					<WellDone />
+				{/if}
+				{#if currentPage == 'datasetList'}
+					<DatasetList on:dataset-selected={handleDatasetSelected}/>
+				{/if}
+				{#if currentPage == 'datasetDetail'}
+					<DatasetDetail dataset={selectedDataset} on:to-datasets={handleToDatasets} on:start-georeferencing={handleStartGeoreferencing}/>
+				{/if}
+				{#if currentPage == 'georef'}
+					<Georeferencer dataset={selectedDataset} />
+				{/if}
+				{#if currentPage == 'workshop'}
+					<Workshop />
+				{/if}
+				{#if currentPage == 'yard'}
+					<Yard />
+				{/if}
+			</div>
+		</div>
 	</Modal>
-	
 </main>
 
 <style>
+
 	main {
-		text-align: center;
-		padding: 1em;
-		max-width: 240px;
-		margin: 0 auto;
+		width:99vw;
+		height:99vh;
+		padding:5px;
+		box-sizing: border-box;
 	}
 
-
-
-	@media (min-width: 640px) {
-		main {
-			max-width: none;
-		}
+	.flex-container {
+		display: flex;
+		flex-direction: column;
+		width:100%;
+		height:100%;
+		box-sizing: border-box;
 	}
+
+	.header {
+		width:100%;
+		height: 50px;
+		display:flex;
+		justify-content: space-between;
+		box-sizing: border-box;
+	}
+
+	.content {
+		width:100%;
+		flex-grow: 1;
+		box-sizing: border-box;
+		overflow:none;
+	}
+
+	button {
+		background-color: lightgray;
+	}
+
+	button:hover {
+		color:white;
+		background-color: gray;
+	}
+	
 </style>

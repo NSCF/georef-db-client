@@ -13,14 +13,13 @@ const handleDatasetSelected = ev => { //just bubbling up
 
 <!-- ############################################## -->
 <!-- HTML -->
-<h2>Your current datasets:</h2>
+<h2>Current datasets:</h2>
 <Datasets on:dataset-selected={handleDatasetSelected}/>
 
 <!-- ############################################## -->
 <style>
 h2 {
-		color: #ff3e00;
-		text-transform: uppercase;
+		color: rgb(73, 93, 158);
 		font-size: 2em;
 		font-weight: 100;
 	}

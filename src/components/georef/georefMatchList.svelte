@@ -2,6 +2,7 @@
 import { dataStore } from './dataStore.js'
 import {createEventDispatcher} from 'svelte'
 import MatchListRow from './georefMatchListRow.svelte'
+import Loader from '../loader.svelte'
 
 </script>
 
@@ -18,7 +19,7 @@ import MatchListRow from './georefMatchListRow.svelte'
       <MatchListRow {georefKey} />
     {/each}
   {:else}
-    waiting for georefs
+    <Loader/>
   {/if}
 </table>
 
@@ -31,14 +32,9 @@ table {
 }
 
 th {
-  background-color: whitesmoke;
-  text-align: left;
+  background-color: lightgray;
+  text-align: center;
+  border-bottom: 1px
 }
 
-tr:nth-child(even) {
-  background-color: #f2f7ff;
-}
-tr:nth-child(odd) {
-  background-color: #cfe1ff;
-}
 </style>

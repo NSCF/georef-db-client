@@ -95,8 +95,8 @@ const emitDataset = dataset => {
       <th>Groups Complete</th>
       <th>Last Georef</th>
     </tr>
-    {#each records as dataset}
-      <tr class="tr-hover" on:click={emitDataset(dataset)}>
+    {#each records as dataset, index}
+      <tr class="tr-hover" class:oddrow={index%2} on:click={emitDataset(dataset)}>
         <td>{dataset.datasetName || null}</td>
         <td>{dataset.collectionCode || null}</td>
         <td>{dataset.region || null}</td>
@@ -120,4 +120,26 @@ const emitDataset = dataset => {
 
 <!-- ############################################## -->
 <style>
+
+th {
+  background-color: lightgray;
+}
+
+.tr-hover:hover {
+	background-color: lightgray;
+	cursor: pointer;
+}
+
+.oddrow {
+  background-color: #E0E0E0;
+}
+
+button {
+  background-color: lightgray;
+}
+
+button:hover {
+  background-color:grey;
+
+}
 </style>

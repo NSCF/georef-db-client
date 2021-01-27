@@ -17,7 +17,8 @@ let currentGeorefs
 window.initMap = function ready() {
 	map = new google.maps.Map(container, {
     zoom: 5,
-    center: {lat: -24.321476, lng: 24.909317}
+    center: {lat: -24.321476, lng: 24.909317}, 
+    disableDoubleClickZoom:true
   });
 
   const measureTool = new MeasureTool(map);
@@ -55,7 +56,23 @@ const prepMap = _ => {
 
     google.maps.event.addListener(marker, 'dragend', function(evt){
       let coords = evt.latLng.toUrlValue()
+      navigator.clipboard.writeText(coords).then(_ => {
+        console.log('coords copied')
+        if(window.pushToast) {
+          window.pushToast('coordinates copied')
+        }
+      })
+    });
+
+    google.maps.event.addListener(map, 'dblclick', function(e) {
+      var positionDoubleclick = e.latLng;
+      marker.setPosition(positionDoubleclick);
+      let coords = positionDoubleclick.toUrlValue()
       navigator.clipboard.writeText(coords).then(_ => console.log('coords copied'))
+      map.panTo(positionDoubleclick);
+      if(window.pushToast) {
+        window.pushToast('coordinates copied')
+      }
     });
   }
 
@@ -88,6 +105,7 @@ const prepMap = _ => {
 .mapview {
   width: 100%;
   height:100%;
+  max-height:100%;
 }
 
 </style>

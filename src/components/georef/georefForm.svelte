@@ -1,34 +1,25 @@
 <script>
-import Select from 'svelte-select'
 import convert from 'geo-coordinates-parser'
+
+import Select from 'svelte-select'
+import LocalityInput from './localityInput.svelte'
+import DecimalCoordsInput from './decimalCoordsInput.svelte'
+import VerbatimCoordsInput from './verbatimCoordsInput.svelte'
+import DateInput from './dateInput.svelte'
+import Georef from './Georef.js'
 
 import {createEventDispatcher} from 'svelte'
 let dispatch = createEventDispatcher();
 
-export let georef 
+export let georef //must be class Georef or null
 
-let template = {
-  locality: null, 
-  decimalLatitude: null, 
-  decimalLongitude: null, 
-  uncertainty: null, 
-  uncertaintyUnit: null, 
-  datum: null, 
-  by: null, 
-  date: null, 
-  protocol: null, 
-  sources: null, 
-  remarks: null, 
-  verified: null, 
-  verifiedDate: null, 
-  verifiedBy: null, 
-  verifiedRemarks: null
-}
+$: if(!georef) georef = new Georef() //so we don't deal with all kinds of errors dealing with null
 
+//settings
 export let showButtons = true
 export let showWKT = false
 export let showVerification = false
-export let buttonText
+export let submitButtonText
 
 export let requiredFields = [] //for on form validation
 
@@ -57,95 +48,54 @@ export let georefSources = [
   'NSCF georeference database'
 ]
 
-let coordinatesString
-let coordinatesError = false
-let selectedProtocol
-let selectedSources
-
 let accuracyUnitSelect = {}
 
-let georefDateOkay, verifiedDateOkay
-
-$: georef, updateFromNewGeoref()
-
-$: if (georef && georef.date) {
-  georefDateOkay = /^(19|20)\d\d-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/.test(georef.date) && new Date(georef.date) < Date.now()
-}
-$: if (georef && georef.date) {
-  verifiedDateOkay = /^(19|20)\d\d-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/.test(georef.verifiedDate) && new Date(georef.verifiedDate) < Date.now()
-}
-
-$: coordinatesString, updateCoords()
-
-$: if(georef && !georef.uncertainty) {georef.uncertaintyUnit = null; accuracyUnitSelect.selectedIndex = "-1"} //resetting if accuracy emptied
-$: if(selectedProtocol && georef && georef.hasOwnProperty('protocol')) {georef.protocol = selectedProtocol.value}
-$: if(selectedSources && georef &&georef.hasOwnProperty('sources') && selectedSources.length) {georef.sources = selectedSources.map(x=>x.value).join(' | ')}
-
-const updateFromNewGeoref = _ => {
-  if(georef && Object.keys(georef).length){
-    
-    coordinatesString = georef.decimalLatitude + ',' + georef.decimalLongitude
-
-    if(georef.protocol) {
-      selectedProtocol = {value: georef.protocol, label: georef.protocol}
-    }
-    
-    if (georef.sources){
-      let sourceItems = georef.sources.split('|').filter(x=>x).map(x=>x.trim()).filter(x=>x)
-      let newSelectItems
-      if(sourceItems) {
-        selectedSources = []
-        for (let item of sourceItems){
-          selectedSources.push({value: item, label:item})
-        }
+const copyGeorefJSON = ev => {
+  ev.preventDefault()
+  navigator.clipboard.writeText(JSON.stringify(georef, null, 2)).then(_ => {
+      console.log('JSON copied')
+      if(window.pushToast) {
+        window.pushToast('georef JSON copied')
       }
-    }
-  }
-  else {
-    //we need this because otherwies there are problems with the HTML
-    georef = template
-    coordinatesString = null
-    selectedProtocol = null
-    selectedSources = null
-  }
+    })
 }
 
-const updateCoords = _ => {
-  if(coordinatesString) {
-    let converted 
-    try {
-      converted = convert(coordinatesString, 8)
-      coordinatesError = false
-      georef.decimalLatitude = converted.decimalLatitude
-      georef.decimalLongitude = converted.decimalLongitude
+const copyTabDelimited = _ => {
+  let res = ''
+  for (let val of Object.values(georef)){
+    if(val){
+      res += val + '\t'
     }
-    catch(err){
-      coordinatesError = true
-      georef.decimalLatitude = null
-      georef.decimalLongitude = null
+    else {
+      res += '' + '\t'
     }
   }
-}
-
-const copyGeorefJSON = _ => {
-  navigator.clipboard.writeText(JSON.stringify(georef)).then(_ => console.log('coordinates copied'))
+  navigator.clipboard.writeText(res).then(_ => {
+    console.log('tab delimited values copied')
+    if(window.pushToast) {
+      window.pushToast('tab delimited data copied')
+    }
+  })
+  
 }
 
 const handleClearClick = _ => {
   for (let key of Object.keys(georef)){
     georef[key] = null
   }
-  coordinatesString = null
-  selectedProtocol = null
-  selectedSources = []
+  if(window.pushToast) {
+    window.pushToast('new georef')
+  }
 }
 
-const copyCoords = ev => {
-  navigator.clipboard.writeText(coordinatesString)
-}
-
-const pasteCoords = ev => {
-  navigator.clipboard.readText().then(coords => coordinatesString = coords)
+const handleCoordsFromVerbatim = ev => {
+  try {
+    georef.decimalCoordinates = ev.detail
+    georef.sources = 'verbatim coordinates'
+  }
+  catch(err) {
+    alert(err.message)
+  }
 }
 
 const handleGeorefDateCalendarClick = _ => {
@@ -221,25 +171,28 @@ const handleFormSubmit = _ => {
   {#if showButtons}
     <div style="text-align:right">
       <span class="material-icons iconbutton" title="Clear all" on:click={handleClearClick}>restore_page</span>
-      <span class="material-icons iconbutton" title="Copy georef JSON"  on:click={copyGeorefJSON}>content_copy</span>
+      <button class="json-button" title="Copy georef JSON"  on:click={copyGeorefJSON}>JSON</button>
+      <span class="material-icons iconbutton" title="Copy tab delimited" on:click={copyTabDelimited}>clear_all</span>
     </div>
   {/if}
   <div>
     <label for="loc" style="width:100%;text-align:right">locality</label><br/>
-    <textarea class:hasError={georef && (!georef.locality || !georef.locality.trim())} type="text" id="loc" style="width:100%" rows="2" bind:value={georef.locality}/>
+    <LocalityInput hasError={georef && georef.decimalCoordinates && (!georef.locality || !georef.locality.trim())} bind:value={georef.locality} />
   </div>
   <div class="oneliner">
-    <label  for="coords">coordinates</label>
-    <input type="text" id="coords" style="min-width:200px" class:hasError={coordinatesError} bind:value={coordinatesString}/>
-    <span class="material-icons inline-icon" title="copy coords" style="padding-bottom:0px" on:click={copyCoords}>content_copy</span>
-    <span class="material-icons inline-icon" title="paste coords" style="margin-top:8px" on:click={pasteCoords}>content_paste</span>
+    <label  for="verbatimcoords">verbatim coords</label>
+    <VerbatimCoordsInput on:coords-from-verbatim={handleCoordsFromVerbatim} bind:value={georef.verbatimCoordinates}/>
+  </div>
+  <div class="oneliner">
+    <label  for="coords">decimal coords</label>
+    <DecimalCoordsInput hasError={georef && !georef.decimalCoordinatesOkay} bind:value={georef.decimalCoordinates}/> <!--VERY IMPORTANT THAT COORDINATES BE VALID BEFORE THIS HAPPENS, OTHERWISE IT BREAKS-->
   </div>
   <div class="oneliner">
     <label for="acc">uncertainty</label>
     <div style="display:inline-block;width:50%">
-      <input type="number" id="acc" style="width:57%" min="0" step="0.1" class:hasError={georef && requiredFields.includes('uncertainty') && !georef.uncertainty}   bind:value={georef.uncertainty}/>
-      <select class:hasError={georef && georef.uncertainty && !georef.uncertaintyUnit} id='accunit' style="width:40%" bind:value={georef.uncertaintyUnit} bind:this={accuracyUnitSelect}>
-        <option />
+      <input type="number" id="acc" style="width:57%" min="0" step="0.1" class:hasError={requiredFields.includes('uncertainty') && !georef.uncertainty}   bind:value={georef.uncertainty}/>
+      <select class:hasError={georef && georef.uncertainty && !georef.uncertaintyUnit} id='accunit' style="width:40%" bind:value={georef.uncertaintyUnit}>
+        <option selected="selected"/>
         {#each uncertaintyUnitsEnum as unit}
           <option value={unit}>{unit}</option>
         {/each}
@@ -267,26 +220,25 @@ const handleFormSubmit = _ => {
     <div class="fields">
       <div class="flex">
         <label for="georefDate" style="padding-right:10px">georef date</label>
-        <input  class:hasError={georef && requiredFields.includes('date') && !georefDateOkay} type="text" id="georefDate" autocomplete="off" bind:value={georef.date}/>
-        <span class="material-icons inline-icon" title="add date" on:click={handleGeorefDateCalendarClick}>date_range</span>
+        <DateInput hasBy={georef && georef.by && georef.by.trim()} hasError={!georef.dateOkay} bind:value={georef.date} />
       </div>
     </div>
   </div>
   <div>
     <label style="width:100%;text-align:right" for="protocol">protocol</label>
     <div class="inline-select">
-      <Select items={georefProtocols.map(x=> ({value:x, label:x}))} isCreatable={true} placeholder={'Select a protocol...'} hasError={georef && requiredFields.includes('protocol') && !selectedProtocol} bind:selectedValue={selectedProtocol} />
+      <Select items={georefProtocols.map(x=> ({value:x, label:x}))} isCreatable={true} placeholder={'Select a protocol...'} hasError={georef && requiredFields.includes('protocol') && !georef.protocolObject} bind:selectedValue={georef.protocolObject} />
     </div>
   <div>
     <label style="width:100%;text-align:right" for="sources">sources</label>
     <div class="inline-select">
-      <Select items={georefSources.map(x=> ({value:x, label:x}))} isCreatable={true} isMulti={true} placeholder={'Select source/s...'} hasError={georef && requiredFields.includes('sources') && (!selectedSources || !selectedSources.length)} bind:selectedValue={selectedSources}/>
+      <Select items={georefSources.map(x=> ({value:x, label:x}))} isCreatable={true} isMulti={true} placeholder={'Select source/s...'} hasError={georef && requiredFields.includes('sources') && (!georef.sourcesArray.length)} bind:selectedValue={georef.sourcesArray}/>
     </div>
   </div>
   {#if showVerification}
     <div class="oneliner">
       <label for="verifiedBy">verified by</label>
-      <input type="text" id="verifiedBy" style="width:50%" bind:value={georef.verifiedBy}/>
+      <input type="text" id="verifiedBy" style="width:50%" class:hasError={georef && requiredFields.includes('verifiedBy') && !georef.verifiedBy} bind:value={georef.verifiedBy}/>
     </div>
     <div class="oneliner">
       <label for="verifierRole">datum</label>
@@ -301,7 +253,7 @@ const handleFormSubmit = _ => {
       <label for="verifiedDate">verified date</label>
       <div class="fields">
         <div class="flex">
-          <input class:hasError={georef && georef.verifiedBy || (requiredFields.includes('verifiedDate') && !verifiedDateOkay)} type="text" id="verifiedDate" autocomplete="off" bind:value={georef.verifiedDate}/>
+          <input class:hasError={georef && !georef.verifiedDateOkay} type="text" id="verifiedDate" autocomplete="off" bind:value={georef.verifiedDate}/>
           <span class="material-icons inline-icon" title="add date" on:click={handleGeorefVerifiedDateCalendarClick}>date_range</span>
         </div>
       </div>
@@ -312,7 +264,7 @@ const handleFormSubmit = _ => {
     <textarea id="remarks" rows="3" bind:value={georef.remarks}/>
   </div>
   <div style="text-align:center">
-    <button class="georefbutton">{buttonText}</button> <!--this is the form submit-->
+    <button class="georefbutton">{submitButtonText}</button> <!--this is the form submit-->
   </div>
 </form>
 
@@ -321,7 +273,8 @@ const handleFormSubmit = _ => {
 form {
   width:100%;
   height:100%;
-  overflow-y: auto;
+  max-height:100%;
+  overflow-y: scroll;
 }
 
 label {
@@ -348,11 +301,12 @@ textarea {
 
 .oneliner > .fields {
   display:inline-block;
-  width:80%
+  width:100%
 }
 .oneliner > .fields > .flex {
   display: flex;
-  align-items: center;
+  justify-content: flex-end;
+  align-items: baseline;
 }
 
 .inline-select {
@@ -379,7 +333,8 @@ textarea {
 }
 
 .georefbutton {
-  border-radius: 10px;
+  background-color:lightgray;
+  border-radius: 2px;
   padding:10px;
   width:70%;
 }
@@ -402,17 +357,41 @@ textarea {
 
 .iconbutton{
   color:grey;
+  background-color: lightgray;
   border: 1px solid grey;
   border-radius: 2px;
 }
 
 .iconbutton:hover{
-  cursor: pointer
+  cursor:pointer;
+  background-color:gray;
+  color:white;
 }
 
-button:hover{
+.json-button {
+  color:grey;
+  position:relative;
+  top:-10px;
+  height: 26px;
+  width: 26px;
+  border: 1px solid grey;
+  border-radius: 2px;
+  background-color: lightgray;
+  font-family:Arial;
+  font-stretch:condensed;
+  font-size:0.4em;
+  font-weight:bold;
+}
+
+.json-button:hover {
   cursor:pointer;
-  border-color:rgb(31, 107, 31);
-  background-color:rgb(185, 245, 185);
+  background-color:gray;
+  color:white;
+}
+
+.georefbutton:hover{
+  cursor:pointer;
+  background-color:gray;
+  color:white;
 }
 </style>

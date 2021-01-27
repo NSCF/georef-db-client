@@ -1,5 +1,6 @@
 <script>
   import { Firestore } from '../../firebase.js'
+  import Papa from 'papaparse'
   import {createEventDispatcher} from 'svelte'
 
   const dispatch = createEventDispatcher()
@@ -86,13 +87,16 @@ const clearLockedRecordGroups = async _ => {
   }
 }
 
+const handleBackToDatasets = _ => {
+  dispatch('to-datasets')
+}
+
 const handleDownloadDataset = async _ => {
-  //TODO needs comfirmation modal
   
   //test permissions first
   try {
     console.log('fetching dataset')
-    let res = await Firestore.collection('recordGroups').doc(dataset.datasetID).get()
+    
   }
   catch(err) {
     console.log(err.message)
@@ -127,76 +131,183 @@ const handleDownloadGeorefs = async _ => {
   //join everything up and save to the users computer
   //mark on Firestore with last download timestamp (who, when and what)
 }
+
+//download helpers
+const getRecordGroups = async _ => {
+  let recordGroupsQuerySnap = await Firestore.collection('recordGroups')
+  .where('datasetID', '==', dataset.datasetID).get()
+
+  if(recordGroupsQuerySnap.empty) { 
+    //this should never happen!!
+    alert('something went wrong with the download!!')
+    return
+  }
+  else {
+    let recordGroups = recordGroupsQuerySnap.map(x=>x.data())
+    let georefKeys = {} //an index
+    let recordGeorefData = {} //this is the beginning of the data to be returned........
+    for (let recordGroup of recordGroups){
+      if(recordGroup.groupLocalities && recordGroup.groupLocalities.length){
+        for (let groupLoc of recordGroup.groupLocalities) { //this now has the georef fields
+          
+          if(!georefKeys[groupLoc.georefID]) {
+            georefKeys[groupLoc.georefID] = true
+          }
+
+          let georefData = {
+            georefID: groupLoc.georefID,
+            georefBy: groupLoc.georefBy,
+            georefDate: groupLoc.georefDate, 
+            georefRemarks: groupLoc.selectedLocGeorefRemarks || null,
+          }
+
+          for (let recordID of groupLoc.recordIDs) {
+            recordGroup[recordID] = georefData
+          }
+
+        }
+      }
+    }
+
+    return {
+      georefKeys,
+      recordGeorefData
+    }
+  }
+}
+
+const getGeorefs = async georefKeys => {
+  if(Array.isArray(georefKeys) && georefKeys.length) {
+    //TODO we need an api call to handle this...
+  }
+
+}
 </script>
 
 <!-- ############################################## -->
 <!-- HTML -->
 <h2>{dataset.collectionCode}: {dataset.datasetName}</h2>
-<form class="content">
-  <label>Dataset ID</label>
-  <span >{dataset.datasetID}</span>
-  <label>Dataset</label>
-  <span>{dataset.datasetName}</span>
-  <label>Collection</label>
-  <span>{dataset.collectionCode}</span>
-  <label>Region</label>
-  <span>{dataset.region}</span>
-  <label>Domain</label>
-  <span>{dataset.domain}</span>
-  <label>Date created</label>
-  <span>{dataset.dateCreated? getLocalDate(dataset.dateCreated) : null}</span>
-  <label>Contact</label>
-  <span>{dataset.contactName}</span>
-  <label>Contact email</label>
-  <span>{dataset.email}</span>
-  <label>Date completed</label>
-  <span>{dataset.completed? getLocalDate(dataset.dateCompleted) : null}</span>
-  <label>Total Records</label>
-  <span>{dataset.recordCount}</span>
-  <label>Records Completed</label>
-  <span>{dataset.recordsCompleted}</span>
-  <label>Total groups</label>
-  <span>{dataset.groupsCount}</span>
-  <label>Groups complete</label>
-  <span>{dataset.groupsComplete}</span>
-  <label>Last georeference</label>
-  <span>{dataset.lastGeoreference? getLocalDateTime(dataset.lastGeoreference): null}</span>
-  <label>Dataset URL</label>
-  <span>{dataset.datasetURL}</span>
-</form>
-<button on:click={handleStartGeoreferencing}>Start georeferencing</button>
-<button on:click = {clearLockedRecordGroups}>Clear locked record groups</button> <!--TODO add only for admins-->
-<button>Back to datasets</button>
-<button on:click={handleDownloadDataset}>Download dataset with georeferences</button>
-<button on:click={handleDownloadGeorefs}>Download georeferences only</button>
+<div class="content">
+  <div class="inline">
+    <label for="datasetID">Dataset ID</label>
+    <span id="datasetID">{dataset.datasetID}</span>
+  </div>
+  <div class="inline">
+    <label>Dataset</label>
+    <span>{dataset.datasetName}</span>
+  </div>
+  <div class="inline">
+    <label>Collection</label>
+    <span>{dataset.collectionCode}</span>
+  </div>
+  <div class="inline">
+    <label>Region</label>
+    <span>{dataset.region}</span>
+  </div>
+  <div class="inline">
+    <label>Domain</label>
+    <span>{dataset.domain}</span>
+  </div>
+  <div class="inline">
+    <label>Date created</label>
+    <span>{dataset.dateCreated? getLocalDate(dataset.dateCreated) : null}</span>
+  </div>
+  <div class="inline">
+    <label>Contact</label>
+    <span>{dataset.contactName}</span>
+  </div>
+  <div class="inline">
+    <label>Contact email</label>
+    <span>{dataset.email}</span>
+  </div>
+  <div class="inline">
+    <label>Date completed</label>
+    <span>{dataset.completed? getLocalDate(dataset.dateCompleted) : 'NA'}</span>
+  </div>
+  <div class="inline">
+    <label>Total Records</label>
+    <span>{dataset.recordCount}</span>
+  </div>
+  <div class="inline">
+    <label>Records Completed</label>
+    <span>{dataset.recordsCompleted}</span>
+  </div>
+  <div class="inline">
+    <label>Total groups</label>
+    <span>{dataset.groupCount}</span>
+  </div>
+  <div class="inline">
+    <label>Groups complete</label>
+    <span>{dataset.groupsComplete}</span>
+  </div>
+  <div class="inline">
+    <label>Last georeference</label>
+    <span>{dataset.lastGeoreference? getLocalDateTime(dataset.lastGeoreference): 'NA'}</span>
+  </div>
+  <div class="inline">
+    <label for="url">Dataset URL</label>
+    <span id="url">{dataset.datasetURL}</span>
+  </div>
+</div>
+<div class="button-container">
+  <button on:click={handleStartGeoreferencing}>Start georeferencing</button>
+  <button on:click = {clearLockedRecordGroups}>Clear locked record groups</button> <!--TODO add only for admins-->
+  <button on:click={handleBackToDatasets}>Back to datasets</button>
+  <button on:click={handleDownloadDataset}>Download dataset with georeferences</button>
+  <button on:click={handleDownloadGeorefs}>Download georeferences only</button>
+</div>
 
 <!-- ############################################## -->
 <style>
 h2 {
-		color: #ff3e00;
-		text-transform: uppercase;
+		color:  rgb(73, 93, 158);
 		font-size: 2em;
 		font-weight: 100;
-	}
-span {
-    padding:0.5em;
-    background-color: powderblue;
-    border-radius: 2px;
-    margin-bottom:0.5em;
-    text-align: left;
   }
+  
 .content {
-    display: grid;
-    grid-template-columns: 20% 40%;
-    grid-column-gap: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
+.content > div {
+  display:inline-block;
+  margin: 10px;
+  border-radius:2px;
+  border: 1px solid lightgray;
+  padding: 5px;
+}
+
 label {
-  text-align: right
+  background-color: #bcd0ec;
+  padding:2px;
+}
+
+span {
+    
+    border-radius: 2px;
+    margin-bottom:0.5em;
+    height:2em;
+  }
+
+.button-container {
+  display: flex;
+  flex-direction:column;
+  align-content: center;
 }
 
 button {
+  display:inline-block;
+  background-color: lightgray;
   width:100%;
-  display: block;
+  max-width:400px;
+  margin:10px auto;
+  padding:10px;
+}
+
+button:hover {
+  background-color:grey;
+  color:white;
 }
 </style>

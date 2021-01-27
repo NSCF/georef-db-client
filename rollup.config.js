@@ -49,6 +49,7 @@ export default {
 		production && terser()
 	],
 	watch: {
+		buildDelay: 3000,
 		clearScreen: false
 	}
 };

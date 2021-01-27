@@ -3,7 +3,7 @@ import {getContext, createEventDispatcher } from 'svelte';
 import Alert from './Alert.svelte'
 
 const dispatch = createEventDispatcher();
-const { open } = getContext('simple-modal');
+//const { open } = getContext('simple-modal');
 
 //PROPS
 export let fileMIMETypes
@@ -92,28 +92,30 @@ function toEmitOrNotToEmit(file){
 <!--
   based on https://codepen.io/MSEdgeDev/pen/KzzNaZ
 -->
-<h1>Welcome to the georeferencer</h1>
-<button class="datasets-button" on:click={handleGoToDatasets}><strong>GO TO DATASETS</strong></button>
-<h2 style="color:#363636">OR</h2>
-<div id="wrapper" class="wrapper">
-  <div 
-    id="fileDropBox"
-    class="fileDropBox"
-    class:active={hovering}
-    class:inactive={!hovering}
-    on:mouseenter={handleMouseOver}
-    on:mouseleave={handleMouseout}
-    on:dragenter={handleDragEnter} 
-    on:dragleave={handleDragLeave}  
-    on:drop={handleDragDrop} 
-    on:click={handleBoxClick}
-    ondragover="return false"
-  >
-    <p>Drag and drop a Darwin Core CSV file here or click to select</p>
+<div style="text-align:center">
+  <h1>Welcome to the georeferencer</h1>
+  <button class="datasets-button" on:click={handleGoToDatasets}><strong>GO TO DATASETS</strong></button>
+  <h2 style="color:gray">OR</h2>
+  <div id="wrapper" class="wrapper">
+    <div 
+      id="fileDropBox"
+      class="fileDropBox"
+      class:active={hovering}
+      class:inactive={!hovering}
+      on:mouseenter={handleMouseOver}
+      on:mouseleave={handleMouseout}
+      on:dragenter={handleDragEnter} 
+      on:dragleave={handleDragLeave}  
+      on:drop={handleDragDrop} 
+      on:click={handleBoxClick}
+      ondragover="return false"
+    >
+      <p>Drag and drop a Darwin Core CSV file here or click to select</p>
+    </div>
+    <div class='warning'><strong>Please note that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine localities</strong></div>
   </div>
-  <div class='warning'><strong>Please note that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine localities</strong></div>
+  <input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
 </div>
-<input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
 
 <!--##############################################-->
 <style>
@@ -154,18 +156,22 @@ function toEmitOrNotToEmit(file){
   }
   .datasets-button {
     width: 300px;
-    height: 100px;
-    background-color: rgb(109, 190, 196);
-    color: white;
+    height: 50px;
+    background-color: #bcd0ec;
     font-size: 1.5em;
-    border-radius: 10px;
-    border: 4px solid rgb(8, 66, 70);
+    color: rgb(73, 93, 158);
+    border-radius: 2px;
+  }
+
+  .datasets-button:hover {
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+
   }
 
   .warning {
     background-color: #ffd47d;
-    color: rgb(110, 145, 145);
-    border-radius: 10px;
+    color: rgb(73, 93, 158);
+    border-radius: 2px;
     border-width: 20px;
     border: 4px solid #c98f18;
   }

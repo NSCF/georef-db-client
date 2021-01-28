@@ -10,6 +10,8 @@
   let downloadErrors = false
   let downloadErrorMessage
 
+  let downloadProgessMessage = ""
+
 const getLocalDate = timestamp => {
   if(!timestamp) return ''
   
@@ -94,22 +96,117 @@ const handleBackToDatasets = _ => {
 const handleDownloadDataset = async _ => {
   
   //test permissions first
+  console.log('fetching dataset')
+
   try {
-    console.log('fetching dataset')
-    
+    downloadProgessMessage = "fetching original dataset..."
+    let originals = getOriginalDataset(dataset.datasetURL)
   }
   catch(err) {
-    console.log(err.message)
-    downloadErrorMessage = err.message
-    downloadErrors = true
+    alert('error fetching original dataset: ', err.message)
+    downloadProgessMessage = null
     return
   }
 
-  //fetch the file
-  //fetch the georeferences from Elastic
-  //fetch the recordGroups
-  //join everything up and save to the users computer
-  //mark on Firestore with last download timestamp (who, when and what)
+  let recordGroupDetails
+  let georefs
+  try {
+    downloadProgessMessage = "and georeferences..."
+    recordGroupDetails = await getRecordGroups()
+    let georefIDs = Object.keys(recordGroupDetails.georefKeys)
+    if(!georefIDs.length) {//there are no georefs for this dataset yet
+      alert('there are no georeferences for this dataset yet, nothing will be downloaded')
+      downloadProgessMessage = null
+      return
+    }
+    //else
+    let index = `${dataset.region}${dataset.domain}`.toLowerCase()
+    georefs = await getGeorefs(georefIDs, index)
+  }
+  catch(err) {
+    alert('Error with download: ' + err.message)
+    downloadProgessMessage = null
+    return
+  }
+  downloadProgessMessage = "and finally reassembling everthing..."
+  
+  let georefIndex = {}
+  for (let georef of georefs){
+    georefIndex[georef._id] = georef._source
+  }
+
+  for (let original of originals){
+    let recordID = original[dataset.recordIDField]
+    let georefDetails = recordGroupDetails.recordGeorefData[recordID] //this is the linking data
+    let georef = georefIndex[georefDetails.georefID]
+
+    original.nscfGeorefID = georef.georefID
+    original.georeferenceCountry = georef.country
+    original.georeferenceStateProvince = georef.stateProvince
+    original.georeferenceLocality = georef.locality
+    original.decimalCoordinates = georef.decimalCoordinates
+    original['dwc:decimalLatitude'] = georef.decimalLatitude
+    original['dwc:decimalLongitude'] = georef.decimalLongitude
+    original.georeferenceUncertainty = georef.uncertainty 
+    original.georeferenceUncertaintyUnit = georef.uncertaintyUnit 
+    original['dwc:geodeticDatum'] = georef.datum 
+    original['dwc:georeferencedBy'] = georefDetails.georefBy 
+    original['dwc:georeferencedDate'] = georefDetails.georefDate
+    original.originalGeoreferenceBy = georef.by
+    original.originalGeoreferenceDate = georef.date 
+    original['dwc:georeferenceSources'] = georef.sources
+    original.originalGeorefSource = georef.originalGeorefSource 
+    original['dwc:georeferenceProtocol'] = georef.protocol 
+    original['dwc:georeferenceRemarks'] = georefDetails.georefRemarks
+    original.originalGeoreferenceRemarks = georef.remarks
+
+    if(georefDetails.georefVerified){
+      if(georefDetails.georefVerifiedByRole) {
+        original['dwc:georeferenceVerificationStatus'] = 'verified by ' + georefDetails.georefVerifiedByRole
+      }
+      else {
+        original['dwc:georeferenceVerificationStatus'] = 'verified (no role indicated)'
+      }
+    }
+    else {
+      original['dwc:georeferenceVerificationStatus'] = 'requires verification'
+    }
+
+    original.georeferenceVerifiedBy = georefDetails.georefVerifiedBy
+    original.georeferenceVerifiedDate = georefDetails.georefVerifiedDate
+
+    if(georef.verified){
+      if(georef.verifiedByRole) {
+        original.originalGeoreferenceVerificationStatus = 'verified by ' + georef.verifiedByRole
+      }
+      else {
+        original.originalGeoreferenceVerificationStatus = 'verified (no role indicated)'
+      }
+    }
+    else {
+      original.originalGeoreferenceVerificationStatus = 'requires verification'
+    }
+
+    original.originalGeoreferenceVerifiedBy = georef.verifiedBy 
+    original.originalGeoreferenceVerifiedDate = georef.verifiedDate
+
+  }
+
+  //and download to the local machine
+  let csv = Papa.unparse(originals)
+  let now = new Date()
+  let date = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
+  date = date.replace(/-/g, '')
+  let newDatasetName = dataset.datasetName + '_georeferenced' + date + '.csv'
+
+  //taken from https://code-maven.com/create-and-download-csv-with-javascript
+  let hiddenDownload = document.createElement('a');
+  hiddenDownload.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
+  hiddenDownload.target = '_blank';
+  hiddenDownload.download = newDatasetName
+  hiddenDownload.click();
+  
+  //TODO mark on Firestore with last download timestamp (who, when and what) -- probably better before the bit above
 
 }
 
@@ -139,8 +236,7 @@ const getRecordGroups = async _ => {
 
   if(recordGroupsQuerySnap.empty) { 
     //this should never happen!!
-    alert('something went wrong with the download!!')
-    return
+    throw new Error('no record groups returned for this dataset!!')
   }
   else {
     let recordGroups = recordGroupsQuerySnap.map(x=>x.data())
@@ -150,14 +246,14 @@ const getRecordGroups = async _ => {
       if(recordGroup.groupLocalities && recordGroup.groupLocalities.length){
         for (let groupLoc of recordGroup.groupLocalities) { //this now has the georef fields
           
-          if(!georefKeys[groupLoc.georefID]) {
+          if(groupLoc.georefID && !georefKeys[groupLoc.georefID]) {
             georefKeys[groupLoc.georefID] = true
           }
 
           let georefData = {
-            georefID: groupLoc.georefID,
-            georefBy: groupLoc.georefBy,
-            georefDate: groupLoc.georefDate, 
+            georefID: groupLoc.georefID || null,
+            georefBy: groupLoc.georefBy || null,
+            georefDate: groupLoc.georefDate || null, 
             georefRemarks: groupLoc.selectedLocGeorefRemarks || null,
           }
 
@@ -176,11 +272,51 @@ const getRecordGroups = async _ => {
   }
 }
 
-const getGeorefs = async georefKeys => {
+const getGeorefs = async (georefKeys, elasticIndex) => {
   if(Array.isArray(georefKeys) && georefKeys.length) {
-    //TODO we need an api call to handle this...
+    let search = {
+      index: elasticIndex,
+      body: {
+        query: {
+          ids: {
+            values: georefKeys
+          }
+        }
+      }
+    }
+    let url = 'https://us-central1-georef-745b9.cloudfunctions.net/getgeorefsbyid'
+    try {
+      let res = await fetch(url, {
+        method: 'POST', 
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: (JSON.stringify(search))
+      })
+      let georefs = await res.json()
+      return georefs;
+    }
+    catch(err) {
+      throw new Error('georefs could not be fetch with message ' + err.message)
+    }
   }
+  else {
+    throw new Error('georefIDs provided is invalid')
+  }
+}
 
+const getOriginalDataset = url => {
+  return new Promise((resolve, reject) => {
+    Papa.parse(url, {
+      download: true,
+      complete: function(results) {
+        resolve(results);
+      }, 
+      error: function(err) {
+        reject(err)
+      }
+    });
+  })
 }
 </script>
 

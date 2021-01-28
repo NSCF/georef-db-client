@@ -309,6 +309,11 @@ const handleSetGeoref = async ev => {
       loc.georefID = georef.georefID
       loc.georefBy = userID
       loc.georefDate = Date.now()
+      loc.georefVerified = false
+      loc.georefVerifiedBy = null
+      loc.georefVerifiedDate = null
+      loc.georefVerifiedByRole = null
+      loc.georefRemarks = null
       if(selectedLocGeorefRemarks) {
         loc.georefRemarks = selectedLocGeorefRemarks
       }

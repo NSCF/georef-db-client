@@ -70,6 +70,7 @@ function handleFileContentsConfirmed(ev) {
 
 function handleRegisterDataset(ev) {
 	datasetDetails = ev.detail
+	datasetDetails.recordIDField = requiredFields.recordIDField //very important!!
 	console.log(datasetDetails)
 	currentPage = 'UploadData'
 }

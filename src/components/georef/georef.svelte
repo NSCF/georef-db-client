@@ -419,6 +419,7 @@ const copyLocality = async _ => {
       </div>
     </div>
     <div class="matchlist-container">
+      <h4>Candidate georeferences</h4>
       <MatchList />
     </div>
     <div class="matchmap-container">
@@ -439,17 +440,31 @@ const copyLocality = async _ => {
 
 <!-- ############################################## -->
 <style>
+
+h4 {
+  color:  #bcd0ec;
+  text-transform: uppercase;
+  font-size: 2em;
+	font-weight: 100;
+  text-align: center;
+  margin:0;
+}
 .grid-container {
   display: grid;
   height: 100%;
   max-height:100%;
-  overflow:none;
   width: 100%;
   padding: 10px;
+  margin-top:10px;
+ /* min-height: 0;   NEW */
+  /* min-width: 0;   NEW; needed for Firefox */
+  overflow:hidden;
   box-sizing: border-box;
-  grid-template-columns: 1fr 3fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   grid-column-gap:1%;
+  border-radius:4px;
+  border: 2px solid #bcd0ec;
 }
 
 .recordgroup-container {
@@ -458,14 +473,18 @@ const copyLocality = async _ => {
   display: flex;
   flex-flow: column;
   height: 100%;
-  min-height: 100%;
   max-height: 100%;
+  min-height: 0;  /* NEW */
+  min-width: 0;   /* NEW; needed for Firefox */
+  overflow:hidden;
 }
 
 .recordgroup {
   flex-grow:0;
   flex-basis:100%;
-  overflow:scroll;
+  overflow:auto;
+  border:1px solid #bcd0ec;
+  padding:2px;
 }
 
 .recordgroup-buttons {
@@ -474,7 +493,6 @@ const copyLocality = async _ => {
 }
 
 .matchlist-container {
- 
   grid-column: 2/2; 
   grid-row: 1 / 2;
   max-height: 100%;
@@ -482,16 +500,16 @@ const copyLocality = async _ => {
 }
 
 .matchmap-container {
-
   grid-column: 2/2;
-  grid-row: 2 / 2
+  grid-row: 2 / 2;
 }
 
 .georef-form-container {
   grid-column: 3/3;
   grid-row: 1 / 3;
-  
-  max-height: 100%;
+  height:100%;
+  overflow-y:auto;
+  overflow-x:hidden;
 } 
 
 label {

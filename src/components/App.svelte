@@ -21,7 +21,7 @@ let pages = ['ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'U
 let datasetPages = ['datsetList', 'datasetDetail']
 let georeferencePage = 'georef' //just the one
 
-let currentPage = 'workshop'
+let currentPage = 'ChooseFile'
 
 //locals
 let fileForGeoref
@@ -155,6 +155,7 @@ function handleYardClick() {
 				{/if}
 			</div>
 		</div>
+		<div class="stopper"></div>
 	</Modal>
 </main>
 
@@ -169,6 +170,7 @@ function handleYardClick() {
 
 	.flex-container {
 		display: flex;
+		position: relative;
 		flex-direction: column;
 		width:100%;
 		height:100%;
@@ -184,10 +186,19 @@ function handleYardClick() {
 	}
 
 	.content {
-		width:100%;
 		flex-grow: 1;
+		flex-shrink: 1;
+		flex-basis: auto;
+		max-height:calc(height-50px);
 		box-sizing: border-box;
-		overflow:none;
+		overflow:hidden;
+	}
+
+/* This bugger is needed to stop the overflow!!!!*/
+	.stopper {
+		position: absolute;
+		height:0;
+		bottom:0;
 	}
 
 	button {

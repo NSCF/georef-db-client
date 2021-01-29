@@ -100,7 +100,7 @@ const handleDownloadDataset = async _ => {
 
   try {
     downloadProgessMessage = "fetching original dataset..."
-    let originals = getOriginalDataset(dataset.datasetURL)
+    let originals = await getOriginalDataset(dataset.datasetURL)
   }
   catch(err) {
     alert('error fetching original dataset: ', err.message)
@@ -239,7 +239,7 @@ const getRecordGroups = async _ => {
     throw new Error('no record groups returned for this dataset!!')
   }
   else {
-    let recordGroups = recordGroupsQuerySnap.map(x=>x.data())
+    let recordGroups = recordGroupsQuerySnap.docs.map(x=>x.data())
     let georefKeys = {} //an index
     let recordGeorefData = {} //this is the beginning of the data to be returned........
     for (let recordGroup of recordGroups){

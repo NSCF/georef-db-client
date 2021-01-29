@@ -8,9 +8,7 @@ import Loader from '../loader.svelte'
 
 <!-- ############################################## -->
 <!-- HTML -->
-
 <table>
-  <h4>Candidate georeferences</h4>
   {#if $dataStore.georefIndex && Object.keys($dataStore.georefIndex).length}
     <tr>
       <th>locality</th><th>uncertainty</th><th>sources</th><th>protocol</th><th>verified</th>
@@ -28,7 +26,6 @@ import Loader from '../loader.svelte'
 table {
   width:100%;
   max-height: 100%;
-  overflow:auto;
 }
 
 th {

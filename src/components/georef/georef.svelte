@@ -16,6 +16,7 @@ import RecordGroup from './georefRecordGroup.svelte'
 import MatchList from './georefMatchList.svelte'
 import MatchMap from './georefMatchMap.svelte'
 import GeorefForm from './georefForm.svelte'
+import CustomSearch from './customSearch.svelte'
 import Toast from '../toast.svelte'
 
 //some mock values for now
@@ -32,11 +33,18 @@ let savingRecordGroup = false
 
 let elasticindex
 
+//vars for custom georef searches
+let customSearchString = null
+let georefIndexOnHold = null
+let searchingGeorefs = false
+
 let selectedLocGeorefRemarks
 
 let georefsAdded = 0 //this is the number of locality strings georeferenced
 let recordsGeoreferenced = 0 //this is the number of associated records georeferenced
 let datasetComplete = false //a flag to take us back to the datasets when this one is complete
+
+let locStringsTitle = "Select the items below that represent the same locality and then choose and apply or create an appropriate georeference"
 
 let selectedCount 
 $: if($dataStore.recordGroup){
@@ -116,6 +124,7 @@ const fetchNextRecordGroup = async lastSnap => {
         recordsGeoreferenced = 0
         
         console.log('fetching georefs')
+        customSearchString = null //just to clear
         try {
           let candidateGeorefs = await fetchCandidateGeorefs($dataStore.recordGroup.groupLocalities, elasticindex)
           if(Object.keys(candidateGeorefs.georefIndex).length) {
@@ -211,6 +220,23 @@ const handleSkipRecordGroup = async _ => {
   fetchNextRecordGroup($dataStore.recordGroupSnap)
 }
 
+const handleCustomSearchSearching = _ => {
+  georefIndexOnHold = $dataStore.georefIndex
+  $dataStore.georefIndex = null
+}
+
+const handleCustomGeorefs = ev => {
+  let customGeorefs = ev.detail
+  $dataStore.georefIndex = customGeorefs
+}
+
+const handleCustomSearchCleared = _ => {
+  if(georefIndexOnHold) {
+    $dataStore.georefIndex = georefIndexOnHold
+    georefIndexOnHold = null
+  }
+}
+
 //this is the heavy lifting
 const handleSetGeoref = async ev => {
   //TODO NB we need to lock everything while the georef saves
@@ -223,30 +249,7 @@ const handleSetGeoref = async ev => {
     let isNew = false
     if($dataStore.selectedGeoref) {//it may be completely new before a georef is selected
       console.log('checking georef fields')
-      for (let [key, val] of Object.entries(georef)){
-        if(typeof val == 'string'){
-          if(!$dataStore.selectedGeoref[key] || $dataStore.selectedGeoref[key].trim() != val.trim()){
-            hasEdits = true
-            break;
-          }
-        }
-        else if (typeof val == 'number'){
-          if(/^-?\d+\.\d+$/.test(val)) { //its decimal
-            if(/^-?\d+\.\d+$/.test($dataStore.selectedGeoref[key])) { //they're both decimal
-              let diff = val - $dataStore.selectedGeoref[key]
-              if(Math.abs(diff) > 0.000001){
-                hasEdits = true
-                break
-              }
-            }
-          }
-        }
-        else {
-          if(val != $dataStore.selectedGeoref[key]){
-            hasEdits = true
-          }
-        }
-      }
+      hasEdits = !georefsEqual(georef, $dataStore.selectedGeoref)
     }
     else {
       console.log('no georef selected, this is new')
@@ -256,6 +259,12 @@ const handleSetGeoref = async ev => {
     if(hasEdits || isNew){ //we treat it as a new georef
       console.log('updating georef ID and admin boundaries')
       georef.georefID = nanoid()
+      georef.dateCreated = Date.now()
+      georef.createdBy = userName
+
+      if(isNew || !georef.originalGeorefSource || !georef.originalGeorefSource.trim()) {
+        georef.originalGeorefSource = 'NSCF gereference database'
+      }
 
       savingGeoref = true
 
@@ -268,15 +277,9 @@ const handleSetGeoref = async ev => {
         console.log('admin is', georef.country, georef.stateProvince)
       }
       catch(err){
-        alert('error updating country and stateProvince:',err.message)
+        alert('error updating country and stateProvince:' + err.message)
+        savingGeoref = false
         return
-      }
-
-      if (isNew){
-        georef.originalGeorefSource = 'NSCF georeference database'
-        georef.verified = false
-        georef.dateCreated = Date.now()
-        georef.createdBy = userName
       }
       
       //save it to elastic via our API
@@ -294,13 +297,19 @@ const handleSetGeoref = async ev => {
         await navigator.clipboard.writeText(JSON.stringify(georef))
         console.log('error saving georef, see clipboard')
         let body = await res.json()
+        if(body.validation){
+          alert('there were validation errors with these fields:' + body.validation)
+        }
         console.log(body)
-        alert('there was an error saving this new georeference:', body)
+        alert('there was an error saving this new georeference:' + body)
         return
       }
 
-      savingGeoref =  false
+      savingGeoref = false
       console.log('successfully saved')
+      if(window.pushToast) {
+        window.pushToast('new georef saved')
+      }
     }
 
     console.log('updating record group with georef')
@@ -392,14 +401,51 @@ const copyLocality = async _ => {
   }
 }
 
+//helpers
+//for comparing georef objects
+const georefsEqual = (georef1, georef2) => {
+  if(georef1 && georef2) {
+    for (let [key, val] of Object.entries(georef1)){
+      if(!val && (!georef2[key] || georef2[key].trim())){ //both empty
+        return false
+      }
+      
+      if(typeof val == 'string'){
+        if(!georef2[key] || georef2[key].trim() != val.trim()){
+          return false
+        }
+      }
+      
+      if (typeof val == 'number'){
+        if(!georef2[key] || isNaN(georef2[key])) {
+          return false
+        }
+        else {
+          let diff = val - georef2[key]
+          if(Math.abs(diff) > 0.000001){
+            return false
+          }
+        }
+      }
+
+    }
+    //they are the same
+      return true
+  }
+  else {
+    return false
+  }
+}
+
+
+
 </script>
 
 <!-- ############################################## -->
 {#if !datasetComplete}
   <div class="grid-container">
     <div class="recordgroup-container">
-      <h4>Locality strings</h4>
-      <p><i>Select the items below that represent the same locality and then choose and apply or create an appropriate georeference</i></p>
+      <h4 title={locStringsTitle}>Locality strings</h4>
       <div>
         <button style="float:right" title="copy locality" disabled={!$dataStore.recordGroup || $dataStore.recordGroup.groupLocalities.filter(x=>x.selected).length != 1} on:click={copyLocality}><i class="material-icons md-dark">content_copy</i></button>
       </div>
@@ -420,14 +466,21 @@ const copyLocality = async _ => {
     </div>
     <div class="matchlist-container">
       <h4>Candidate georeferences</h4>
-      <MatchList />
+      <CustomSearch bind:customSearchString {elasticindex} on:custom-search-searching={handleCustomSearchSearching} on:custom-search-cleared={handleCustomSearchCleared} on:custom-georefs={handleCustomGeorefs} />
+      <div class="matchlist-flex">
+        <MatchList />
+      </div>
+      <div class="matchlist-flex-plug" />
     </div>
     <div class="matchmap-container">
       <MatchMap />
     </div>
     <div class="georef-form-container">
-      <h4>Georeference</h4>
-      <GeorefForm georef={$dataStore.selectedGeoref} submitButtonText={"Use this georeference"} on:set-georef={handleSetGeoref}/>
+      <h4 class="georef-flex-header">Georeference</h4>
+      <div class="georef-form-flex">
+        <GeorefForm georef={$dataStore.selectedGeoref} submitButtonText={"Use this georeference"} on:set-georef={handleSetGeoref}/>
+      </div>
+      <div class="georef-form-plug" />
     </div>
   </div>
   <Toast />
@@ -444,7 +497,7 @@ const copyLocality = async _ => {
 h4 {
   color:  #bcd0ec;
   text-transform: uppercase;
-  font-size: 2em;
+  font-size: 1.5em;
 	font-weight: 100;
   text-align: center;
   margin:0;
@@ -496,7 +549,24 @@ h4 {
   grid-column: 2/2; 
   grid-row: 1 / 2;
   max-height: 100%;
-  overflow: auto;
+  position:relative;
+  display: flex;
+  flex-flow: column;
+}
+
+.matchlist-header {
+  flex: 0 1 auto;
+}
+
+.matchlist-flex {
+  flex-grow: 1;
+  flex-shrink: 1;
+  flex-basis: initial;
+  overflow-y: auto;
+}
+
+.matchlist-flex-plug {
+  flex: 0 0 auto;
 }
 
 .matchmap-container {
@@ -508,9 +578,27 @@ h4 {
   grid-column: 3/3;
   grid-row: 1 / 3;
   height:100%;
-  overflow-y:auto;
+  max-height:100%;
+  position:relative;
+  display: flex;
+  flex-flow: column;
   overflow-x:hidden;
 } 
+
+.georef-flex-header {
+  flex: 0 1 auto;
+}
+
+.georef-form-flex {
+  flex-grow: 1;
+  flex-shrink: 1;
+  flex-basis: auto;
+  overflow-y: auto;
+}
+
+.georef-form-plug {
+  flex: 0 0 auto;
+}
 
 label {
   display: inline-block;

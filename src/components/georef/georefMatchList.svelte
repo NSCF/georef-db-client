@@ -10,9 +10,11 @@ import Loader from '../loader.svelte'
 <!-- HTML -->
 <table>
   {#if $dataStore.georefIndex && Object.keys($dataStore.georefIndex).length}
-    <tr>
-      <th>locality</th><th>uncertainty</th><th>sources</th><th>protocol</th><th>verified</th>
-    </tr>
+    <thead>
+      <tr>
+        <th>locality</th><th>uncertainty</th><th>sources</th><th>protocol</th><th>verified</th>
+      </tr>
+    </thead>
     {#each Object.keys($dataStore.georefIndex) as georefKey}
       <MatchListRow {georefKey} />
     {/each}
@@ -25,7 +27,12 @@ import Loader from '../loader.svelte'
 <style>
 table {
   width:100%;
-  max-height: 100%;
+  overflow-y: auto;
+}
+
+thead th {
+  position: sticky;
+  top: 0;
 }
 
 th {

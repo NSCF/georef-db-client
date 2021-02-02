@@ -112,54 +112,14 @@ export default class Georef {
     }
   }
 
-  //includes validation, throws if any problems
+  //assumed already validated
   set decimalCoordinates(coordsString){
-    if(coordsString && coordsString.trim()){
-      coordsString = coordsString.trim()
-      let re = /^-?\d{1,2}\.\d{4,},\s*-?\d{1,3}\.\d{4,}$/
-      if(re.test(coordsString)){
-        
-        let parts = coordsString.split(',')
-        let decimalLatitudeString = parts[0]
-        let decimalLongitudeString = parts[1]
-  
-        let decimalLatitude, decimalLongitude
-  
-        let dlsParts = decimalLatitudeString.split('.')
-        if(dlsParts[1].length > 8) {
-          decimalLatitude = Number(Number(decimalLatitudeString).toFixed(8))
-        }
-        else {
-          decimalLatitude = Number(decimalLatitudeString)
-        }
-  
-        dlsParts = decimalLongitudeString.split('.')
-        if(dlsParts[1].length > 8) {
-          decimalLongitude = Number(Number(decimalLongitudeString).toFixed(8))
-        }
-        else {
-          decimalLongitude = Number(decimalLongitudeString)
-        }
-        
-        if(decimalLatitude > 90 || decimalLatitude < -90){
-          throw new Error('invalid decimal coordinates value')
-        }
-  
-        if(decimalLongitude > 180 || decimalLongitude < -180){
-          throw new Error('invalid decimal coordinates value: ' + coordsString)
-        }
-  
-        this.decimalLatitude = decimalLatitude
-        this.decimalLongitude = decimalLongitude
-      }
-      else {
-        throw new Error('invalid decimal coordinates value: ' + coordsString)
-      }
+    if(coordsString && coordsString.trim()) {
+      let parts = coordsString.split(',')
+      this.decimalLatitude = Number(parts[0])
+      this.decimalLongitude = Number(parts[1])
     }
-    else {
-      this.decimalLatitude = null
-      this.decimalLongitude = null
-    }
+    
   }
 
   //VALIDATION FIELDS

@@ -2,21 +2,26 @@
 import convert from 'geo-coordinates-parser'
 import {createEventDispatcher} from 'svelte'
 export let value
-export let hasError
+export let hasError = false
 
 let dispatch = createEventDispatcher()
 
 const pasteVerbatimCoords = _ => {
-  navigator.clipboard.readText().then(coordsString => {
-    try {
-      let decimalCoords = calcDecimalCoords(coordsString)
-      value = coordsString.trim()
-      dispatch('coords-from-verbatim', decimalCoords)
-    }
-    catch(err){
-      alert(err.message)
-    }
-  })
+  if(navigator.clipboard.readText) {
+    navigator.clipboard.readText().then(coordsString => {
+      try {
+        let decimalCoords = calcDecimalCoords(coordsString)
+        value = coordsString.trim()
+        dispatch('coords-from-verbatim', decimalCoords)
+      }
+      catch(err){
+        alert(err.message)
+      }
+    })
+  }
+  else {
+    alert('this browser does not support programmatic copy/paste')
+  }
 }
 
 const handleInputPasteCoords = ev => {
@@ -38,9 +43,15 @@ const calcDecimalCoords = coordsString => {
     coordsString = coordsString.trim()
     try {
       let converted = convert(coordsString)
+
       return `${converted.decimalLatitude},${converted.decimalLongitude}`   
     }
     catch(err) {
+      if (coordsString.length > 30) {
+        coordsString = coordsString.slice(0,30) + '...'
+      }
+      coordsString = coordsString.replace(/\s+/g, ' ')
+      coordsString = '"' + coordsString + '"'
       throw new Error('invalid verbatim coords string: ' + coordsString)
     }
   }
@@ -70,7 +81,6 @@ const calcDecimalCoords = coordsString => {
   padding-right: 40px;
   width: 100%;
   max-width: 350px;
-  min-width:260px;
 }
 
 .icon-input-icon {

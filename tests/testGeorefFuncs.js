@@ -1,6 +1,6 @@
 const fetch = require('isomorphic-fetch')
 
-const { fetchCandidateGeorefs } = require('../src/components/georef/georefFuncs')
+const { fetchAdmins, fetchCandidateGeorefs } = require('../src/components/georef/georefFuncs')
 
 let groupLocs = [
   {
@@ -18,3 +18,5 @@ let groupLocs = [
 ]
 
 fetchCandidateGeorefs(groupLocs, 'southernafricater').then(r => console.log(r)).catch(err => console.log(err.message))
+
+-26.07337190, 32.95889062

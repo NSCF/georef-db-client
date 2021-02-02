@@ -3,6 +3,10 @@ export let value
 export let hasError
 export let hasBy = false //for the rule about having an agent name first
 
+let re = /^(19|20)\d\d-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/ //for valid dates
+
+$: invalidFormat = Boolean(value && value.trim() && !re.test(value))
+
 const addDate = _ => {
   if(hasBy){
     let now = new Date()
@@ -18,7 +22,6 @@ const handleInputPasteDate = ev => {
   let pasteData = ev.clipboardData.getData("text")
 
   //for alternative regex that allows YYYY, YYY-MM or YYYY-MM-DD see https://stackoverflow.com/questions/53175624/javascript-regex-for-yyyy-mm-dd-with-an-optional-month-and-day
-  let re = /^(19|20)\d\d-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/
   if(re.test(pasteData)) {
     value = pasteData
   }
@@ -32,7 +35,7 @@ const handleInputPasteDate = ev => {
 <!-- ############################################## -->
 <!-- HTML -->
 <div class="icon-input-container">
-    <input type="text" class="icon-input" class:hasError on:paste={handleInputPasteDate} bind:value>
+    <input type="text" class="icon-input" class:hasError={hasError || invalidFormat} on:paste={handleInputPasteDate} bind:value>
     <span class="material-icons inline-icon icon-input-icon" style="right:5px" title="copy coords" on:click={addDate}>today</span>
 </div>
 

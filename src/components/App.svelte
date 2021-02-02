@@ -21,7 +21,7 @@ let pages = ['ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'U
 let datasetPages = ['datsetList', 'datasetDetail']
 let georeferencePage = 'georef' //just the one
 
-let currentPage = 'ChooseFile'
+let currentPage = 'workshop'
 
 //locals
 let fileForGeoref

@@ -29,29 +29,18 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex) => {
     //iterate the georef dictionary and update each one as visible or not
     
     let georefIndex = {} //it will be a and object of georefID: georefobject pairs
-    let locGeorefIndex = {} //it will be an object with locID : [georefID] array pairs
     
     if(fetchResults.length){
       for (let [index, elasticGeorefs] of fetchResults.entries()){
         if(elasticGeorefs.length){
           for (let elasticGeoref of elasticGeorefs){
             
-            let georef
-            try {
-              georef = Object.assign(new Georef, elasticGeoref._source)
-              georef.decimalCoordinates = georef.decimalCoordinates //to throw the setter in case there is a problem
-            }
-            catch(err) {
-              //console.log('error with', elasticGeoref._id, elasticGeoref._source.locality, ':', err.message)
-              continue
-            }
+            let georef = Object.assign(new Georef, elasticGeoref._source)
 
             if(!georef.decimalCoordinatesOkay){
               //console.log('error with coordinates for georef', elasticGeoref._id)
               continue
             }
-
-            //console.log('we\'re good for', georef.locality)
 
             if(!georefIndex[georef.georefID]){
               georefIndex[georef.georefID] = georef
@@ -71,8 +60,7 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex) => {
     */
 
     return {
-      georefIndex,
-      locGeorefIndex
+      georefIndex
     }
   }
   else {
@@ -107,7 +95,7 @@ const fetchAdmins = async (lat, long) => {
 
   if(geocodeResponse.status == 200){
     let geocode = await geocodeResponse.json()
-    if(geocode.results){
+    if(geocode.results && Array.isArray(geocode.results) && geocode.results.length){
       let result = {
         stateProvince: null,
         country: null
@@ -136,7 +124,7 @@ const fetchAdmins = async (lat, long) => {
       return result
     }
     else {
-      throw new Error('geocode API returned no results')
+      throw new Error('geocode API returned no results.If your coordinates are close to a country boundary shift them slightly and try again.')
     }
   }
   else {

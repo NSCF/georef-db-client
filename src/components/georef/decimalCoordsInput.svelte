@@ -3,7 +3,7 @@ export let value
 export let hasError
 
 const copyDecimalCoords = ev => {
-  if(value && value.trim()) {
+  if(value && value.trim() && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(value).then(_ => {
       if(window.pushToast) {
         window.pushToast('coordinates copied')
@@ -11,29 +11,45 @@ const copyDecimalCoords = ev => {
     })
   }
   else {
-    if(window.pushToast) {
-      window.pushToast('coordinates empty')
+    if(!navigator.clipboard.writeText) {
+      alert('this browser does not support programmatic copy/paste')
     }
     else {
-      alert('coordinates empty')
+      if(window.pushToast) {
+        window.pushToast('coordinates empty')
+      }
+      else {
+        alert('coordinates empty')
+      }
     }
   }
 }
 
 const pasteDecimalCoords = _ => {
-  navigator.clipboard.readText().then(coordsString => {
-    try {
-      value = validateCoordsString(coordsString)
-    }
-    catch(err){
-      if(!coordsString || !coordsString.trim()){
-        alert('clipboard empty')
+  if(navigator.clipboard.readText) {
+    navigator.clipboard.readText().then(coordsString => {
+      try {
+        value = validateCoordsString(coordsString)
       }
-      else {
-        alert('invalid coordinates: ' + coordsString.trim())
+      catch(err){
+        if(!coordsString || !coordsString.trim()){
+          alert('clipboard empty')
+        }
+        else {
+          coordsString = coordsString.trim()
+          if (coordsString.length > 30) {
+            coordsString = coordsString.slice(0,30) + '...'
+          }
+          coordsString = coordsString.replace(/\s+/g, ' ')
+          coordsString = '"' + coordsString + '"'
+          alert('invalid coordinates: ' + coordsString)
+        }
       }
-    }
-  })
+    })
+  }
+  else {
+    alert('this browser does not support programmatic copy/paste')
+  }
 }
 
 const handleInputPasteCoords = ev => {
@@ -44,7 +60,13 @@ const handleInputPasteCoords = ev => {
       value = validateCoordsString(pasteData)
     }
     catch(err){
-      alert('invalid coordinates: ' + coordsString.trim())
+      pasteData = pasteData.trim()
+      if (pasteData.length > 30) {
+        pasteData = pasteData.slice(0,30) + '...'
+      }
+      pasteData = pasteData.replace(/\s+/g, ' ')
+      pasteData = '"' + pasteData + '"'
+      alert('invalid coordinates: ' + pasteData)
     }
   }
   else {
@@ -119,13 +141,13 @@ const validateCoordsString = coordsString => {
   display: inline-block;
   position:relative;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .icon-input {
-  padding-right: 40px;
   width: 100%;
   max-width: 350px;
-  min-width:260px;
+  box-sizing: border-box;
 }
 
 .icon-input-icon {

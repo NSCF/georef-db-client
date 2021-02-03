@@ -138,6 +138,7 @@ const handleClearClick = _ => {
   if(window.pushToast) {
     window.pushToast('new georef')
   }
+  dispatch('georef-cleared')
 }
 
 const handleLocalityBlur = ev => {
@@ -149,10 +150,15 @@ const handleCoordsFromVerbatim = ev => {
   try {
     georef.decimalCoordinates = ev.detail
     georef.sources = 'verbatim coordinates'
+    dispatch('coords-from-paste')
   }
   catch(err) {
     alert(err.message)
   }
+}
+
+const handleCoordsFromPaste = _ => {
+  dispatch('coords-from-paste', georef.decimalCoordinates)
 }
 
 const handleUncertaintyBlur = _ => {
@@ -226,7 +232,7 @@ const handleFormSubmit = _ => {
   </div>
   <div class="oneliner">
     <label  for="verbatimcoords">verbatim coords</label>
-    <VerbatimCoordsInput on:coords-from-verbatim={handleCoordsFromVerbatim} bind:value={georef.verbatimCoordinates}/>
+    <VerbatimCoordsInput on:coords-from-verbatim={handleCoordsFromVerbatim} on:coords-from-paste={handleCoordsFromPaste} bind:value={georef.verbatimCoordinates}/>
   </div>
   <div class="oneliner">
     <label  for="coords">decimal coords</label>

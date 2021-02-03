@@ -88,6 +88,7 @@ const updateMarkerDisplay = _ => {
         strokeColor: 'blue'
       })
       marker.setZIndex(1)
+      map.panTo(marker.getPosition())
     }
     else {
       marker.setIcon({

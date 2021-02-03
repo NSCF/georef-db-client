@@ -1,4 +1,8 @@
 <script>
+import {createEventDispatcher} from 'svelte'
+
+let dispatch = createEventDispatcher()
+
 export let value
 export let hasError
 
@@ -30,6 +34,7 @@ const pasteDecimalCoords = _ => {
     navigator.clipboard.readText().then(coordsString => {
       try {
         value = validateCoordsString(coordsString)
+        dispatch('coords-from-paste')
       }
       catch(err){
         if(!coordsString || !coordsString.trim()){
@@ -58,6 +63,7 @@ const handleInputPasteCoords = ev => {
   if(pasteData && pasteData.trim()){
     try {
       value = validateCoordsString(pasteData)
+      dispatch('coords-from-paste')
     }
     catch(err){
       pasteData = pasteData.trim()

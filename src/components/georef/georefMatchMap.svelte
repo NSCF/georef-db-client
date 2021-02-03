@@ -7,6 +7,8 @@ import MapMarker from './georefMatchMapMarker.svelte'
 
 const dispatch = createEventDispatcher();
 
+export let pastedDecimalCoords
+
 let ready = false
 let container;
 let map;
@@ -26,6 +28,13 @@ window.initMap = function ready() {
 }
 
 $:if ($dataStore.georefIndex && Object.keys($dataStore.georefIndex).length && mapReady) prepMap()
+
+$: if(map && marker && pastedDecimalCoords) {
+  let latlon = pastedDecimalCoords.split(',').map(x=>Number(x))
+  let pos = {lat: latlon[0], lng: latlon[1]} //google.maps.LatLngLiteral
+  marker.setPosition(pos)
+  map.panTo(pos)
+}
 
 const prepMap = _ => {
 

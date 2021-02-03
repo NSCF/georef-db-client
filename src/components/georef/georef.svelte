@@ -40,6 +40,8 @@ let searchingGeorefs = false
 
 let selectedLocGeorefRemarks
 
+let pastedDecimalCoords //for communication between the georef form and the movable map marker
+
 let georefsAdded = 0 //this is the number of locality strings georeferenced
 let recordsGeoreferenced = 0 //this is the number of associated records georeferenced
 let datasetComplete = false //a flag to take us back to the datasets when this one is complete
@@ -237,6 +239,15 @@ const handleCustomSearchCleared = _ => {
   }
 }
 
+const handleGeorefCleared = _ => {
+  $dataStore.selectedGeoref.selected = false
+  $dataStore.selectedGeoref = null
+}
+
+const handleCoordsFromPaste = ev => {
+  pastedDecimalCoords = ev.detail
+}
+
 //this is the heavy lifting
 const handleSetGeoref = async ev => {
   //TODO NB we need to lock everything while the georef saves
@@ -263,7 +274,7 @@ const handleSetGeoref = async ev => {
       georef.createdBy = userName
 
       if(isNew || !georef.originalGeorefSource || !georef.originalGeorefSource.trim()) {
-        georef.originalGeorefSource = 'NSCF gereference database'
+        georef.originalGeorefSource = 'NSCF georeference database'
       }
 
       savingGeoref = true
@@ -335,13 +346,16 @@ const handleSetGeoref = async ev => {
     
     $dataStore.recordGroup.groupLocalities = $dataStore.recordGroup.groupLocalities //the svelte update trigger
 
+    //add it to the index
+    $dataStore.georefIndex[georef.georefID] = georef
+
     for (let [key, val] of Object.entries($dataStore.georefIndex)){
       val.selected = false
     }
 
     $dataStore.selectedGeoref = null
 
-    //$dataStore.georefIndex = $dataStore.georefIndex //svelte update
+    $dataStore.georefIndex = $dataStore.georefIndex //svelte update
 
     georefsAdded += selectedLocs.length
     console.log(`${georefsAdded} georefs added`)
@@ -478,7 +492,12 @@ const georefsEqual = (georef1, georef2) => {
     <div class="georef-form-container">
       <h4 class="georef-flex-header">Georeference</h4>
       <div class="georef-form-flex">
-        <GeorefForm georef={$dataStore.selectedGeoref} submitButtonText={"Use this georeference"} on:set-georef={handleSetGeoref}/>
+        <GeorefForm 
+        georef={$dataStore.selectedGeoref} 
+        submitButtonText={"Use this georeference"} 
+        on:georef-cleared={handleGeorefCleared} 
+        on:coords-from-paste={handleCoordsFromPaste}
+        on:set-georef={handleSetGeoref}/>
       </div>
       <div class="georef-form-plug" />
     </div>

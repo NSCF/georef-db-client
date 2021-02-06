@@ -49,7 +49,7 @@ const handleRowClick = _ => {
       newMarker.panToMe()
 
     }
-    else {
+    else { //this shouldn't happen ever
       let id = georef.georefID
       let locality = georef.locality
       let coords = georef.decimalCoordinates

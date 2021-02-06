@@ -25,8 +25,11 @@ const clearCustomSearch = _ => {
 <!-- ############################################## -->
 <!-- HTML -->
 <div class="container">
-  <div style="width:500px">
-    <GeorefForm/>
+  <div class="form-container" style="width:500px">
+    <div class="form-flex">
+      <GeorefForm/>
+    </div>
+    <div style="height:0;" />
   </div>
   <div>
     <CustomSearch bind:customSearchString elasticindex="southernafricater" on:custom-georefs={handleCustomGeorefs}/>
@@ -40,8 +43,14 @@ const clearCustomSearch = _ => {
 
 <!-- ############################################## -->
 <style>
+.form-container {
+  display: flex;
+  flex-direction: column;
+  height:100%;
+}
 
-.container {
-  display:flex;
+.form-flex {
+  flex: 1 1 auto;
+  overflow-y: auto;
 }
 </style>

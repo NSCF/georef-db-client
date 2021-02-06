@@ -101,6 +101,7 @@ export default class Georef {
     }
     this.protocolObject = null
     this.sourcesArray = undefined
+    this.dateCreated = Date.now()
   }
 
   get decimalCoordinates() {
@@ -122,8 +123,7 @@ export default class Georef {
     
   }
 
-  //VALIDATION FIELDS
-
+  //this is validation
   get decimalCoordinatesOkay() {
     if(this.decimalLatitude && this.decimalLongitude){
       if (isNaN(this.decimalLatitude) || isNaN(this.decimalLongitude)) {
@@ -138,8 +138,8 @@ export default class Georef {
         return false
       }
 
-      //just to be consistent with the above
-      let re = /^-?\d{1,2}\.\d{4,8},\s*-?\d{1,3}\.\d{4,8}$/
+      //Check they are actually decimals
+      let re = /^-?\d{1,2}\.\d+,\s*-?\d{1,3}\.\d+$/
       if (!re.test(this.decimalCoordinates)) {
         return false
       }
@@ -151,6 +151,17 @@ export default class Georef {
       return true
     }
 
+  }
+
+  //this just to show warnings for those with too few or too many decimals
+  get decimalCoordinatesWarning() {
+    let re = /^-?\d{1,2}\.\d{4,8},\s*-?\d{1,3}\.\d{4,8}$/
+    if (!re.test(this.decimalCoordinates)) {
+      return true
+    }
+    else {
+      return false
+    }
   }
 
   get dateOkay() {

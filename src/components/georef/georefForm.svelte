@@ -1,5 +1,6 @@
 <script>
 import convert from 'geo-coordinates-parser'
+import { nanoid } from "nanoid/nanoid.js" //see https://github.com/ai/nanoid/issues/237
 
 import Select from 'svelte-select'
 import LocalityInput from './localityInput.svelte'
@@ -12,8 +13,10 @@ import {createEventDispatcher} from 'svelte'
 let dispatch = createEventDispatcher();
 
 export let georef //must be class Georef or null
+let thisGeoref = new Georef() //the local copy of georef, so that we don't have to deal with null
 
-$: if(!georef) {georef = new Georef(); console.log('resetting georef from form')}
+$: georef, georef? thisGeoref = georef : thisGeoref = new Georef()
+
 
 //settings
 export let showButtons = true
@@ -53,40 +56,42 @@ let accuracyUnitSelect = {}
 
 //validations
 let validationVars = ['localityhasError', 'coordsHasError', 'uncertaintyHasError', 'uncertaintyUnitHasError', 'datumHasError', 'georefByHasError', 'georefDateHasError', 'protocolHasError', 'sourcesHasError', 'verifiedByHasError', 'verifiedDateHasError', 'verifierRoleHasError'] //must match below
-$: hasLocalityAndCoords = Boolean(georef && georef.locality && georef.locality.trim() && georef.decimalCoordinates)
-$: localityhasError = Boolean(georef && georef.decimalCoordinates && (!georef.locality || !georef.locality.trim()))
-$: coordsHasError = Boolean(georef && georef.locality && georef.locality.trim() && (!georef.decimalCoordinates || !georef.decimalCoordinatesOkay))
-$: uncertaintyHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('uncertainty') && !georef.uncertainty)
-$: uncertaintyUnitHasError = Boolean(hasLocalityAndCoords && georef.uncertainty && !georef.uncertaintyUnit)
-$: datumHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('datum') && (!georef.datum || !georef.datum.trim()))
-$: georefByHasError =  Boolean(hasLocalityAndCoords && requiredFields.includes('by') && (!georef.by || !georef.by.trim()))
-$: georefDateHasError = Boolean(hasLocalityAndCoords && (georef.by && georef.by.trim() || requiredFields.includes('date')) && (!georef.date || !georef.date.trim())) //see the component for more validation
-$: protocolHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('protocol') && (!georef.protocolObject || !georef.protocolObject.value))
-$: sourcesHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('sources') && (!georef.sourcesArray || !georef.sourcesArray.length))
-$: verifiedByHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('verifiedBy') && (!georef.verifiedBy || !georef.verifiedBy.trim()))
-$: verifiedDateHasError = Boolean(hasLocalityAndCoords && (georef.verifiedBy && georef.verifiedBy.trim() || requiredFields.includes('verifiedDate')) && (!georef.verifiedDate || !georef.verifiedDate.trim())) //see the component for more validation
-$: verifierRoleHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('verifierrole') && (!georef.verifierRole || !georef.verifierRole.trim()))
+$: hasLocalityAndCoords = Boolean(thisGeoref.locality && thisGeoref.locality.trim() && thisGeoref.decimalCoordinates)
+$: localityhasError = Boolean(thisGeoref.decimalCoordinates && (!thisGeoref.locality || !thisGeoref.locality.trim()))
+$: coordsHasError = Boolean(thisGeoref.locality && thisGeoref.locality.trim() && (!thisGeoref.decimalCoordinates || !thisGeoref.decimalCoordinatesOkay || thisGeoref.decimalCoordinatesWarning))
+$: uncertaintyHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('uncertainty') && !thisGeoref.uncertainty)
+$: uncertaintyUnitHasError = Boolean(thisGeoref.uncertainty && !thisGeoref.uncertaintyUnit)
+$: datumHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('datum') && (!thisGeoref.datum || !thisGeoref.datum.trim()))
+$: georefByHasError =  Boolean(hasLocalityAndCoords && requiredFields.includes('by') && (!thisGeoref.by || !thisGeoref.by.trim()))
+$: georefDateHasError = Boolean(hasLocalityAndCoords && (thisGeoref.by && thisGeoref.by.trim() || requiredFields.includes('date')) && (!thisGeoref.date || !thisGeoref.date.trim())) //see the component for more validation
+$: protocolHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('protocol') && (!thisGeoref.protocolObject || !thisGeoref.protocolObject.value))
+$: sourcesHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('sources') && (!thisGeoref.sourcesArray || !thisGeoref.sourcesArray.length))
+$: verifiedByHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('verifiedBy') && (!thisGeoref.verifiedBy || !thisGeoref.verifiedBy.trim()))
+$: verifiedDateHasError = Boolean(hasLocalityAndCoords && (thisGeoref.verifiedBy && thisGeoref.verifiedBy.trim() || requiredFields.includes('verifiedDate')) && (!thisGeoref.verifiedDate || !thisGeoref.verifiedDate.trim())) //see the component for more validation
+$: verifierRoleHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('verifierrole') && (!thisGeoref.verifierRole || !thisGeoref.verifierRole.trim()))
 
 //watchers
 let originalLocality
-$: if(georef && georef.locality){ //for updating verbatim coordinates if locality changes
+$: if(thisGeoref.locality){ //for updating verbatim coordinates if locality changes
   if(originalLocality){
-    if(georef.locality != originalLocality){
-      originalLocality = georef.locality
-      georef.verbatimCoordinates = null
+    if(thisGeoref.locality != originalLocality){
+      originalLocality = thisGeoref.locality
+      thisGeoref.verbatimCoordinates = null
+      thisGeoref.originalGeorefSource = null
     }
   }
   else {
-    originalLocality = georef.locality
+    originalLocality = thisGeoref.locality
   }
 }
 
-$: if(georef && uncertaintySelect && !georef.uncertaintyUnit){
+$: if(uncertaintySelect && !thisGeoref.uncertaintyUnit){
   handleUncertaintyBlur() //this is just to handle new incoming georefs with no uncertainty after previous ones
 }
 
 //for testing
-//$: georef, checkValidations()
+/*
+$: georef, checkValidations()
 
 const checkValidations = _ => {
   let wrong = []
@@ -103,10 +108,24 @@ const checkValidations = _ => {
     console.log('all good')
   }
 }
+*/
+
+window.showGeorefVals = _ => {
+  for (let [key, val] of Object.entries(thisGeoref)){
+    if(val) {
+      if(typeof val =='string' && val.trim()) {
+        console.log(`${key}: ${val.trim()}`)
+      }
+      else {
+        console.log(`${key}: ${val}`)
+      }
+    }
+  }
+}
 
 const copyGeorefJSON = ev => {
   ev.preventDefault()
-  navigator.clipboard.writeText(JSON.stringify(georef, null, 2)).then(_ => {
+  navigator.clipboard.writeText(JSON.stringify(thisGeoref, null, 2)).then(_ => {
       console.log('JSON copied')
       if(window.pushToast) {
         window.pushToast('georef JSON copied')
@@ -116,7 +135,7 @@ const copyGeorefJSON = ev => {
 
 const copyTabDelimited = _ => {
   let res = ''
-  for (let val of Object.values(georef)){
+  for (let val of Object.values(thisGeoref)){
     if(val){
       res += val + '\t'
     }
@@ -133,24 +152,29 @@ const copyTabDelimited = _ => {
   
 }
 
+//this one is tricky because the way we handle depends on whether there is a georef prop value or not
 const handleClearClick = _ => {
-  georef = new Georef()
-  if(window.pushToast) {
-    window.pushToast('new georef')
+  if(georef){
+    dispatch('clear-georef') //tell the parent to clear the prop
   }
-  dispatch('georef-cleared')
-}
-
-const handleLocalityBlur = ev => {
-  console.log('blur gives us', ev.detail)
+  else {
+    thisGeoref = new Georef() //svelte
+    if(window.pushToast) {
+      window.pushToast('new georef')
+    }
+  }
 }
 
 const handleCoordsFromVerbatim = ev => {
   console.log('coordinates recievied:', ev.detail)
   try {
-    georef.decimalCoordinates = ev.detail
-    georef.sources = 'verbatim coordinates'
-    dispatch('coords-from-paste')
+    let coordsFromVerbatim = ev.detail
+    if (thisGeoref.decimalCoordinates && thisGeoref.decimalCoordinates.replace(/\s+/g, '') != coordsFromVerbatim) {
+      thisGeoref.decimalCoordinates = coordsFromVerbatim
+      thisGeoref.sources = 'verbatim coordinates'
+      thisGeoref.originalGeorefSource = null
+      dispatch('coords-from-paste')
+    }
   }
   catch(err) {
     alert(err.message)
@@ -158,14 +182,16 @@ const handleCoordsFromVerbatim = ev => {
 }
 
 const handleCoordsFromPaste = _ => {
-  dispatch('coords-from-paste', georef.decimalCoordinates)
+  //because the coords have changed
+  thisGeoref.verbatimCoordinates = null
+  thisGeoref.originalGeorefSource = null
+  dispatch('coords-from-paste', thisGeoref.decimalCoordinates)
 }
 
 const handleUncertaintyBlur = _ => {
   //from https://stackoverflow.com/questions/12737528/reset-the-value-of-a-select-box
-  if(georef && !georef.uncertainty){
+  if(!thisGeoref.uncertainty){
     let options = uncertaintySelect.options;
-    console.log('we have', options.length, 'options')
     // Look for a default selected option
     for (let i=0, iLen=options.length; i<iLen; i++) {
         if (options[i].defaultSelected) {
@@ -180,6 +206,7 @@ const handleUncertaintyBlur = _ => {
 }
 
 const handleFormSubmit = _ => {
+  
   //simple validation first
   let invalidFields = []
   for(let v of validationVars){
@@ -192,25 +219,81 @@ const handleFormSubmit = _ => {
     let message = `The following fields have invalid values: ${invalidFields}.\r\n\r\nDo you want to continue?`
     let cont = confirm(message)
     if(cont) {
-      for (let [key, val] of Object.entries(georef)){
+      for (let [key, val] of Object.entries(thisGeoref)){
         if (typeof val == 'string'){
-          georef[key] = val.replace(/\s+/g, ' ').replace(/[\.\-\\\/,~]+$/, '').trim() //just some tidying up
-          }
+          thisGeoref[key] = val.replace(/\s+/g, ' ').replace(/[\.\-\\\/,~]+$/, '').trim() //just some tidying up
         }
+      }
 
-        dispatch('set-georef', georef)
+      if(thisGeoref.hasOwnProperty('selected')){
+        delete georef.selected
+      }
+  
+      if(!georefsEqual(georef, thisGeoref)){
+        thisGeoref.georefID = nanoid()
+      }
+
+      dispatch('set-georef', {georef: thisGeoref, saveGeoref: true})
     }
   }
   else {
-    for (let [key, val] of Object.entries(georef)){
+    for (let [key, val] of Object.entries(thisGeoref)){
       if (typeof val == 'string'){
-        georef[key] = val.replace(/\s+/g, ' ').replace(/[\.\-\\\/,~]+$/, '').trim() //just some tidying up
+        thisGeoref[key] = val.replace(/\s+/g, ' ').replace(/[\.\-\\\/,~]+$/, '').trim() //just some tidying up
       }
     }
 
-    dispatch('set-georef', georef)
+    if(thisGeoref.hasOwnProperty('selected')){
+      delete georef.selected
+    }
+
+    if(!georefsEqual(georef, thisGeoref)){
+      thisGeoref.georefID = nanoid()
+    }
+
+    dispatch('set-georef', {georef: thisGeoref, saveGeoref: false})
   }
     
+}
+
+//helpers
+const georefsEqual = (georef1, georef2) => {
+  if(georef1 && georef2) {
+    for (let [key, val] of Object.entries(georef1)){
+
+      if(key == 'georefID'){
+        continue
+      }
+
+      if(!val && (!georef2[key] || georef2[key].trim())){ //both empty
+        return false
+      }
+      
+      if(typeof val == 'string'){
+        if(!georef2[key] || georef2[key].trim() != val.trim()){
+          return false
+        }
+      }
+      
+      if (typeof val == 'number'){
+        if(!georef2[key] || isNaN(georef2[key])) {
+          return false
+        }
+        else {
+          let diff = val - georef2[key]
+          if(Math.abs(diff) > 0.000001){
+            return false
+          }
+        }
+      }
+
+    }
+    //they are the same
+      return true
+  }
+  else {
+    return false
+  }
 }
 
 </script>
@@ -228,21 +311,21 @@ const handleFormSubmit = _ => {
   {/if}
   <div>
     <label for="loc" style="width:100%;text-align:right">locality</label><br/>
-    <LocalityInput hasError={localityhasError} on:blur={handleLocalityBlur} bind:value={georef.locality} />
+    <LocalityInput hasError={localityhasError} bind:value={thisGeoref.locality} />
   </div>
   <div class="oneliner">
     <label  for="verbatimcoords">verbatim coords</label>
-    <VerbatimCoordsInput on:coords-from-verbatim={handleCoordsFromVerbatim} on:coords-from-paste={handleCoordsFromPaste} bind:value={georef.verbatimCoordinates}/>
+    <VerbatimCoordsInput on:coords-from-verbatim={handleCoordsFromVerbatim} on:coords-from-paste={handleCoordsFromPaste} bind:value={thisGeoref.verbatimCoordinates}/>
   </div>
   <div class="oneliner">
     <label  for="coords">decimal coords</label>
-    <DecimalCoordsInput hasError={coordsHasError} on:coords-from-paste={handleCoordsFromPaste} bind:value={georef.decimalCoordinates}/> <!--VERY IMPORTANT THAT COORDINATES BE VALID BEFORE THIS HAPPENS, OTHERWISE IT BREAKS-->
+    <DecimalCoordsInput hasError={coordsHasError} on:coords-from-paste={handleCoordsFromPaste} bind:value={thisGeoref.decimalCoordinates}/> <!--VERY IMPORTANT THAT COORDINATES BE VALID BEFORE THIS HAPPENS, OTHERWISE IT BREAKS-->
   </div>
   <div class="oneliner">
     <label for="acc">uncertainty</label>
     <div style="display:inline-block;width:50%">
-      <input type="number" id="acc" style="width:57%" min="0" step="0.1" class:hasError={uncertaintyHasError} on:blur={handleUncertaintyBlur}  bind:value={georef.uncertainty}/>
-      <select class:hasError={uncertaintyUnitHasError} id='accunit' style="width:40%" bind:value={georef.uncertaintyUnit} bind:this={uncertaintySelect}>
+      <input type="number" id="acc" style="width:57%" min="0" step="0.1" class:hasError={uncertaintyHasError} on:blur={handleUncertaintyBlur}  bind:value={thisGeoref.uncertainty}/>
+      <select class:hasError={uncertaintyUnitHasError} id='accunit' style="width:40%" bind:value={thisGeoref.uncertaintyUnit} bind:this={uncertaintySelect}>
         <option selected="selected"/>
         {#each uncertaintyUnitsEnum as unit}
           <option value={unit}>{unit}</option>
@@ -253,47 +336,47 @@ const handleFormSubmit = _ => {
   {#if showWKT}
     <div>
       <label for="WKT" style="width:100%;text-align:right"><a href="https://dwc.tdwg.org/terms/#dwc:footprintWKT" target="_blank">georef WKT</a></label>
-      <textarea id="WKT" rows="3"/>
+      <textarea id="WKT" rows="3" bind:value={thisGeoref.WKT}/>
     </div>
   {/if}
   <div class="oneliner">
     <label for="datum">datum</label>
-    <input id="datum" class:hasError={datumHasError} list="datums" name="datum" style="width:50%"  bind:value={georef.datum}>
+    <input id="datum" class:hasError={datumHasError} list="datums" name="datum" style="width:50%"  bind:value={thisGeoref.datum}>
     <datalist id="datums">
       <option value="WGS84">
     </datalist>
   </div>
   <div class="oneliner">
     <label for="georefBy">georef by</label>
-    <input class:hasError={georefByHasError} type="text" id="georefBy" style="width:50%" bind:value={georef.by}/>
+    <input class:hasError={georefByHasError} type="text" id="georefBy" style="width:50%" bind:value={thisGeoref.by}/>
   </div>
   <div class="oneliner">
     <div class="fields">
       <div class="flex">
         <label for="georefDate" style="padding-right:10px">georef date</label>
-        <DateInput hasBy={georef && georef.by && georef.by.trim()} hasError={georefDateHasError} bind:value={georef.date} />
+        <DateInput hasBy={thisGeoref.by && thisGeoref.by.trim()} hasError={georefDateHasError} bind:value={thisGeoref.date} />
       </div>
     </div>
   </div>
   <div>
     <label style="width:100%;text-align:right" for="protocol">protocol</label>
     <div class="inline-select">
-      <Select items={georefProtocols.map(x=> ({value:x, label:x}))} isCreatable={true} placeholder={'Select a protocol...'} hasError={protocolHasError} bind:selectedValue={georef.protocolObject} />
+      <Select items={georefProtocols.map(x=> ({value:x, label:x}))} isCreatable={true} placeholder={'Select a protocol...'} hasError={protocolHasError} bind:selectedValue={thisGeoref.protocolObject} />
     </div>
   <div>
     <label style="width:100%;text-align:right" for="sources">sources</label>
     <div class="inline-select">
-      <Select items={georefSources.map(x=> ({value:x, label:x}))} isCreatable={true} isMulti={true} placeholder={'Select source/s...'} hasError={sourcesHasError} bind:selectedValue={georef.sourcesArray}/>
+      <Select items={georefSources.map(x=> ({value:x, label:x}))} isCreatable={true} isMulti={true} placeholder={'Select source/s...'} hasError={sourcesHasError} bind:selectedValue={thisGeoref.sourcesArray}/>
     </div>
   </div>
   {#if showVerification}
     <div class="oneliner">
       <label for="verifiedBy">verified by</label>
-      <input type="text" id="verifiedBy" style="width:50%" class:hasError={verifiedByHasError} bind:value={georef.verifiedBy}/>
+      <input type="text" id="verifiedBy" style="width:50%" class:hasError={verifiedByHasError} bind:value={thisGeoref.verifiedBy}/>
     </div>
     <div class="oneliner">
       <label for="verifierRole">verifier role</label>
-      <input id="verifierRole" class:hasError={verifierRoleHasError} list="verifierRoles" name="verifierRole" style="width:50%" bind:value={georef.verifierRole}>
+      <input id="verifierRole" class:hasError={verifierRoleHasError} list="verifierRoles" name="verifierRole" style="width:50%" bind:value={thisGeoref.verifierRole}>
       <datalist id="verifierRoles">
         <option value="QC">
         <option value="curator">
@@ -304,14 +387,14 @@ const handleFormSubmit = _ => {
     <div class="fields">
       <div class="flex">
         <label for="verifiedDate" style="padding-right:10px">georef date</label>
-        <DateInput hasBy={georef && georef.verifiedBy && georef.verifiedBy.trim()} hasError={verifiedDateHasError} bind:value={georef.verifiedDate} />
+        <DateInput hasBy={thisGeoref.verifiedBy && thisGeoref.verifiedBy.trim()} hasError={verifiedDateHasError} bind:value={thisGeoref.verifiedDate} />
       </div>
     </div>
   </div>
   {/if}
   <div>
     <label for="remarks" style="width:100%;text-align:right">remarks</label>
-    <textarea id="remarks" rows="3" bind:value={georef.remarks}/>
+    <textarea id="remarks" rows="3" bind:value={thisGeoref.remarks}/>
   </div>
   <div style="text-align:center">
     <button class="georefbutton" disabled={!hasLocalityAndCoords}>{submitButtonText}</button> <!--this is the form submit-->

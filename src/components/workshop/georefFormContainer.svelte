@@ -30,18 +30,26 @@
   delete georef.georefDate
   delete georef.georefBy
 
+  /*
   console.log('protocol is', georef.protocol)
   console.log('protocol object is')
   console.log(georef.protocolObject)
-  
+  */
+ 
   //NB for making sure invalid values don't go through
+  /*
   if(!georef.decimalCoordinatesOkay){
     georef.clear()
   }
+  */
 
   let submitButtonText = "Test submit georef"
 
-  georef = null // for testing null
+ // georef = null // for testing null
+
+ const clearGeoref = _ => {
+   georef = null
+ }
 
   const handleSetGeoref = ev => {
     let emittedGeoref = ev.detail
@@ -52,7 +60,11 @@
 
 <!-- ############################################## -->
 <!-- HTML -->
-<GeorefForm {georef} {submitButtonText} on:set-georef={handleSetGeoref} />
+
+<GeorefForm {georef} {submitButtonText} on:clear-georef={clearGeoref} on:set-georef={handleSetGeoref} />
+
+
 <!-- ############################################## -->
 <style>
+
 </style>

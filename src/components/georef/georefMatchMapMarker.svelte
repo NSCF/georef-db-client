@@ -47,6 +47,8 @@ let marker = new google.maps.Marker({
 
 let circle //yes it needs to be here
 
+$: $dataStore.georefIndex[georefKey].selected
+
 if(accuracyM){
   circle = new google.maps.Circle({
     strokeColor: "#FF0000",

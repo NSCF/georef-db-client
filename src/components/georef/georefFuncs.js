@@ -80,62 +80,6 @@ const fetchGeorefsForLoc = async (locString, index) => {
   return data
 }
 
-//fetch country and province given coordinates
-const fetchAdmins = async (lat, long) => {
-  if (!lat || !long || isNaN(lat) || isNaN(long)){
-    throw new Error('invalid input parameters')
-  }
-
-  let geocodeURL = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${long}&key=AIzaSyD_3Zs4G0iv3_teiE-cPMPEF4lotqiZPqU&result_type=administrative_area_level_1`
-  let geocodeResponse
-  try {
-    geocodeResponse = await fetch(geocodeURL)
-  }
-  catch(err) {
-    let msg = 'there was an error fetching admin divisions:' + err.message
-    throw new Error(msg)
-  }
-
-  if(geocodeResponse.status == 200){
-    let geocode = await geocodeResponse.json()
-    if(geocode.results && Array.isArray(geocode.results) && geocode.results.length){
-      let result = {
-        stateProvince: null,
-        country: null
-      }
-
-      let stateProvs = geocode.results[0].address_components.filter(x =>x.types.includes('administrative_area_level_1'))
-      if(stateProvs.length){
-        let stateProv = stateProvs[0]
-        if(stateProv.long_name && stateProv.long_name.trim()){
-          result.stateProvince = stateProv.long_name.replace(/Region|Province|State|District|Tinkulu/i, '').replace('-', ' ').trim()
-        }
-      }
-  
-      let countries = geocode.results[0].address_components.filter(x =>x.types.includes('country'))
-      if(countries.length){
-        let country = countries[0]
-        if(country.long_name && country.long_name.trim()){
-          if (country.long_name == 'Eswatini'){
-            result.country = 'Swaziland'
-          }
-          else {
-            result.country = country.long_name.trim()
-          }
-        }
-      }
-      return result
-    }
-    else {
-      throw new Error('geocode API returned no results.If your coordinates are close to a country boundary shift them slightly and try again.')
-    }
-  }
-  else {
-    throw new Error('geocode API call failed with code', geocodeResponse.status)
-  }
-    
-}
-
 const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, userID, userName) => {
   let yearmonth = getYearMonth(new Date())
   let yearweek = getYearWeek(new Date())
@@ -245,7 +189,6 @@ const updateDatasetStats = (Firestore, datasetRef, recordsGeoreferenced, userID,
 }
 
 module.exports = {
-  fetchAdmins, 
   updateGeorefStats,
   updateDatasetStats, 
   fetchCandidateGeorefs

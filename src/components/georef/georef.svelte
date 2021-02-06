@@ -4,7 +4,6 @@ import {onMount, onDestroy, createEventDispatcher} from 'svelte'
 import { nanoid } from "nanoid/nanoid.js" //see https://github.com/ai/nanoid/issues/237
 
 import {
-    fetchAdmins, 
     updateGeorefStats,
     updateDatasetStats, 
     fetchCandidateGeorefs
@@ -53,8 +52,6 @@ let selectedCount
 $: if($dataStore.recordGroup){
   selectedCount = $dataStore.recordGroup.groupLocalities.filter(x=>x.selected).length
 }
-
-$: $dataStore.selectedGeoref, console.log('selectedGeoref did something')
 
 onMount(async _ => { 
 
@@ -258,10 +255,22 @@ const handleCustomSearchCleared = _ => {
   }
 }
 
-const handleGeorefCleared = _ => {
+const handleClearGeoref = _ => {
   if($dataStore.selectedGeoref) {
+    let selectedMarker = $dataStore.markers[$dataStore.selectedGeoref.georefID]
+    selectedMarker.setIcon({
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 5, 
+      fillColor: 'green', 
+      fillOpacity: 1,
+      strokeColor: 'green'
+    })
+
+    selectedMarker.setZIndex(0)
+
     $dataStore.selectedGeoref.selected = false
-    //we don't reset selectedGeoref here because we don't need to pass it back down to the form
+    $dataStore.selectedGeoref = null
+
   }
 }
 
@@ -274,45 +283,18 @@ const handleSetGeoref = async ev => {
   //TODO NB we need to lock everything while the georef saves
   let selectedLocs = $dataStore.recordGroup.groupLocalities.filter(x => x.selected)
   if(selectedLocs.length){ //it has to be
-    let georef = ev.detail
+    let georef = ev.detail.georef
+    let saveGeoref = ev.detail.saveGeoref
 
-    //check whether anything has changed
-    let hasEdits = false
-    let isNew = false
-    if($dataStore.selectedGeoref) {//it may be completely new before a georef is selected
-      console.log('checking georef fields')
-      hasEdits = !georefsEqual(georef, $dataStore.selectedGeoref)
-    }
-    else {
-      console.log('no georef selected, this is new')
-      isNew = true
-    }
-  
-    if(hasEdits || isNew){ //we treat it as a new georef
-      console.log('updating georef ID and admin boundaries')
-      georef.georefID = nanoid()
+    if(saveGeoref){ //we treat it as a new georef
       georef.dateCreated = Date.now()
       georef.createdBy = userName
 
-      if(isNew || !georef.originalGeorefSource || !georef.originalGeorefSource.trim()) {
+      if(!georef.originalGeorefSource || !georef.originalGeorefSource.trim()) {
         georef.originalGeorefSource = 'NSCF georeference database'
       }
 
       savingGeoref = true
-
-      //we need the admin divisions
-      console.log('fetching admin names')
-      try {
-        let admin = await fetchAdmins(georef.decimalLatitude, georef.decimalLongitude)
-        georef.country = admin.country
-        georef.stateProvince = admin.stateProvince
-        console.log('admin is', georef.country, georef.stateProvince)
-      }
-      catch(err){
-        alert('error updating country and stateProvince:' + err.message)
-        savingGeoref = false
-        return
-      }
       
       //save it to elastic via our API
       console.log('saving to georef database')
@@ -477,78 +459,6 @@ const handleUnload = ev => {
   navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updaterecordgrouplock?groupid=${$dataStore.recordGroupSnap.id}`, '')
 }
 
-//helpers
-//for comparing georef objects
-const georefsEqual = (georef1, georef2) => {
-  if(georef1 && georef2) {
-    for (let [key, val] of Object.entries(georef1)){
-      if(!val && (!georef2[key] || georef2[key].trim())){ //both empty
-        return false
-      }
-      
-      if(typeof val == 'string'){
-        if(!georef2[key] || georef2[key].trim() != val.trim()){
-          return false
-        }
-      }
-      
-      if (typeof val == 'number'){
-        if(!georef2[key] || isNaN(georef2[key])) {
-          return false
-        }
-        else {
-          let diff = val - georef2[key]
-          if(Math.abs(diff) > 0.000001){
-            return false
-          }
-        }
-      }
-
-    }
-    //they are the same
-      return true
-  }
-  else {
-    return false
-  }
-}
-
-var testNetwork = (url, timeout, callback) => {
-  var xhr = new XMLHttpRequest();
-
-  var noResponseTimer = setTimeout(function() {
-    xhr.abort();
-    if (!!localStorage[url]) {
-      // We have some data cached, return that to the callback.
-      callback(localStorage[url]);
-      return;
-    }
-  }, timeout);
-
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState != 4) {
-      return;
-    }
-
-    if (xhr.status == 200) {
-      clearTimeout(noResponseTimer);
-      // Save the data to local storage
-      localStorage[url] = xhr.responseText;
-      // call the handler
-      callback(xhr.responseText);
-    }
-    else {
-      // There is an error of some kind, use our cached copy (if available).
-      if (!!localStorage[url]) {
-        // We have some data cached, return that to the callback.
-        callback(localStorage[url]);
-        return;
-      }
-    }
-  };
-  xhr.open("GET", url);
-  xhr.send();
-};
 
 </script>
 
@@ -558,6 +468,10 @@ var testNetwork = (url, timeout, callback) => {
   <div class="grid-container">
     <div class="recordgroup-container">
       <h4 title={locStringsTitle}>Locality strings</h4>
+      <div class="recordgroup-remarks">
+        <label for="slgr">Locality georef remarks</label>
+        <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder={`Add remarks about applying this georeference to ${!selectedCount || selectedCount > 1 ? 'these localities': 'this locality'} `} rows="2" />
+      </div>
       <div>
         <button style="float:right;margin-left:5px;" on:click={handleBackToDatasets}>Done</button>
         <button style="float:right;margin-left:5px;" on:click={handleStartOver}>Reset</button>
@@ -567,10 +481,7 @@ var testNetwork = (url, timeout, callback) => {
       <div class="recordgroup">
         <RecordGroup busy={savingGeoref || savingRecordGroup} on:locality-copied={handleLocalityCopied}></RecordGroup>
       </div>
-      <div class="recordgroup-buttons">
-        <label for="slgr">Locality georef remarks</label>
-        <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder={`Add remarks about applying this georeference to ${!selectedCount || selectedCount > 1 ? 'these localities': 'this locality'} `} rows="2" />
-      </div>
+      
     </div>
     <div class="matchlist-container">
       <h4>Candidate georeferences</h4>
@@ -589,7 +500,7 @@ var testNetwork = (url, timeout, callback) => {
         <GeorefForm 
         georef={$dataStore.selectedGeoref} 
         submitButtonText={"Use this georeference"} 
-        on:georef-cleared={handleGeorefCleared} 
+        on:clear-georef={handleClearGeoref} 
         on:coords-from-paste={handleCoordsFromPaste}
         on:set-georef={handleSetGeoref}/>
       </div>
@@ -653,7 +564,7 @@ h4 {
   padding:2px;
 }
 
-.recordgroup-buttons {
+.recordgroup-remarks {
   text-align: center;
   flex-basis:auto;
 }

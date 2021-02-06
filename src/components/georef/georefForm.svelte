@@ -13,7 +13,7 @@ let dispatch = createEventDispatcher();
 
 export let georef //must be class Georef or null
 
-$: if(!georef) georef = new Georef()
+$: if(!georef) {georef = new Georef(); console.log('resetting georef from form')}
 
 //settings
 export let showButtons = true
@@ -236,7 +236,7 @@ const handleFormSubmit = _ => {
   </div>
   <div class="oneliner">
     <label  for="coords">decimal coords</label>
-    <DecimalCoordsInput hasError={coordsHasError} bind:value={georef.decimalCoordinates}/> <!--VERY IMPORTANT THAT COORDINATES BE VALID BEFORE THIS HAPPENS, OTHERWISE IT BREAKS-->
+    <DecimalCoordsInput hasError={coordsHasError} on:coords-from-paste={handleCoordsFromPaste} bind:value={georef.decimalCoordinates}/> <!--VERY IMPORTANT THAT COORDINATES BE VALID BEFORE THIS HAPPENS, OTHERWISE IT BREAKS-->
   </div>
   <div class="oneliner">
     <label for="acc">uncertainty</label>

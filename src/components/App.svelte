@@ -101,6 +101,10 @@ function handleYardClick() {
 	currentPage = 'yard'
 }
 
+function handleHomeClick() {
+	currentPage = 'ChooseFile'
+}
+
 </script>
 
 <main>
@@ -109,6 +113,7 @@ function handleYardClick() {
 			<div class="header">
 				<img src="images/NSCF logo.jpg" alt="NSCF logo"  style="height:100%;float:left" />
 				<button on:click={handleYardClick}>To to yard</button>
+				<button on:click={handleHomeClick}>To the App</button>
 				Logo, login buttons, etc
 			</div>
 			<div class="content">

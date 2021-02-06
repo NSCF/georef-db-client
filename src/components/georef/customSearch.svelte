@@ -28,6 +28,17 @@ const getGeorefs = async _ => {
   }
 }
 
+const handlePaste = _ => {
+  if(navigator.clipboard.writeText){
+    navigator.clipboard.readText().then(text => {
+      customSearchString = text
+    })
+  }
+  else {
+    alert('this browser does not support programmatic paste')
+  }
+}
+
 const clearCustomSearch = _ => {
   if(!customSearchSearching) {
     customSearchString = null
@@ -46,6 +57,7 @@ const clearCustomSearch = _ => {
     placeholder="Search for a custom locality here" 
     on:keyup={e=>e.key==='Enter' && getGeorefs()}
     bind:value={customSearchString} />
+    <span class="material-icons inline-icon icon-input-icon" style="right:30px" title="paste clipboard" on:click={handlePaste}>content_paste</span>
     <span class="material-icons icon-input-icon" style="right:5px" title="clear" on:click={clearCustomSearch}>clear</span>
   </div>
   <button 
@@ -75,7 +87,7 @@ const clearCustomSearch = _ => {
 .icon-input {
   flex: 1 1 auto;
   box-sizing: border-box;
-  padding-right: 30px;
+  padding-right: 60px;
 }
 
 .input-active {

@@ -28,6 +28,7 @@ let dispatch = createEventDispatcher()
 
 export let dataset
 
+let connected = true //we assume this, but it could cause an issue
 let savingGeoref = false
 let savingRecordGroup = false
 
@@ -53,14 +54,29 @@ $: if($dataStore.recordGroup){
   selectedCount = $dataStore.recordGroup.groupLocalities.filter(x=>x.selected).length
 }
 
+$: $dataStore.selectedGeoref, console.log('selectedGeoref did something')
+
 onMount(async _ => { 
+
   elasticindex = dataset.region.toLowerCase().replace(/\s+/g, '') + dataset.domain.toLowerCase()
+
   try {
     fetchNextRecordGroup(0)
   }
   catch(err){//only if offline
   //TODO handle error
   }
+
+  //manage connection status
+  let connectedRef = Firebase.ref(".info/connected");
+  connectedRef.on("value", function(snap) {
+    if (snap.val() === true) {
+      connected = true
+    } else {
+      connected = false
+    }
+  });
+
 })
 
 onDestroy(async _ => {
@@ -68,100 +84,103 @@ onDestroy(async _ => {
 })
 
 const fetchNextRecordGroup = async lastSnap => {
-  console.log('fetching record group from Firestore')
+  if(connected){
+    console.log('fetching record group from Firestore')
 
-  //let try clearning the datastore here because everthing gets reset
-  $dataStore.recordGroup = null
-  $dataStore.recordGroupSnap = null
-  $dataStore.georefIndex = null
-  $dataStore.locGeorefIndex = null
-  $dataStore.selectedGeoref = null
-  
-  let query = Firestore.collection('recordGroups')
-  .where('datasetID', '==', dataset.datasetID)
-  .where('completed', '==', false)
-  .where("groupLocked", "==", false)
-  .orderBy('groupID')
-  
-  if(lastSnap) {
-    query = query.startAfter(lastSnap)
-  }
+    //let try clearning the datastore here because everthing gets reset
+    $dataStore.recordGroup = null
+    $dataStore.recordGroupSnap = null
+    $dataStore.georefIndex = null
+    $dataStore.locGeorefIndex = null
+    $dataStore.selectedGeoref = null
+    
+    let query = Firestore.collection('recordGroups')
+    .where('datasetID', '==', dataset.datasetID)
+    .where('completed', '==', false)
+    .where("groupLocked", "==", false)
+    .orderBy('groupID')
+    
+    if(lastSnap) {
+      query = query.startAfter(lastSnap)
+    }
 
-  query = query.limit(1)
+    query = query.limit(1)
 
-  let snap = await query.get() //nb this is a querysnapshot and hence snap.docs an array
-  if(!snap.empty) {
-    //try to lock it
-    let docRef = snap.docs[0].ref
-    try {
-      let success = await Firestore.runTransaction(async transaction => {
-        let docSnap = await transaction.get(docRef)
-        let doc = await docSnap.data()
-        if(doc.groupLocked){ //it was locked since last read
-          return false
-        }
-        else {
-          await transaction.update(docRef, {groupLocked: true})
-          return true
-        }
-      })
-
-      if (!success){
-        console.log('trying for recordgroup again')
-        fetchNextRecordGroup() //recursive, I'm really hoping this is right- it would theoretically stop on snap.empty
-      }
-      else {
-        console.log('adding data to datastore')
-        $dataStore.recordGroupSnap = snap.docs[0] 
-        $dataStore.recordGroup = snap.docs[0].data()
-
-        //add keys to the record group locs
-        for (let loc of $dataStore.recordGroup.groupLocalities){
-          if(!loc.id){
-            loc.id = nanoid()
-          }
-        }
-
-        georefsAdded = 0
-        recordsGeoreferenced = 0
-        
-        console.log('fetching georefs')
-        customSearchString = null //just to clear
-        try {
-          let candidateGeorefs = await fetchCandidateGeorefs($dataStore.recordGroup.groupLocalities, elasticindex)
-          if(Object.keys(candidateGeorefs.georefIndex).length) {
-            $dataStore.georefIndex = candidateGeorefs.georefIndex
-            $dataStore.locGeorefIndex =  candidateGeorefs.locGeorefIndex
+    let snap = await query.get() //nb this is a querysnapshot and hence snap.docs an array
+    if(!snap.empty) {
+      //try to lock it
+      let docRef = snap.docs[0].ref
+      try {
+        let success = await Firestore.runTransaction(async transaction => {
+          let docSnap = await transaction.get(docRef)
+          let doc = await docSnap.data()
+          if(doc.groupLocked){ //it was locked since last read
+            return false
           }
           else {
-            console.log('no georefs!!!')
+            await transaction.update(docRef, {groupLocked: true})
+            return true
           }
-          
+        })
+
+        if (!success){
+          console.log('trying for recordgroup again')
+          fetchNextRecordGroup() //recursive, I'm really hoping this is right- it would theoretically stop on snap.empty
         }
-        catch(err) {
-          console.log('error fetching georefs:', err.message)
-          alert('fetching georeferences failed')
+        else {
+          console.log('adding data to datastore')
+          $dataStore.recordGroupSnap = snap.docs[0] 
+          $dataStore.recordGroup = snap.docs[0].data()
+
+          //add keys to the record group locs
+          for (let loc of $dataStore.recordGroup.groupLocalities){
+            if(!loc.id){
+              loc.id = nanoid()
+            }
+          }
+
+          georefsAdded = 0
+          recordsGeoreferenced = 0
+          
+          console.log('fetching georefs')
+          customSearchString = null //just to clear
+          try {
+            let candidateGeorefs = await fetchCandidateGeorefs($dataStore.recordGroup.groupLocalities, elasticindex)
+            if(Object.keys(candidateGeorefs.georefIndex).length) {
+              $dataStore.georefIndex = candidateGeorefs.georefIndex
+              $dataStore.locGeorefIndex =  candidateGeorefs.locGeorefIndex
+            }
+            else {
+              console.log('no georefs!!!')
+            }
+            
+          }
+          catch(err) {
+            console.log('error fetching georefs:', err.message)
+            alert('fetching georeferences failed')
+          }
         }
       }
+      catch(err) {
+        //Apparently this only happens if we are offline
+        throw err
+      }
     }
-    catch(err) {
-      //Apparently this only happens if we are offline
-      throw err
+    else {
+      alert('no more records to georeference in this dataset')
+      $dataStore.recordGroupSnap = null
+      $dataStore.recordGroup = null
+      $dataStore.candidateGeorefs = null
+      $dataStore.selectedGeoref = null
+      datasetComplete = true
     }
   }
-  else {
-    //this signals no more records to georeference
-    alert('no more records to georeference in this dataset')
-    $dataStore.recordGroupSnap = null
-    $dataStore.recordGroup = null
-    $dataStore.candidateGeorefs = null
-    $dataStore.selectedGeoref = null
-    datasetComplete = true
-  }
+  
 }
 
 const releaseRecordGroup = async _ => {
   if($dataStore.recordGroupSnap){
+    console.log('releasing record group')
     await $dataStore.recordGroupSnap.ref.update({groupLocked: false})
   }
 }
@@ -240,8 +259,10 @@ const handleCustomSearchCleared = _ => {
 }
 
 const handleGeorefCleared = _ => {
-  $dataStore.selectedGeoref.selected = false
-  $dataStore.selectedGeoref = null
+  if($dataStore.selectedGeoref) {
+    $dataStore.selectedGeoref.selected = false
+    //we don't reset selectedGeoref here because we don't need to pass it back down to the form
+  }
 }
 
 const handleCoordsFromPaste = ev => {
@@ -327,7 +348,7 @@ const handleSetGeoref = async ev => {
   
     for (let loc of selectedLocs){
       loc.georefID = georef.georefID
-      loc.georefBy = userID
+      loc.georefBy = userName //TODO check the format is correct
       loc.georefDate = Date.now()
       loc.georefVerified = false
       loc.georefVerifiedBy = null
@@ -403,16 +424,57 @@ const handleStartOver = _ => { //just clear out any georefIDs
   }
 }
 
-const copyLocality = async _ => {
-  let selected = $dataStore.recordGroup.groupLocalities.filter(x=>x.selected)
-  if(selected.length == 1){
-    await navigator.clipboard.writeText(selected[0].loc).then(_ => {
-      console.log('locality copied')
-      if(window.pushToast) {
-        window.pushToast('locality copied')
+const handleAmbiguous = async _ => {
+  //this is similar to handleSetGeoref
+  let selectedLocs = $dataStore.recordGroup.groupLocalities.filter(x => x.selected)
+  if(selectedLocs.length){
+    //the hardcoded ambiguous georeference ID
+    for (let loc of selectedLocs){
+      loc.georefID = '' //TODO insert ambigious georefID here
+      loc.georefBy = userName //TODO check the format is correct
+      loc.georefDate = Date.now()
+      loc.georefVerified = false
+      loc.georefVerifiedBy = null
+      loc.georefVerifiedDate = null
+      loc.georefVerifiedByRole = null
+      loc.georefRemarks = null
+      if(selectedLocGeorefRemarks) {
+        loc.georefRemarks = selectedLocGeorefRemarks
       }
-    })
+      if(loc.recordIDs && loc.recordIDs.length) { //this really should never be necessary
+        recordsGeoreferenced += loc.recordIDs.length
+      }
+      loc.selected = false
+      selectedLocGeorefRemarks = null
+    }
+    
+    $dataStore.recordGroup.groupLocalities = $dataStore.recordGroup.groupLocalities //the svelte update trigger
+
+    //if these were the last ones
+    let withGeorefs = $dataStore.recordGroup.groupLocalities.filter(x => x.georefID).length
+    let total = $dataStore.recordGroup.groupLocalities.length
+    if(withGeorefs == total){
+      console.log('saving and moving to next record group')
+      await saveRecordGroup()
+      console.log('record group saved')
+      console.log('fetching next record group')
+      fetchNextRecordGroup($dataStore.recordGroupSnap)
+    }
   }
+  else {
+    alert('select localities first to mark them ambiguous')
+  }
+}
+
+const handleLocalityCopied = async => {
+  if(window.pushToast) {
+    window.pushToast('locality copied')
+  }
+}
+
+//just to unlock a locked record group if the user closes or refreshes
+const handleUnload = ev => {
+  navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updaterecordgrouplock?groupid=${$dataStore.recordGroupSnap.id}`, '')
 }
 
 //helpers
@@ -451,31 +513,63 @@ const georefsEqual = (georef1, georef2) => {
   }
 }
 
+var testNetwork = (url, timeout, callback) => {
+  var xhr = new XMLHttpRequest();
 
+  var noResponseTimer = setTimeout(function() {
+    xhr.abort();
+    if (!!localStorage[url]) {
+      // We have some data cached, return that to the callback.
+      callback(localStorage[url]);
+      return;
+    }
+  }, timeout);
+
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState != 4) {
+      return;
+    }
+
+    if (xhr.status == 200) {
+      clearTimeout(noResponseTimer);
+      // Save the data to local storage
+      localStorage[url] = xhr.responseText;
+      // call the handler
+      callback(xhr.responseText);
+    }
+    else {
+      // There is an error of some kind, use our cached copy (if available).
+      if (!!localStorage[url]) {
+        // We have some data cached, return that to the callback.
+        callback(localStorage[url]);
+        return;
+      }
+    }
+  };
+  xhr.open("GET", url);
+  xhr.send();
+};
 
 </script>
 
 <!-- ############################################## -->
+<svelte:window on:beforeunload={handleUnload} /> <!--in case the user just closes-->
 {#if !datasetComplete}
   <div class="grid-container">
     <div class="recordgroup-container">
       <h4 title={locStringsTitle}>Locality strings</h4>
       <div>
-        <button style="float:right" title="copy locality" disabled={!$dataStore.recordGroup || $dataStore.recordGroup.groupLocalities.filter(x=>x.selected).length != 1} on:click={copyLocality}><i class="material-icons md-dark">content_copy</i></button>
+        <button style="float:right;margin-left:5px;" on:click={handleBackToDatasets}>Done</button>
+        <button style="float:right;margin-left:5px;" on:click={handleStartOver}>Reset</button>
+        <button style="float:right;margin-left:5px;" on:click={handleSkipRecordGroup}>Skip</button>
+        <button style="float:right;margin-left:5px;" on:click={handleAmbiguous}>Ambiguous</button>
       </div>
       <div class="recordgroup">
-        <RecordGroup busy={savingGeoref || savingRecordGroup} on:skip-recordgroup={handleSkipRecordGroup}></RecordGroup>
+        <RecordGroup busy={savingGeoref || savingRecordGroup} on:locality-copied={handleLocalityCopied}></RecordGroup>
       </div>
       <div class="recordgroup-buttons">
-        <br/>
         <label for="slgr">Locality georef remarks</label>
         <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder={`Add remarks about applying this georeference to ${!selectedCount || selectedCount > 1 ? 'these localities': 'this locality'} `} rows="2" />
-        <br/>
-        <button on:click={handleStartOver}>Reset georefs...</button>
-        <br/>
-        <button on:click={handleSkipRecordGroup}>Skip these for later...</button>
-        <br/>
-        <button on:click={handleBackToDatasets}>Back to datasets...</button>
       </div>
     </div>
     <div class="matchlist-container">
@@ -487,7 +581,7 @@ const georefsEqual = (georef1, georef2) => {
       <div class="matchlist-flex-plug" />
     </div>
     <div class="matchmap-container">
-      <MatchMap />
+      <MatchMap bind:pastedDecimalCoords/>
     </div>
     <div class="georef-form-container">
       <h4 class="georef-flex-header">Georeference</h4>

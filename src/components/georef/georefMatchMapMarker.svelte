@@ -67,41 +67,78 @@ marker.addListener('click', _ => {
     console.log('you already clicked me')
   }
   else {
+
     if($dataStore.selectedGeoref) {
       $dataStore.selectedGeoref.selected = false
-    }
-    $dataStore.georefIndex[georefKey].selected = true
-    $dataStore.selectedGeoref = $dataStore.georefIndex[georefKey]
-  }    
-})
-
-$: $dataStore.selectedGeoref, updateMarkerDisplay()
-
-const updateMarkerDisplay = _ => {
-  if($dataStore.selectedGeoref){
-    if($dataStore.georefIndex[georefKey].selected){
-      marker.setIcon({
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 5, 
-        fillColor: 'blue', 
-        fillOpacity: 1,
-        strokeColor: 'blue'
-      })
-      marker.setZIndex(1)
-      map.panTo(marker.getPosition())
-    }
-    else {
-      marker.setIcon({
+      let selectedMarker = $dataStore.markers[$dataStore.selectedGeoref.georefID]
+      selectedMarker.setIcon({
         path: google.maps.SymbolPath.CIRCLE,
         scale: 5, 
         fillColor: 'green', 
         fillOpacity: 1,
         strokeColor: 'green'
       })
-      marker.setZIndex(0)
+
+      selectedMarker.setZIndex(0)
     }
-  }
+    
+
+    marker.setIcon({
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 5, 
+      fillColor: 'blue', 
+      fillOpacity: 1,
+      strokeColor: 'blue'
+    })
+
+    marker.setZIndex(1)
+    map.panTo(marker.getPosition())
+
+    
+    $dataStore.georefIndex[georefKey].selected = true
+    $dataStore.selectedGeoref = $dataStore.georefIndex[georefKey]
+  }    
+})
+
+marker.panToMe = _ => {
+  map.panTo(marker.getPosition())
 }
+
+if ($dataStore.markers) {
+  $dataStore.markers[georefKey] = marker
+}
+else {
+  $dataStore.markers = {}
+  $dataStore.markers[georefKey] = marker
+}
+
+// $: $dataStore.selectedGeoref, updateMarkerDisplay()
+
+// const updateMarkerDisplay = _ => {
+//   if($dataStore.selectedGeoref){
+//     if($dataStore.georefIndex[georefKey].selected){
+//       marker.setIcon({
+//         path: google.maps.SymbolPath.CIRCLE,
+//         scale: 5, 
+//         fillColor: 'blue', 
+//         fillOpacity: 1,
+//         strokeColor: 'blue'
+//       })
+//       marker.setZIndex(1)
+//       map.panTo(marker.getPosition())
+//     }
+//     else {
+//       marker.setIcon({
+//         path: google.maps.SymbolPath.CIRCLE,
+//         scale: 5, 
+//         fillColor: 'green', 
+//         fillOpacity: 1,
+//         strokeColor: 'green'
+//       })
+//       marker.setZIndex(0)
+//     }
+//   }
+// }
 
 onDestroy( _ => {
   marker.setMap(null)

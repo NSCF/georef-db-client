@@ -5,6 +5,8 @@ import { Firestore, FieldValue } from '../../firebase.js'
 import { dataStore } from './dataStore.js'
 import Loader from '../loader.svelte'
 
+const dispatch = createEventDispatcher()
+
 export let busy = false //to show a loader if busy
 
 const handleGroupLocClick = (ev, index) => {
@@ -46,7 +48,13 @@ const handleGroupLocClick = (ev, index) => {
   
 }
 
-
+const copyLocality = loc => {
+  if(navigator.clipboard.writeText){
+    navigator.clipboard.writeText(loc).then( _ => {
+      dispatch('locality-copied')
+    })
+  }
+}
 
 </script>
 
@@ -55,10 +63,12 @@ const handleGroupLocClick = (ev, index) => {
 <div>
   {#if $dataStore.recordGroup && !busy}
     {#each $dataStore.recordGroup.groupLocalities as groupLoc, i}
-      <p style="padding:10px" class="text-unselectable" class:selected="{groupLoc.selected}" hidden={groupLoc.georefID} on:click="{ev => handleGroupLocClick(ev,i)}">{groupLoc.loc}</p>
-      {#if i < $dataStore.recordGroup.groupLocalities.length - 1}
-        <hr hidden={groupLoc.georefID}/>
-      {/if}
+      <div hidden={groupLoc.georefID}>
+        <div class="container">
+          <p class="grouptext text-unselectable" class:selected="{groupLoc.selected}"  on:click="{ev => handleGroupLocClick(ev,i)}">{groupLoc.loc}</p>
+          <p class="material-icons inline-icon" style="margin-right:5px; margin-left:5px" title="copy locality string" on:click={copyLocality(groupLoc.loc)}>content_copy</p>
+        </div>
+      </div>
     {/each}
   {:else}
     <Loader />
@@ -73,6 +83,23 @@ const handleGroupLocClick = (ev, index) => {
   background-color: #bcd0ec;
 }
 
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.container:not(:first-child):before {
+    content: "";
+    border-top: 1px solid grey
+}
+
+.grouptext {
+  flex: 1 1 auto;
+  padding:10px;
+  padding-right: 30px;
+}
+
 .text-unselectable {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -80,6 +107,17 @@ const handleGroupLocClick = (ev, index) => {
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
+}
+
+.inline-icon {
+  width:24px;
+  height:24px;
+  color: grey;
+}
+
+.inline-icon:hover {
+  color:#404040;
+  border-color:	#404040;
 }
 
 </style>

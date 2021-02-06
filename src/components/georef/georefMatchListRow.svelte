@@ -20,9 +20,34 @@ const handleRowClick = _ => {
     if(georef.decimalCoordinatesOkay){
       if($dataStore.selectedGeoref) {
         $dataStore.selectedGeoref.selected = false
+        
+        let selectedMarker = $dataStore.markers[$dataStore.selectedGeoref.georefID]
+        selectedMarker.setIcon({
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 5, 
+          fillColor: 'green', 
+          fillOpacity: 1,
+          strokeColor: 'green'
+        })
+
+        selectedMarker.setZIndex(0)
       }
+
       georef.selected = true
       $dataStore.selectedGeoref = georef
+
+      let newMarker = $dataStore.markers[$dataStore.selectedGeoref.georefID]
+      newMarker.setIcon({
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 5, 
+        fillColor: 'blue', 
+        fillOpacity: 1,
+        strokeColor: 'blue'
+      })
+
+      newMarker.setZIndex(1)
+      newMarker.panToMe()
+
     }
     else {
       let id = georef.georefID

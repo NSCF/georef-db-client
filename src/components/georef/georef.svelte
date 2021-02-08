@@ -27,6 +27,9 @@ let dispatch = createEventDispatcher()
 
 export let dataset
 
+//the main prop!!
+let selectedGeorefCopy = null
+
 let connected = true //we assume this, but it could cause an issue
 let savingGeoref = false
 let savingRecordGroup = false
@@ -40,7 +43,7 @@ let searchingGeorefs = false
 
 let selectedLocGeorefRemarks
 
-let pastedDecimalCoords //for communication between the georef form and the movable map marker
+let pastedDecimalCoords = null //for communication between the georef form and the movable map marker
 
 let georefsAdded = 0 //this is the number of locality strings georeferenced
 let recordsGeoreferenced = 0 //this is the number of associated records georeferenced
@@ -90,6 +93,10 @@ const fetchNextRecordGroup = async lastSnap => {
     $dataStore.georefIndex = null
     $dataStore.locGeorefIndex = null
     $dataStore.selectedGeoref = null
+
+    if(selectedGeorefCopy) {
+      selectedGeorefCopy = null
+    }
     
     let query = Firestore.collection('recordGroups')
     .where('datasetID', '==', dataset.datasetID)
@@ -255,6 +262,11 @@ const handleCustomSearchCleared = _ => {
   }
 }
 
+const handleGeorefSelected = _ => {
+  console.log('setting new georef from main')
+  selectedGeorefCopy = $dataStore.selectedGeoref.copy() //a deep copy
+}
+
 const handleClearGeoref = _ => {
   if($dataStore.selectedGeoref) {
     let selectedMarker = $dataStore.markers[$dataStore.selectedGeoref.georefID]
@@ -270,6 +282,7 @@ const handleClearGeoref = _ => {
 
     $dataStore.selectedGeoref.selected = false
     $dataStore.selectedGeoref = null
+    selectedGeorefCopy = null
 
   }
 }
@@ -320,6 +333,9 @@ const handleSetGeoref = async ev => {
       }
 
       savingGeoref = false
+      $dataStore.georefIndex[georef.georefID] = georef // so we can use it again
+      selectedGeorefCopy = georef.copy() //so we don't save it again if we use it again
+
       console.log('successfully saved')
       if(window.pushToast) {
         window.pushToast('new georef saved')
@@ -475,30 +491,29 @@ const handleUnload = ev => {
       <div>
         <button style="float:right;margin-left:5px;" on:click={handleBackToDatasets}>Done</button>
         <button style="float:right;margin-left:5px;" on:click={handleStartOver}>Reset</button>
-        <button style="float:right;margin-left:5px;" on:click={handleSkipRecordGroup}>Skip</button>
+        <button style="float:right;margin-left:5px;" disabled={!$dataStore.georefIndex} on:click={handleSkipRecordGroup}>Skip</button>
         <button style="float:right;margin-left:5px;" on:click={handleAmbiguous}>Ambiguous</button>
       </div>
       <div class="recordgroup">
         <RecordGroup busy={savingGeoref || savingRecordGroup} on:locality-copied={handleLocalityCopied}></RecordGroup>
       </div>
-      
     </div>
     <div class="matchlist-container">
       <h4>Candidate georeferences</h4>
       <CustomSearch bind:customSearchString {elasticindex} on:custom-search-searching={handleCustomSearchSearching} on:custom-search-cleared={handleCustomSearchCleared} on:custom-georefs={handleCustomGeorefs} />
       <div class="matchlist-flex">
-        <MatchList />
+        <MatchList on:georef-selected={handleGeorefSelected}/>
       </div>
       <div class="matchlist-flex-plug" />
     </div>
     <div class="matchmap-container">
-      <MatchMap bind:pastedDecimalCoords/>
+      <MatchMap bind:pastedDecimalCoords on:georef-selected={handleGeorefSelected}/>
     </div>
     <div class="georef-form-container">
       <h4 class="georef-flex-header">Georeference</h4>
       <div class="georef-form-flex">
         <GeorefForm 
-        georef={$dataStore.selectedGeoref} 
+        georef={selectedGeorefCopy} 
         submitButtonText={"Use this georeference"} 
         on:clear-georef={handleClearGeoref} 
         on:coords-from-paste={handleCoordsFromPaste}
@@ -635,7 +650,7 @@ button {
   background-color: lightgray;
 }
 
-button:hover {
+button:hover:enabled {
   background-color:grey;
   color:white;
 }

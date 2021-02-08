@@ -1,5 +1,8 @@
 <script>
+import { createEventDispatcher } from 'svelte'
 import { dataStore } from './dataStore.js'
+
+const dispatch = createEventDispatcher()
 
 export let georefKey
 let rowindex = 0
@@ -19,6 +22,7 @@ const handleRowClick = _ => {
     let georef = $dataStore.georefIndex[georefKey]
     if(georef.decimalCoordinatesOkay){
       if($dataStore.selectedGeoref) {
+
         $dataStore.selectedGeoref.selected = false
         
         let selectedMarker = $dataStore.markers[$dataStore.selectedGeoref.georefID]
@@ -35,7 +39,7 @@ const handleRowClick = _ => {
 
       georef.selected = true
       $dataStore.selectedGeoref = georef
-
+      
       let newMarker = $dataStore.markers[$dataStore.selectedGeoref.georefID]
       newMarker.setIcon({
         path: google.maps.SymbolPath.CIRCLE,
@@ -47,6 +51,8 @@ const handleRowClick = _ => {
 
       newMarker.setZIndex(1)
       newMarker.panToMe()
+
+      dispatch('georef-selected')
 
     }
     else { //this shouldn't happen ever

@@ -94,6 +94,26 @@ export default class Georef {
     }) 
   }
 
+  //deep copy
+  copy() {
+    let copy = new Georef()
+    for (let [key, val] of Object.entries(this)){
+      
+      if(key == 'protocolObject'){
+        copy[key] = Object.assign({}, val)
+        continue
+      }
+
+      if(key == 'sourcesArray'){
+        copy[key] = val.map(x=>Object.assign({}, x)) //sourcesArray is an array of objects
+        continue
+      }
+
+      copy[key] = val
+    }
+    return copy
+  }
+
   //empty everything
   clear(){
     for (let key of Object.keys(this)){

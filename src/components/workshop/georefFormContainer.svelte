@@ -5,6 +5,7 @@
   let georefJSON = {
           "georefDate": "2021-01-22",
           "verifiedBy": null,
+          verbatimCoordinates: '1234234',
           "decimalLatitude": -22.321456,
           "verifiedRemarks": null,
           "protocol": "NSCF protocol",

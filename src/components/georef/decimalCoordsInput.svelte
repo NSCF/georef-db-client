@@ -34,9 +34,13 @@ const pasteDecimalCoords = _ => {
     navigator.clipboard.readText().then(coordsString => {
       try {
         let newCoords = validateCoordsString(coordsString)
-        if(value && newCoords.replace(/\s+/g,'') != value.replace(/\s+/g,'')){
-          value = newCoords
-          dispatch('coords-from-paste')
+        if(value) {
+          if(newCoords.replace(/\s+/g,'') != value.replace(/\s+/g,'')) {
+            console.log('value is', value)
+            console.log('new coords is', newCoords)
+            value = newCoords
+            dispatch('coords-from-paste')
+          }
         }
         else {
           value = newCoords
@@ -70,9 +74,11 @@ const handleInputPasteCoords = ev => {
   if(pasteData && pasteData.trim()){
     try {
       let newCoords = validateCoordsString(pasteData)
-      if(value && newCoords.replace(/\s+/g,'') != value.replace(/\s+/g,'')){
-        value = newCoords
-        dispatch('coords-from-paste')
+      if(value) {
+        if(newCoords.replace(/\s+/g,'') != value.replace(/\s+/g,'')) {
+          value = newCoords
+          dispatch('coords-from-paste')
+        }
       }
       else {
         value = newCoords

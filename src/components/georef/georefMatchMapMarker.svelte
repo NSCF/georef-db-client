@@ -1,11 +1,12 @@
 <script>
+import { createEventDispatcher } from 'svelte'
 import { dataStore } from './dataStore.js'
 import {onDestroy} from 'svelte'
 
+const dispatch = createEventDispatcher()
+
 export let georefKey
 export let map
-
-//TODO how to switch these on and off with selections on the recordGroup
 
 const getRadiusM = (accuracy, unit) => {
   if (!isNaN(accuracy) && 
@@ -69,7 +70,6 @@ marker.addListener('click', _ => {
     console.log('you already clicked me')
   }
   else {
-
     if($dataStore.selectedGeoref) {
       $dataStore.selectedGeoref.selected = false
       let selectedMarker = $dataStore.markers[$dataStore.selectedGeoref.georefID]
@@ -96,10 +96,13 @@ marker.addListener('click', _ => {
     marker.setZIndex(1)
     map.panTo(marker.getPosition())
 
-    
     $dataStore.georefIndex[georefKey].selected = true
     $dataStore.selectedGeoref = $dataStore.georefIndex[georefKey]
-  }    
+    
+
+    dispatch('georef-selected')
+
+  }
 })
 
 marker.panToMe = _ => {
@@ -113,34 +116,6 @@ else {
   $dataStore.markers = {}
   $dataStore.markers[georefKey] = marker
 }
-
-// $: $dataStore.selectedGeoref, updateMarkerDisplay()
-
-// const updateMarkerDisplay = _ => {
-//   if($dataStore.selectedGeoref){
-//     if($dataStore.georefIndex[georefKey].selected){
-//       marker.setIcon({
-//         path: google.maps.SymbolPath.CIRCLE,
-//         scale: 5, 
-//         fillColor: 'blue', 
-//         fillOpacity: 1,
-//         strokeColor: 'blue'
-//       })
-//       marker.setZIndex(1)
-//       map.panTo(marker.getPosition())
-//     }
-//     else {
-//       marker.setIcon({
-//         path: google.maps.SymbolPath.CIRCLE,
-//         scale: 5, 
-//         fillColor: 'green', 
-//         fillOpacity: 1,
-//         strokeColor: 'green'
-//       })
-//       marker.setZIndex(0)
-//     }
-//   }
-// }
 
 onDestroy( _ => {
   marker.setMap(null)

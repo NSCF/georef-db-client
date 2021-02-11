@@ -1,4 +1,5 @@
 <script>
+import { Firestore, Realtime as Firebase } from '../firebase.js'
 import Modal from 'svelte-simple-modal';
 import ChooseFile from './chooseFile.svelte'
 import ConfirmFields from './confirmCSVFields.svelte'
@@ -12,8 +13,31 @@ import DatasetDetail from './admin/datasetDetail.svelte'
 
 import Georeferencer from './georef/georef.svelte'
 
+import GeorefStats from './georefStats.svelte'
+
 import Workshop from './workshop/workshop.svelte'
 import Yard from './yard.svelte'
+
+//just for now
+let userID = 'ianuserid'
+//the stats we want to show
+let statsRefStrings = [
+	`stats/perUser/${userID}/georefsAdded`,
+  `stats/perUser/${userID}/recordsGeoreferenced`,
+	'stats/georefsAdded',
+	'stats/recordsGeoreferenced',
+	'stats/lastGeorefAdded', 
+	'stats/lastGeorefAddedBy'
+]
+
+let statsLabels = [
+	'My georefs:', 
+	'My records:',
+	'Total georefs:',
+	'Total records:',
+	'Last georef:', 
+	'Last georef by:'
+]
 
 //for 'page navigation'
 // do we need a router??????
@@ -118,6 +142,7 @@ function handleHomeClick() {
 			</div>
 			<div class="content">
 				{#if currentPage == 'ChooseFile'}
+					<GeorefStats {Firebase} {statsRefStrings}  {statsLabels}/>
 					<ChooseFile 
 					on:file-selected={handleFileSelected} 
 					on:to-datasets={handleToDatasets}

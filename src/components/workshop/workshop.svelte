@@ -3,10 +3,14 @@
 //INDIVIDUAL COMPONENTS ARE BUILT IN THE WORKSHOP, THEY ARE ASSEMBLED INTO BIGGER THINGS IN THE YARD
 //each component needs a wrapper that sends down the relevant props, etc
 
+import { Realtime as Firebase } from '../../firebase.js'
+
 import GeorefForm from './georefFormContainer.svelte'
 import IconInput from './decimalCoordsInputContainer.svelte'
 import Loader from '../Loader.svelte'
 import CustomSearch from '../georef/customSearch.svelte'
+import GeorefStat from './georefStatContainer.svelte'
+import GeorefStats from './georefStatsContainer.svelte'
 
 const handleCustomGeorefs = ev => {
   let georefs = ev.detail
@@ -25,6 +29,9 @@ const clearCustomSearch = _ => {
 <!-- ############################################## -->
 <!-- HTML -->
 <div class="container">
+  <GeorefStat stat={23} isGeoref={false} labelText={'georef count'} />
+  <GeorefStat stat={11} isGeoref={true} labelText={'record count'} />
+  <GeorefStats {Firebase} userID={'iansuserid'} datasetID={'9jp8aFSneKuDjjfOuJhR'}/>
   <div class="form-container" style="width:500px">
     <div class="form-flex">
       <GeorefForm/>

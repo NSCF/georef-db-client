@@ -1,5 +1,5 @@
 <script>
-import { Firestore, FieldValue, Realtime as Firebase } from '../../firebase.js'
+import { Firestore, Realtime as Firebase } from '../../firebase.js'
 import {onMount, onDestroy, createEventDispatcher} from 'svelte'
 import { nanoid } from "nanoid/nanoid.js" //see https://github.com/ai/nanoid/issues/237
 
@@ -11,6 +11,7 @@ import {
 
 import { dataStore } from './dataStore.js'
 
+import GeorefStats from '../georefStats.svelte'
 import RecordGroup from './georefRecordGroup.svelte'
 import MatchList from './georefMatchList.svelte'
 import MatchMap from './georefMatchMap.svelte'
@@ -18,14 +19,18 @@ import GeorefForm from './georefForm.svelte'
 import CustomSearch from './customSearch.svelte'
 import Toast from '../toast.svelte'
 
+export let dataset
+
 //some mock values for now
 let userID = 'iansuserid'
 let userName ='Engelbrecht, I.'
-let datasetRef = Firestore.collection('datasets').doc('9jp8aFSneKuDjjfOuJhR')
+let datasetRef 
+
+$: if(Firestore) {
+  datasetRef = Firestore.collection('datasets').doc('9jp8aFSneKuDjjfOuJhR')
+}
 
 let dispatch = createEventDispatcher()
-
-export let dataset
 
 //the main prop!!
 let selectedGeorefCopy = null
@@ -35,6 +40,7 @@ let savingGeoref = false
 let savingRecordGroup = false
 
 let elasticindex
+let ambigious //for the ambiguous georef
 
 //vars for custom georef searches
 let customSearchString = null
@@ -55,6 +61,34 @@ let selectedCount
 $: if($dataStore.recordGroup){
   selectedCount = $dataStore.recordGroup.groupLocalities.filter(x=>x.selected).length
 }
+
+//and finally the stats
+//these are stats while georeferencing
+let statsRefStrings = [
+	`stats/perDataset/${dataset.datasetID}/perUser/${userID}/georefsAdded`,
+	`stats/perDataset/${dataset.datasetID}/perUser/${userID}/recordsGeoreferenced`,
+	`stats/perDataset/${dataset.datasetID}/perUser/${userID}/daily/today/georefsAdded`,
+  `stats/perDataset/${dataset.datasetID}/perUser/${userID}/daily/today/recordsGeoreferenced`,
+  `stats/perDataset/${dataset.datasetID}/perUser/${userID}/weekly/yearweek/georefsAdded`,
+  `stats/perDataset/${dataset.datasetID}/perUser/${userID}/weekly/yearweek/recordsGeoreferenced`,
+  `stats/perDataset/${dataset.datasetID}/perUser/${userID}/monthly/yearmonth/georefsAdded`,
+  `stats/perDataset/${dataset.datasetID}/perUser/${userID}/monthly/yearmonth/recordsGeoreferenced`,
+  `stats/perDataset/${dataset.datasetID}/georefsAdded`,
+  `stats/perDataset/${dataset.datasetID}/recordsGeoreferenced`
+]
+
+let statsLabels = [
+	'My total georefs', 
+	'My total records',
+	'My georefs today',
+	'My records today',
+	'My georefs this week', 
+  'My records this week', 
+  'My georefs this month', 
+  'My records this month', 
+  'Total georefs',
+  'Total records'
+]
 
 onMount(async _ => { 
 
@@ -77,6 +111,17 @@ onMount(async _ => {
     }
   });
 
+  //get the ambiguous record async
+  fetch('https://us-central1-georef-745b9.cloudfunctions.net/getambiguous')
+  .then(res => res.json())
+  .then(data => {
+    ambigious = data //just an object with an ID, not a Georef instance...
+  })
+  .catch(err => {
+    console.log('err getting ambiguous georef:')
+    console.log(err)
+  })
+
 })
 
 onDestroy(async _ => {
@@ -85,7 +130,6 @@ onDestroy(async _ => {
 
 const fetchNextRecordGroup = async lastSnap => {
   if(connected){
-    console.log('fetching record group from Firestore')
 
     //let try clearning the datastore here because everthing gets reset
     $dataStore.recordGroup = null
@@ -132,7 +176,6 @@ const fetchNextRecordGroup = async lastSnap => {
           fetchNextRecordGroup() //recursive, I'm really hoping this is right- it would theoretically stop on snap.empty
         }
         else {
-          console.log('adding data to datastore')
           $dataStore.recordGroupSnap = snap.docs[0] 
           $dataStore.recordGroup = snap.docs[0].data()
 
@@ -146,7 +189,6 @@ const fetchNextRecordGroup = async lastSnap => {
           georefsAdded = 0
           recordsGeoreferenced = 0
           
-          console.log('fetching georefs')
           customSearchString = null //just to clear
           try {
             let candidateGeorefs = await fetchCandidateGeorefs($dataStore.recordGroup.groupLocalities, elasticindex)
@@ -184,7 +226,6 @@ const fetchNextRecordGroup = async lastSnap => {
 
 const releaseRecordGroup = async _ => {
   if($dataStore.recordGroupSnap){
-    console.log('releasing record group')
     await $dataStore.recordGroupSnap.ref.update({groupLocked: false})
   }
 }
@@ -220,12 +261,12 @@ const saveRecordGroup = async _ => {
     
     if(georefsAdded || recordsGeoreferenced) {
       try {
-        await updateGeorefStats(Firebase, georefsAdded, recordsGeoreferenced, userID, userName)
+        await updateGeorefStats(Firebase, georefsAdded, recordsGeoreferenced, userID, userName, dataset.datasetID)
         await updateDatasetStats(Firestore, datasetRef, recordsGeoreferenced, userID, groupComplete)
       }
       catch(err) {
         savingRecordGroup = false
-        alert('there was an error updating stats:', err.message)
+        alert('there was an error updating stats: ' + err.message)
       }
     }
 
@@ -263,7 +304,6 @@ const handleCustomSearchCleared = _ => {
 }
 
 const handleGeorefSelected = _ => {
-  console.log('setting new georef from main')
   selectedGeorefCopy = $dataStore.selectedGeoref.copy() //a deep copy
 }
 
@@ -336,13 +376,13 @@ const handleSetGeoref = async ev => {
       $dataStore.georefIndex[georef.georefID] = georef // so we can use it again
       selectedGeorefCopy = georef.copy() //so we don't save it again if we use it again
 
-      console.log('successfully saved')
+      
       if(window.pushToast) {
         window.pushToast('new georef saved')
       }
     }
 
-    console.log('updating record group with georef')
+    
   
     for (let loc of selectedLocs){
       loc.georefID = georef.georefID
@@ -383,10 +423,7 @@ const handleSetGeoref = async ev => {
     let withGeorefs = $dataStore.recordGroup.groupLocalities.filter(x => x.georefID).length
     let total = $dataStore.recordGroup.groupLocalities.length
     if(withGeorefs == total){
-      console.log('saving and moving to next record group')
       await saveRecordGroup()
-      console.log('record group saved')
-      console.log('fetching next record group')
       fetchNextRecordGroup($dataStore.recordGroupSnap)
     }
   }
@@ -422,46 +459,15 @@ const handleStartOver = _ => { //just clear out any georefIDs
   }
 }
 
-const handleAmbiguous = async _ => {
-  //this is similar to handleSetGeoref
-  let selectedLocs = $dataStore.recordGroup.groupLocalities.filter(x => x.selected)
-  if(selectedLocs.length){
-    //the hardcoded ambiguous georeference ID
-    for (let loc of selectedLocs){
-      loc.georefID = '' //TODO insert ambigious georefID here
-      loc.georefBy = userName //TODO check the format is correct
-      loc.georefDate = Date.now()
-      loc.georefVerified = false
-      loc.georefVerifiedBy = null
-      loc.georefVerifiedDate = null
-      loc.georefVerifiedByRole = null
-      loc.georefRemarks = null
-      if(selectedLocGeorefRemarks) {
-        loc.georefRemarks = selectedLocGeorefRemarks
+const handleAmbiguous = _ => {
+  //piggy backing on setGeoref
+  let fakeEv = {
+    detail : {
+        georef: ambiguous,
+        saveGeoref: false
       }
-      if(loc.recordIDs && loc.recordIDs.length) { //this really should never be necessary
-        recordsGeoreferenced += loc.recordIDs.length
-      }
-      loc.selected = false
-      selectedLocGeorefRemarks = null
     }
-    
-    $dataStore.recordGroup.groupLocalities = $dataStore.recordGroup.groupLocalities //the svelte update trigger
-
-    //if these were the last ones
-    let withGeorefs = $dataStore.recordGroup.groupLocalities.filter(x => x.georefID).length
-    let total = $dataStore.recordGroup.groupLocalities.length
-    if(withGeorefs == total){
-      console.log('saving and moving to next record group')
-      await saveRecordGroup()
-      console.log('record group saved')
-      console.log('fetching next record group')
-      fetchNextRecordGroup($dataStore.recordGroupSnap)
-    }
-  }
-  else {
-    alert('select localities first to mark them ambiguous')
-  }
+  handleSetGeoref(fakeEV)
 }
 
 const handleLocalityCopied = async => {
@@ -475,12 +481,12 @@ const handleUnload = ev => {
   navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updaterecordgrouplock?groupid=${$dataStore.recordGroupSnap.id}`, '')
 }
 
-
 </script>
 
 <!-- ############################################## -->
 <svelte:window on:beforeunload={handleUnload} /> <!--in case the user just closes-->
 {#if !datasetComplete}
+  <GeorefStats {Firebase} {statsRefStrings} {statsLabels} descriptor={'This dataset'}/>
   <div class="grid-container">
     <div class="recordgroup-container">
       <h4 title={locStringsTitle}>Locality strings</h4>
@@ -591,10 +597,6 @@ h4 {
   position:relative;
   display: flex;
   flex-flow: column;
-}
-
-.matchlist-header {
-  flex: 0 1 auto;
 }
 
 .matchlist-flex {

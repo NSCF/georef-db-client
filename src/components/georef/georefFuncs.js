@@ -15,7 +15,6 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex) => {
     let fetchResults
 
     try {
-      console.log('calling elastic with', elasticFetches.length, 'calls')
       fetchResults = await Promise.all(elasticFetches)
     }
     catch(err){
@@ -80,47 +79,93 @@ const fetchGeorefsForLoc = async (locString, index) => {
   return data
 }
 
-const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, userID, userName) => {
+const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, userID, userName, datasetID) => {
   let yearmonth = getYearMonth(new Date())
   let yearweek = getYearWeek(new Date())
-  
+  let now = new Date()
+  let today = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
+   
   let refstrings = [
-    'stats/totalGeorefsAdded',
-    'stats/totalRecordsGeoreferenced',
-    `stats/monthly/${yearmonth}/georefsAdded`, 
-    `stats/monthly/${yearmonth}/recordsGeoreferenced`, 
-    `stats/monthly/${yearmonth}/user/${userID}/georefsAdded`,
-    `stats/monthly/${yearmonth}/user/${userID}/recordsGeoreferenced`,
+    //totals
+    'stats/georefsAdded',
+    'stats/recordsGeoreferenced',
     `stats/weekly/${yearweek}/georefsAdded`, 
     `stats/weekly/${yearweek}/recordsGeoreferenced`, 
-    `stats/weekly/${yearweek}/user/${userID}/georefsAdded`,
-    `stats/weekly/${yearweek}/user/${userID}/recordsGeoreferenced`
+    `stats/monthly/${yearmonth}/georefsAdded`, 
+    `stats/monthly/${yearmonth}/recordsGeoreferenced`, 
+
+    //perDataset
+    `stats/perDataset/${datasetID}/georefsAdded`,
+    `stats/perDataset/${datasetID}/recordsGeoreferenced`,
+    `stats/perDataset/${datasetID}/perUser/${userID}/georefsAdded`,
+    `stats/perDataset/${datasetID}/perUser/${userID}/recordsGeoreferenced`,
+    `stats/perDataset/${datasetID}/perUser/${userID}/daily/${today}/georefsAdded`,
+    `stats/perDataset/${datasetID}/perUser/${userID}/daily/${today}/recordsGeoreferenced`,
+    `stats/perDataset/${datasetID}/perUser/${userID}/weekly/${yearweek}/georefsAdded`,
+    `stats/perDataset/${datasetID}/perUser/${userID}/weekly/${yearweek}/recordsGeoreferenced`,
+    `stats/perDataset/${datasetID}/perUser/${userID}/monthly/${yearmonth}/georefsAdded`,
+    `stats/perDataset/${datasetID}/perUser/${userID}/monthly/${yearmonth}/recordsGeoreferenced`,
+
+    //perUser
+    `stats/perUser/${userID}/georefsAdded`,
+    `stats/perUser/${userID}/recordsGeoreferenced`,
+    `stats/perUser/${userID}/daily/${today}/georefsAdded`,
+    `stats/perUser/${userID}/daily/${today}/recordsGeoreferenced`,
+    `stats/perUser/${userID}/weekly/${yearweek}/georefsAdded`,
+    `stats/perUser/${userID}/weekly/${yearweek}/recordsGeoreferenced`,
+    `stats/perUser/${userID}/monthly/${yearmonth}/georefsAdded`,
+    `stats/perUser/${userID}/monthly/${yearmonth}/recordsGeoreferenced`
   ]
 
   let proms = []
   for (let rs of refstrings){
     let val = georefsAdded
-    if (rs.includes('Records')){
+    if (rs.endsWith('recordsGeoreferenced')){
       val = recordsGeoreferenced
     }
     let ref = Firebase.ref(rs)
     proms.push(updateStat(ref, val))
   }
 
-  let updateLastGeorefsAdded = Firebase.ref('stats/lastGeorefsAdded').transaction(current => {
+  let updateLastGeorefsAdded = Firebase.ref('stats/lastGeorefAdded').transaction(current => {
     current = Date.now()
     return current
   })
 
-  let updateLastGeorefsAddedBy = Firebase.ref('stats/lastGeorefsAddedBy').transaction(current => {
+  let updateLastGeorefsAddedBy = Firebase.ref('stats/lastGeorefAddedBy').transaction(current => {
     current = userName
+    return current
+  })
+
+  let updateLastGeorefsAddedByID = Firebase.ref('stats/lastGeorefAddedByID').transaction(current => {
+    current = userID
+    return current
+  })
+
+  let updateDatasetLastGeorefsAdded = Firebase.ref(`stats/perDataset/${datasetID}/lastGeorefAdded`).transaction(current => {
+    current = Date.now()
+    return current
+  })
+
+  let updateDatasetLastGeorefsAddedBy = Firebase.ref(`stats/perDataset/${datasetID}/lastGeorefAddedBy`).transaction(current => {
+    current = userName
+    return current
+  })
+
+  let updateDatasetLastGeorefsAddedByID = Firebase.ref(`stats/perDataset/${datasetID}/lastGeorefAddedByID`).transaction(current => {
+    current = userID
     return current
   })
 
   proms.push(updateLastGeorefsAdded)
   proms.push(updateLastGeorefsAddedBy)
+  proms.push(updateLastGeorefsAddedByID)
 
-  await Promise.all(proms)
+  proms.push(updateDatasetLastGeorefsAdded)
+  proms.push(updateDatasetLastGeorefsAddedBy)
+  proms.push(updateDatasetLastGeorefsAddedByID)
+
+  await Promise.all(proms) //thats 30 in total!!
 
   console.log('georef count stats updated')
   
@@ -174,15 +219,16 @@ const updateDatasetStats = (Firestore, datasetRef, recordsGeoreferenced, userID,
       }
 
       if(groupComplete) {
-        console.log('updating groups completed')
-        console.log('Value of dataset.groupsComplete:', data.groupsComplete)
+        //console.log('updating groups completed')
+        //console.log('Value of dataset.groupsComplete:', data.groupsComplete)
         update.groupsComplete = data.groupsComplete++
       }
 
       transaction.update(datasetRef, update);
     });
   }).then(function() {
-    console.log("Dataset record updated!");
+    let i = 0 //do nothing
+    //console.log("Dataset record updated!");
   }).catch(function(error) {
     throw error;
   });

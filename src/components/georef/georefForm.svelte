@@ -9,6 +9,10 @@ import VerbatimCoordsInput from './verbatimCoordsInput.svelte'
 import DateInput from './dateInput.svelte'
 import Georef from './Georef.js'
 
+import { georefsEqual } from './georefFormFuncs.js'
+
+import is from './is.js' //our type checking funcs for validation
+
 import {createEventDispatcher} from 'svelte'
 let dispatch = createEventDispatcher();
 
@@ -25,15 +29,10 @@ $: if(georef) {
     originalGeoref = georef
     originalVals = georef.copy()
     originalLocality = null
-    console.log('georef value recieved by form')
-  }
-  else if(georef == originalGeoref){ //this is an edit
-    console.log('georef edited')
   }
 }
 else  {
    georef = new Georef() //trying to avoid nulls in the HTML here
-   console.log('null georef recieved by form, updating to a Georef object') 
 }
 
 //settings
@@ -173,6 +172,14 @@ const handleClearClick = _ => {
   }
 }
 
+const flagGeoref = _ => {
+  //fire off a message to the api to update on elastic and the parent to flag the original record
+  georef.flagged = true
+  dispatch('georef-flagged', georef.georefID)
+  let url = `https://us-central1-georef-745b9.cloudfunctions.net/flaggeoref?georefID=${georef.georefID}`
+  fetch(url)
+}
+
 const handleCoordsFromVerbatim = ev => {
   console.log('coordinates recievied:', ev.detail)
   try {
@@ -232,16 +239,22 @@ const handleFormSubmit = _ => {
           georef[key] = val.replace(/\s+/g, ' ').replace(/[\.\-\\\/,~]+$/, '').trim() //just some tidying up
         }
       }
-
-      if(georef.hasOwnProperty('selected')){
-        delete georef.selected
-      }
   
-      if(!georefsEqual(georef, originalVals)){
-        georef.georefID = nanoid()
+      try {
+        let saveGeoref = false
+        let georefsAreEqual = georefsEqual(georef, originalVals)
+        if(!georefsAreEqual){
+          console.log('the georef has changed')
+          georef.georefID = nanoid()
+          delete georef.flagged
+          delete georef.selected
+          saveGeoref = true
+        }
+        dispatch('set-georef', {georef, saveGeoref})
       }
-
-      dispatch('set-georef', {georef: georef, saveGeoref: true})
+      catch(err) {
+        alert('error checking georefs are equal: ' + err.message)
+      }
     }
   }
   else {
@@ -251,57 +264,24 @@ const handleFormSubmit = _ => {
       }
     }
 
-    if(georef.hasOwnProperty('selected')){
-      delete georef.selected
+    try {
+      let saveGeoref = false
+      let georefsAreEqual = georefsEqual(georef, originalVals)
+      if(!georefsAreEqual){
+        console.log('the georef has changed')
+        georef.georefID = nanoid()
+        delete georef.flagged
+        delete georef.selected
+        saveGeoref = true
+      }
+      dispatch('set-georef', {georef, saveGeoref})
     }
-
-    if(!georefsEqual(georef, originalVals)){
-      georef.georefID = nanoid()
+    catch(err) {
+      alert('error checking georefs are equal: ' + err.message)
     }
-
-    dispatch('set-georef', {georef: georef, saveGeoref: false})
+    
   }
     
-}
-
-//helpers
-const georefsEqual = (georef1, georef2) => {
-  if(georef1 && georef2) {
-    for (let [key, val] of Object.entries(georef1)){
-
-      if(key == 'georefID'){
-        continue
-      }
-
-      if(!val && (!georef2[key] || georef2[key].trim())){ //both empty
-        return false
-      }
-      
-      if(typeof val == 'string'){
-        if(!georef2[key] || georef2[key].trim() != val.trim()){
-          return false
-        }
-      }
-      
-      if (typeof val == 'number'){
-        if(!georef2[key] || isNaN(georef2[key])) {
-          return false
-        }
-        else {
-          let diff = val - georef2[key]
-          if(Math.abs(diff) > 0.000001){
-            return false
-          }
-        }
-      }
-
-    }
-    //they are the same
-      return true
-  }
-  else {
-    return false
-  }
 }
 
 </script>
@@ -313,6 +293,7 @@ const georefsEqual = (georef1, georef2) => {
   {#if showButtons}
     <div style="text-align:right">
       <span class="material-icons iconbutton" title="Clear all" on:click={handleClearClick}>restore_page</span>
+      <span class="material-icons iconbutton" title="Clear all" disabled={georef.flagged} on:click={flagGeoref}>report</span>
       <button class="json-button" title="Copy georef JSON"  on:click={copyGeorefJSON}>JSON</button>
       <span class="material-icons iconbutton" title="Copy tab delimited" on:click={copyTabDelimited}>clear_all</span>
     </div>
@@ -480,22 +461,6 @@ textarea {
   width:70%;
 }
 
-.flex > input {
-  flex-grow: 1;
-  width:80%
-}
-
-.inline-icon {
-  width: 20px;
-  color:grey;
-  padding-bottom:8px;
-}
-
-.inline-icon:hover {   
-  cursor: pointer;
-  color:rgb(26, 25, 25);
-}
-
 .iconbutton{
   color:grey;
   background-color: lightgray;
@@ -503,7 +468,7 @@ textarea {
   border-radius: 2px;
 }
 
-.iconbutton:hover{
+.iconbutton:hover:enabled{
   cursor:pointer;
   background-color:gray;
   color:white;
@@ -524,7 +489,7 @@ textarea {
   font-weight:bold;
 }
 
-.json-button:hover {
+.json-button:hover:enabled {
   cursor:pointer;
   background-color:gray;
   color:white;

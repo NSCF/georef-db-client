@@ -174,10 +174,13 @@ const handleClearClick = _ => {
 
 const flagGeoref = _ => {
   //fire off a message to the api to update on elastic and the parent to flag the original record
-  georef.flagged = true
-  dispatch('georef-flagged', georef.georefID)
-  let url = `https://us-central1-georef-745b9.cloudfunctions.net/flaggeoref?georefID=${georef.georefID}`
-  fetch(url)
+  if(!georef.flagged) {
+    let cont = confirm('Are you sure you want to flag this georeference?')
+    if(cont){
+      georef.flagged = true
+      dispatch('georef-flagged', georef.georefID) //the parent must do the API call
+    }
+  }
 }
 
 const handleCoordsFromVerbatim = ev => {

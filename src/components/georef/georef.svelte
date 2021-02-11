@@ -327,6 +327,13 @@ const handleClearGeoref = _ => {
   }
 }
 
+const handleFlagGeoref = ev => {
+  let georefID = ev.detail
+  $dataStore.georefIndex[georefID].flagged = true
+  let url = `https://us-central1-georef-745b9.cloudfunctions.net/flaggeoref?georefID=${georef.georefID}&index=${elasticindex}`
+  fetch(url)
+}
+
 const handleCoordsFromPaste = ev => {
   pastedDecimalCoords = ev.detail
 }
@@ -522,6 +529,7 @@ const handleUnload = ev => {
         georef={selectedGeorefCopy} 
         submitButtonText={"Use this georeference"} 
         on:clear-georef={handleClearGeoref} 
+        on:georef-flagged={handleFlagGeoref}
         on:coords-from-paste={handleCoordsFromPaste}
         on:set-georef={handleSetGeoref}/>
       </div>

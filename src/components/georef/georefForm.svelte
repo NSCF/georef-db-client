@@ -237,11 +237,6 @@ const handleFormSubmit = _ => {
     let message = `The following fields have invalid values: ${invalidFields}.\r\n\r\nDo you want to continue?`
     let cont = confirm(message)
     if(cont) {
-      for (let [key, val] of Object.entries(georef)){
-        if (typeof val == 'string'){
-          georef[key] = val.replace(/\s+/g, ' ').replace(/[\.\-\\\/,~]+$/, '').trim() //just some tidying up
-        }
-      }
   
       try {
         let saveGeoref = false
@@ -296,7 +291,7 @@ const handleFormSubmit = _ => {
   {#if showButtons}
     <div style="text-align:right">
       <span class="material-icons iconbutton" title="Clear all" on:click={handleClearClick}>restore_page</span>
-      <span class="material-icons iconbutton" title="Clear all" class:md-inactive={georef.flagged} on:click={flagGeoref}>report</span>
+      <span class="material-icons iconbutton" title="Flag this georef" class:md-inactive={georef.flagged} on:click={flagGeoref}>report</span>
       <button class="json-button" title="Copy georef JSON"  on:click={copyGeorefJSON}>JSON</button>
       <span class="material-icons iconbutton" title="Copy tab delimited" on:click={copyTabDelimited}>clear_all</span>
     </div>

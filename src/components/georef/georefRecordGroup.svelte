@@ -115,7 +115,7 @@ const copyLocality = loc => {
   color: grey;
 }
 
-.inline-icon:hover:enabled {
+.inline-icon:hover {
   color:#404040;
   border-color:	#404040;
   cursor: pointer;

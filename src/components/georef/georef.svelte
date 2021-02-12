@@ -62,6 +62,13 @@ $: if($dataStore.recordGroup){
   selectedCount = $dataStore.recordGroup.groupLocalities.filter(x=>x.selected).length
 }
 
+let recordCount
+let locStringsCount
+$: if($dataStore.recordGroup && $dataStore.recordGroup.groupLocalities) {
+  recordCount = $dataStore.recordGroup.groupLocalities.filter(x => !x.georefID).map(x=> x.recordIDs.length).reduce((a, b) => a + b, 0)
+  locStringsCount = $dataStore.recordGroup.groupLocalities.filter(x => !x.georefID).length
+}
+
 //and finally the stats
 //these are stats while georeferencing
 let statsRefStrings = [
@@ -383,7 +390,6 @@ const handleSetGeoref = async ev => {
       $dataStore.georefIndex[georef.georefID] = georef // so we can use it again
       selectedGeorefCopy = georef.copy() //so we don't save it again if we use it again
 
-      
       if(window.pushToast) {
         window.pushToast('new georef saved')
       }
@@ -509,6 +515,10 @@ const handleUnload = ev => {
           <button style="float:right;margin-left:5px;" on:click={handleStartOver}>Reset</button>
           <button style="float:right;margin-left:5px;" disabled={!$dataStore.georefIndex} on:click={handleSkipRecordGroup}>Skip</button>
           <button style="float:right;margin-left:5px;" on:click={handleAmbiguous}>Ambiguous</button>
+        </div>
+        <div style="text-align:right;">
+          <span>Localities: {locStringsCount}</span>
+          <span>Records: {recordCount}</span>
         </div>
         <div class="recordgroup">
           <RecordGroup busy={savingGeoref || savingRecordGroup} on:locality-copied={handleLocalityCopied}></RecordGroup>

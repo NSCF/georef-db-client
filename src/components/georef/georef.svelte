@@ -493,49 +493,54 @@ const handleUnload = ev => {
 <!-- ############################################## -->
 <svelte:window on:beforeunload={handleUnload} /> <!--in case the user just closes-->
 {#if !datasetComplete}
-  <GeorefStats {Firebase} {statsRefStrings} {statsLabels} descriptor={'This dataset'}/>
-  <div class="grid-container">
-    <div class="recordgroup-container">
-      <h4 title={locStringsTitle}>Locality strings</h4>
-      <div class="recordgroup-remarks">
-        <label for="slgr">Locality georef remarks</label>
-        <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder={`Add remarks about applying this georeference to ${!selectedCount || selectedCount > 1 ? 'these localities': 'this locality'} `} rows="2" />
-      </div>
-      <div>
-        <button style="float:right;margin-left:5px;" on:click={handleBackToDatasets}>Done</button>
-        <button style="float:right;margin-left:5px;" on:click={handleStartOver}>Reset</button>
-        <button style="float:right;margin-left:5px;" disabled={!$dataStore.georefIndex} on:click={handleSkipRecordGroup}>Skip</button>
-        <button style="float:right;margin-left:5px;" on:click={handleAmbiguous}>Ambiguous</button>
-      </div>
-      <div class="recordgroup">
-        <RecordGroup busy={savingGeoref || savingRecordGroup} on:locality-copied={handleLocalityCopied}></RecordGroup>
-      </div>
+  <div class="col-flex-container">
+    <div class="flex-item">
+      <GeorefStats {Firebase} {statsRefStrings} {statsLabels} descriptor={'This dataset'}/>
     </div>
-    <div class="matchlist-container">
-      <h4>Candidate georeferences</h4>
-      <CustomSearch bind:customSearchString {elasticindex} on:custom-search-searching={handleCustomSearchSearching} on:custom-search-cleared={handleCustomSearchCleared} on:custom-georefs={handleCustomGeorefs} />
-      <div class="matchlist-flex">
-        <MatchList on:georef-selected={handleGeorefSelected}/>
+    <div class="grid-container">
+      <div class="recordgroup-container">
+        <h4 title={locStringsTitle}>Locality strings</h4>
+        <div class="recordgroup-remarks">
+          <label for="slgr">Locality georef remarks</label>
+          <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder={`Add remarks about applying this georeference to ${!selectedCount || selectedCount > 1 ? 'these localities': 'this locality'} `} rows="2" />
+        </div>
+        <div>
+          <button style="float:right;margin-left:5px;" on:click={handleBackToDatasets}>Done</button>
+          <button style="float:right;margin-left:5px;" on:click={handleStartOver}>Reset</button>
+          <button style="float:right;margin-left:5px;" disabled={!$dataStore.georefIndex} on:click={handleSkipRecordGroup}>Skip</button>
+          <button style="float:right;margin-left:5px;" on:click={handleAmbiguous}>Ambiguous</button>
+        </div>
+        <div class="recordgroup">
+          <RecordGroup busy={savingGeoref || savingRecordGroup} on:locality-copied={handleLocalityCopied}></RecordGroup>
+        </div>
       </div>
-      <div class="matchlist-flex-plug" />
-    </div>
-    <div class="matchmap-container">
-      <MatchMap bind:pastedDecimalCoords on:georef-selected={handleGeorefSelected}/>
-    </div>
-    <div class="georef-form-container">
-      <h4 class="georef-flex-header">Georeference</h4>
-      <div class="georef-form-flex">
-        <GeorefForm 
-        georef={selectedGeorefCopy} 
-        submitButtonText={"Use this georeference"} 
-        on:clear-georef={handleClearGeoref} 
-        on:georef-flagged={handleFlagGeoref}
-        on:coords-from-paste={handleCoordsFromPaste}
-        on:set-georef={handleSetGeoref}/>
+      <div class="matchlist-container">
+        <h4>Candidate georeferences</h4>
+        <CustomSearch bind:customSearchString {elasticindex} on:custom-search-searching={handleCustomSearchSearching} on:custom-search-cleared={handleCustomSearchCleared} on:custom-georefs={handleCustomGeorefs} />
+        <div class="matchlist-flex">
+          <MatchList on:georef-selected={handleGeorefSelected}/>
+        </div>
+        <div class="matchlist-flex-plug" />
       </div>
-      <div class="georef-form-plug" />
+      <div class="matchmap-container">
+        <MatchMap bind:pastedDecimalCoords on:georef-selected={handleGeorefSelected}/>
+      </div>
+      <div class="georef-form-container">
+        <h4 class="georef-flex-header">Georeference</h4>
+        <div class="georef-form-flex">
+          <GeorefForm 
+          georef={selectedGeorefCopy} 
+          submitButtonText={"Use this georeference"} 
+          on:clear-georef={handleClearGeoref} 
+          on:georef-flagged={handleFlagGeoref}
+          on:coords-from-paste={handleCoordsFromPaste}
+          on:set-georef={handleSetGeoref}/>
+        </div>
+        <div class="georef-form-plug" />
+      </div>
     </div>
   </div>
+  <div class="stopper"/>
   <Toast />
 {:else}
   <div style="text-align:center;margin-top:300px">
@@ -555,10 +560,26 @@ h4 {
   text-align: center;
   margin:0;
 }
+
+.col-flex-container {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+.flex-item {
+  flex: 1 1 auto;
+}
+
+.stopper {
+  position: absolute;
+  height:0;
+  bottom:0;
+}
+
 .grid-container {
   display: grid;
-  height: 100%;
-  max-height:100%;
+  flex: 1 1 auto;
   width: 100%;
   padding: 10px;
   margin-top:10px;

@@ -296,7 +296,7 @@ const handleFormSubmit = _ => {
   {#if showButtons}
     <div style="text-align:right">
       <span class="material-icons iconbutton" title="Clear all" on:click={handleClearClick}>restore_page</span>
-      <span class="material-icons iconbutton" title="Clear all" disabled={georef.flagged} on:click={flagGeoref}>report</span>
+      <span class="material-icons iconbutton" title="Clear all" class:md-inactive={georef.flagged} on:click={flagGeoref}>report</span>
       <button class="json-button" title="Copy georef JSON"  on:click={copyGeorefJSON}>JSON</button>
       <span class="material-icons iconbutton" title="Copy tab delimited" on:click={copyTabDelimited}>clear_all</span>
     </div>
@@ -471,10 +471,18 @@ textarea {
   border-radius: 2px;
 }
 
-.iconbutton:hover:enabled{
+.iconbutton:hover{
   cursor:pointer;
   background-color:gray;
   color:white;
+}
+
+.material-icons.md-inactive:hover {
+  cursor: auto;
+  color:grey;
+  background-color: lightgray;
+  border: 1px solid grey;
+  border-radius: 2px;
 }
 
 .json-button {

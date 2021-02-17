@@ -1,12 +1,13 @@
 <script>
-import { Firestore, Realtime as Firebase } from '../../firebase.js'
+import { Firestore, FieldValue, Realtime as Firebase } from '../../firebase.js'
 import {onMount, onDestroy, createEventDispatcher} from 'svelte'
 import { nanoid } from "nanoid/nanoid.js" //see https://github.com/ai/nanoid/issues/237
 
 import {
     updateGeorefStats,
     updateDatasetStats, 
-    fetchCandidateGeorefs
+    fetchCandidateGeorefs,
+    updateGeorefRecords
   } from './georefFuncs.js'
 
 import { dataStore } from './dataStore.js'
@@ -40,7 +41,9 @@ let savingGeoref = false
 let savingRecordGroup = false
 
 let elasticindex
-let ambigious //for the ambiguous georef
+let ambiguous //for the ambiguous georef
+let newGeorefsUsed = [] //for storing georefIDs of georefs not used before, this allows undo of setting them to used when resetting a record group
+let datasetGeorefsUsed = []
 
 //vars for custom georef searches
 let customSearchString = null
@@ -119,10 +122,10 @@ onMount(async _ => {
   });
 
   //get the ambiguous record async
-  fetch('https://us-central1-georef-745b9.cloudfunctions.net/getambiguous')
+  fetch(`https://us-central1-georef-745b9.cloudfunctions.net/getambiguous?index=${elasticindex}`)
   .then(res => res.json())
   .then(data => {
-    ambigious = data //just an object with an ID, not a Georef instance...
+    ambiguous = data //just an object with an ID, not a Georef instance...
   })
   .catch(err => {
     console.log('err getting ambiguous georef:')
@@ -144,6 +147,9 @@ const fetchNextRecordGroup = async lastSnap => {
     $dataStore.georefIndex = null
     $dataStore.locGeorefIndex = null
     $dataStore.selectedGeoref = null
+
+    newGeorefsUsed = [] //start over
+    datasetGeorefsUsed = [] //start over
 
     if(selectedGeorefCopy) {
       selectedGeorefCopy = null
@@ -267,12 +273,40 @@ const saveRecordGroup = async _ => {
     }
     
     if(georefsAdded || recordsGeoreferenced) {
+      let proms = []
+
+      let recordsPerGeoref = {}
+      for(let gl of $dataStore.recordGroup.groupLocalities){
+        if(gl.georefID){ //it was georeferenced
+          if(recordsPerGeoref[gl.georefID]){
+            recordsPerGeoref[gl.georefID] = [...recordsPerGeoref[gl.georefID], ...gl.recordIDs]
+          }
+          else {
+            recordsPerGeoref[gl.georefID] = gl.recordIDs
+          }
+        }
+      }
+
+      for(let [georefID, recordIDs] of Object.entries(recordsPerGeoref)){
+        let ref = Firestore.collection('georefRecords').doc(georefID)
+        let georef = $dataStore.georefIndex[georefID]
+        if(!georef){
+          console.log('error getting georef with id', georefID)
+        }
+        else {
+          proms.push(updateGeorefRecords(Firestore, FieldValue, ref, georef, dataset.datasetID, recordIDs))
+        }
+        
+      }
+
+      proms.push(updateGeorefStats(Firebase, georefsAdded, recordsGeoreferenced, userID, userName, dataset.datasetID))
+      proms.push(updateDatasetStats(Firestore, FieldValue, datasetRef, recordsGeoreferenced, userID, groupComplete, datasetGeorefsUsed))
       try {
-        await updateGeorefStats(Firebase, georefsAdded, recordsGeoreferenced, userID, userName, dataset.datasetID)
-        await updateDatasetStats(Firestore, datasetRef, recordsGeoreferenced, userID, groupComplete)
+        await Promise.all(proms)
       }
       catch(err) {
         savingRecordGroup = false
+        console.log(err)
         alert('there was an error updating stats: ' + err.message)
       }
     }
@@ -357,6 +391,9 @@ const handleSetGeoref = async ev => {
       georef.dateCreated = Date.now()
       georef.createdBy = userName
 
+      georef.used = true
+      newGeorefsUsed.push(georef.georefID)
+
       if(!georef.originalGeorefSource || !georef.originalGeorefSource.trim()) {
         georef.originalGeorefSource = 'NSCF georeference database'
       }
@@ -395,6 +432,15 @@ const handleSetGeoref = async ev => {
       }
     }
 
+    if(!georef.used) {
+      // fire off the update request to the API
+      georef.used = true
+      let url = `https://us-central1-georef-745b9.cloudfunctions.net/georefused?georefID=${georef.georefID}&index=${elasticindex}`
+      fetch(url) //no response needed here
+      newGeorefsUsed.push(georef.georefID)
+    }
+
+    datasetGeorefsUsed.push(georef.georefID)
     
   
     for (let loc of selectedLocs){
@@ -417,9 +463,6 @@ const handleSetGeoref = async ev => {
     }
     
     $dataStore.recordGroup.groupLocalities = $dataStore.recordGroup.groupLocalities //the svelte update trigger
-
-    //add it to the index
-    $dataStore.georefIndex[georef.georefID] = georef
 
     for (let [key, val] of Object.entries($dataStore.georefIndex)){
       val.selected = false
@@ -465,10 +508,24 @@ const handleBackToDatasets =  async _ => {
 
 const handleStartOver = _ => { //just clear out any georefIDs
   if($dataStore.recordGroup){
+    
     for (let loc of $dataStore.recordGroup.groupLocalities){
       loc.georefID = null
     }
-     $dataStore.recordGroup.groupLocalities = $dataStore.recordGroup.groupLocalities
+
+    $dataStore.recordGroup.groupLocalities = $dataStore.recordGroup.groupLocalities
+
+    if(newGeorefsUsed.length){
+      for (let georefID of newGeorefsUsed){
+        $dataStore.georefIndex[georefID].used = false
+        let url = `https://us-central1-georef-745b9.cloudfunctions.net/georefused?georefID=${georefID}&index=${elasticindex}&setfalse`
+        fetch(url) //no response needed here
+      }
+      newGeorefsUsed = []
+    }
+
+    georefsAdded = 0 
+    recordsGeoreferenced = 0
   }
 }
 
@@ -480,7 +537,7 @@ const handleAmbiguous = _ => {
         saveGeoref: false
       }
     }
-  handleSetGeoref(fakeEV)
+  handleSetGeoref(fakeEv)
 }
 
 const handleLocalityCopied = async => {
@@ -501,7 +558,7 @@ const handleUnload = ev => {
 {#if !datasetComplete}
   <div class="col-flex-container">
     <div class="flex-item">
-      <GeorefStats {Firebase} {statsRefStrings} {statsLabels} descriptor={'This dataset'}/>
+      <GeorefStats {Firebase} {statsRefStrings} {statsLabels} descriptor={dataset.datasetName}/>
     </div>
     <div class="grid-container">
       <div class="recordgroup-container">

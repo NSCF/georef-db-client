@@ -1,5 +1,6 @@
 <script>
-import { Firestore, Realtime as Firebase } from '../firebase.js'
+import {Auth, Realtime as Firebase } from '../firebase.js'
+import firebaseui from 'firebaseui'
 import Modal from 'svelte-simple-modal';
 import ChooseFile from './chooseFile.svelte'
 import ConfirmFields from './confirmCSVFields.svelte'
@@ -20,6 +21,10 @@ import Yard from './yard.svelte'
 
 //just for now
 let userID = 'ianuserid'
+
+//auth
+let login = new firebaseui.auth.AuthUI(Auth)
+
 //the stats we want to show
 let statsRefStrings = [
 	`stats/perUser/${userID}/georefsAdded`,
@@ -41,7 +46,7 @@ let statsLabels = [
 
 //for 'page navigation'
 // do we need a router??????
-let pages = ['ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeference' ]
+let pages = ['Login', 'ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeference' ]
 let datasetPages = ['datsetList', 'datasetDetail']
 let georeferencePage = 'georef' //just the one
 
@@ -56,6 +61,22 @@ let selectedDataset
 
 //WATCHERS
 $: georefInputs, copyGeorefInputsToClipBoard()
+$: if(currentPage == 'Login') {
+	const loginConfig = {
+		callbacks: {
+			
+		}
+	}
+	login.start('#firebaseui-auth-container', {
+		signInOptions: [
+			{
+				provider: firebase.auth.EmailAuthProvider.PROVIDER_ID,
+				requireDisplayName: false
+			},
+			firebase.auth.GoogleAuthProvider.PROVIDER_ID,
+		]
+	});
+}
 
 function copyGeorefInputsToClipBoard(){
 	if(georefInputs){
@@ -141,6 +162,9 @@ function handleHomeClick() {
 				Logo, login buttons, etc
 			</div>
 			<div class="content">
+				{#if currentPage == 'Login'}
+					<div id="firebaseui-auth-container"></div>					
+				{/if}
 				{#if currentPage == 'ChooseFile'}
 					<GeorefStats {Firebase} {statsRefStrings}  {statsLabels}/>
 					<ChooseFile 

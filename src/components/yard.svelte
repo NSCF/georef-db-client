@@ -19,6 +19,7 @@ const handleSkipRecordGroup = _ => {
 
 let mockDataset = {
   datasetID: 'Wg9BIXqNJ', 
+  datasetName: 'Mixed families 2019 Cary -> Prim',
   region: 'southern africa', 
   domain: 'TER'
 }

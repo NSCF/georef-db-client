@@ -79,6 +79,7 @@ on:click={handleRowClick}>
   <td>{$dataStore.georefIndex[georefKey].uncertainty ? 'yes': ''}</td>
   <td>{$dataStore.georefIndex[georefKey].sources ? 'yes': ''}</td>
   <td>{$dataStore.georefIndex[georefKey].protocol ? 'yes': ''}</td>
+  <td>{$dataStore.georefIndex[georefKey].datum ? 'yes': ''}</td>
   <td>{$dataStore.georefIndex[georefKey].verified ? 'yes': ''}</td>
 </tr>
 

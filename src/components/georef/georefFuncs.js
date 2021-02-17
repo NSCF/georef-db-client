@@ -203,19 +203,28 @@ let m = d.getMonth() + 1
 return `${y} ${m.toString().padStart(2, '0')}`
 }
 
-const updateDatasetStats = (Firestore, datasetRef, recordsGeoreferenced, userID, groupComplete) => {
+const updateDatasetStats = (Firestore, FieldValue, datasetRef, recordsGeoreferenced, userID, groupComplete, georefIDs) => {
   return Firestore.runTransaction(function(transaction) {
     // This code may get re-run multiple times if there are conflicts.
     return transaction.get(datasetRef).then(function(docSnap) {
       if (!docSnap.exists) {
-          throw "Document does not exist!";
+          throw "Document does not exist!"; //this should not happen!!!
       }
 
       let data = docSnap.data()
+      //TODO add the georefs used
       let update = {
-        recordsCompleted: data.recordsCompleted += recordsGeoreferenced, 
+        recordsCompleted: data.recordsCompleted + recordsGeoreferenced, 
         lastGeoreference: Date.now(),
         lastGeoreferenceBy: userID
+      }
+
+      //we cant add a count here because we don't know what the result of arrayUnion will be
+      if(data.georefsUsed){
+        update.georefsUsed = FieldValue.arrayUnion(...georefIDs)
+      }
+      else {
+        update.georefsUsed = georefIDs
       }
 
       if(groupComplete) {
@@ -234,9 +243,52 @@ const updateDatasetStats = (Firestore, datasetRef, recordsGeoreferenced, userID,
   });
 }
 
+const updateGeorefRecords = (Firestore, FieldValue, docRef, georef, datasetID, recordIDs) => {
+  return Firestore.runTransaction(function(transaction) {
+    // This code may get re-run multiple times if there are conflicts.
+    return transaction.get(docRef).then(function(docSnap) {
+      if (!docSnap.exists) {
+        let newDoc = {}
+        //just some redundancy here for ease of use
+        newDoc.country = georef.country || null
+        newDoc.stateProvince = georef.stateProvince || null
+        newDoc.locality = georef.locality || null
+        newDoc.decimalLatitude = georef.decimalLatitude || null
+        newDoc.decimalLongitude = georef.decimalLongitude || null
+        newDoc.datasets = {}
+        newDoc.datasets[datasetID] = recordIDs
+        newDoc.recordCount = recordIDs.length
+        transaction.set(docRef, newDoc)
+      }
+      else {
+        let doc = docSnap.data()
+        
+        let update = {}
+        update.datasets = {}
+        if(doc.datasets && doc.datasets[datasetID]) {
+          update.datasets[datasetID] = FieldValue.arrayUnion(...recordIDs)
+        }
+        else {
+          update.datasets[datasetID] = recordIDs
+        }
+        update.recordCount = doc.recordCount + recordIDs.length
+
+        transaction.update(docRef, update)
+      }
+
+    });
+  }).then(function() {
+    let i = 0 //do nothing
+    //console.log("Dataset record updated!");
+  }).catch(function(error) {
+    throw error;
+  });
+}
+
 module.exports = {
   updateGeorefStats,
   updateDatasetStats, 
-  fetchCandidateGeorefs
+  fetchCandidateGeorefs,
+  updateGeorefRecords
 }
 

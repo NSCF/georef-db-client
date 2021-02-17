@@ -59,10 +59,10 @@ function getStats() {
 <!-- ############################################## -->
 <!-- HTML -->
 <div class="container">
+  <span>{descriptor}:</span>
   {#each stats as stat, index}
     <GeorefStat {stat} labelText={statsLabels[index]} isGeoref={!statsRefStrings[index].toLowerCase().includes('record')} />
   {/each}
-  <span>{descriptor}:</span>
 </div>
 
 

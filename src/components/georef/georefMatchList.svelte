@@ -12,7 +12,7 @@ import Loader from '../loader.svelte'
   {#if $dataStore.georefIndex && Object.keys($dataStore.georefIndex).length}
     <thead>
       <tr>
-        <th>locality</th><th>uncertainty</th><th>sources</th><th>protocol</th><th>verified</th>
+        <th>locality</th><th>uncertainty</th><th>sources</th><th>protocol</th><th>datum</th><th>verified</th>
       </tr>
     </thead>
     {#each Object.keys($dataStore.georefIndex) as georefKey}

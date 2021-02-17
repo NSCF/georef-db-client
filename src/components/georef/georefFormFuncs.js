@@ -10,11 +10,6 @@ const isEmpty = val => {
 
 const georefsEqual = (georef1, georef2) => {
 
-  delete georef1.selected
-  delete georef2.selected
-  delete georef1.flagged
-  delete georef2.flagged
-
   //convert to plain objects
   let obj1 = JSON.parse(JSON.stringify(georef1))
   let obj2 = JSON.parse(JSON.stringify(georef2))
@@ -28,6 +23,12 @@ const georefsEqual = (georef1, georef2) => {
   }
 
   for (let key of Array.from(keys)){
+    
+    //ignore these
+    if (['ambiguous', 'flagged', 'selected', 'used'].includes(key)) {
+      continue
+    }
+
     if(obj1.hasOwnProperty(key)){
       if(obj2.hasOwnProperty(key)){
         //if empty on one it must be empty on the other

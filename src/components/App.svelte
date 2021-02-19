@@ -1,7 +1,10 @@
 <script>
-import {Auth, Realtime as Firebase } from '../firebase.js'
-import firebaseui from 'firebaseui'
+import {onMount} from 'svelte'
+import {Auth, Firestore, Realtime as Firebase } from '../firebase.js'
+
 import Modal from 'svelte-simple-modal';
+import Register from './signUp.svelte'
+import SignIn from './signIn.svelte'
 import ChooseFile from './chooseFile.svelte'
 import ConfirmFields from './confirmCSVFields.svelte'
 import ConfirmData from './confirmCSVData.svelte'
@@ -20,10 +23,8 @@ import Workshop from './workshop/workshop.svelte'
 import Yard from './yard.svelte'
 
 //just for now
-let userID = 'ianuserid'
-
-//auth
-let login = new firebaseui.auth.AuthUI(Auth)
+let profile
+let userID
 
 //the stats we want to show
 let statsRefStrings = [
@@ -36,17 +37,17 @@ let statsRefStrings = [
 ]
 
 let statsLabels = [
-	'My georefs:', 
-	'My records:',
-	'Total georefs:',
-	'Total records:',
-	'Last georef:', 
-	'Last georef by:'
+	'My georefs', 
+	'My records',
+	'Total georefs',
+	'Total records',
+	'Last georef', 
+	'Last georef by'
 ]
 
 //for 'page navigation'
 // do we need a router??????
-let pages = ['Login', 'ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeference' ]
+let pages = ['Register', 'SignIn', 'ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeference' ]
 let datasetPages = ['datsetList', 'datasetDetail']
 let georeferencePage = 'georef' //just the one
 
@@ -61,22 +62,6 @@ let selectedDataset
 
 //WATCHERS
 $: georefInputs, copyGeorefInputsToClipBoard()
-$: if(currentPage == 'Login') {
-	const loginConfig = {
-		callbacks: {
-			
-		}
-	}
-	login.start('#firebaseui-auth-container', {
-		signInOptions: [
-			{
-				provider: firebase.auth.EmailAuthProvider.PROVIDER_ID,
-				requireDisplayName: false
-			},
-			firebase.auth.GoogleAuthProvider.PROVIDER_ID,
-		]
-	});
-}
 
 function copyGeorefInputsToClipBoard(){
 	if(georefInputs){
@@ -89,7 +74,50 @@ function copyGeorefInputsToClipBoard(){
 	}
 }
 
+//LIFECYCLE
+onMount(_ => {
+	//hopefully this is triggered when we open the page again and sign in is persisted
+	Auth.onAuthStateChanged(async user => {
+		console.log('sign in state changed')
+		if(user){
+			console.log('we have a user')
+			try {
+				let doc = await Firestore.collection('users').doc(user.uid).get()
+				if (doc.exists){
+					console.log('we got a doc')
+					profile = doc.data()
+					userID = user.uid
+					currentPage = 'ChooseFile'// TODO this must go back to previous page the user was on
+				}
+				else {
+					console.log('no profile for this user')
+					//then we assume this is from first sing up, and the profile is not created yet. We'll get it from the dispatch
+				}
+			}
+			catch(err) {
+				alert('error fetching user profile: ' + err.message) //hopefully also doesn't happen
+			}
+		}
+	})
+})
+
 //METHODS
+
+function handleSignInSuccess(ev){
+	let user = ev.detail.userCredential.user
+	userID = user.uid
+	profile = ev.detail.profile
+}
+
+function signOutClick () {
+	Auth.signOut().then(_ => {
+		profile = null
+		userID = null
+	})
+	.catch(err => {
+		alert('error signing out: ' + err.message)
+	}) 
+}
 
 function handleFileSelected(event){
 	fileForGeoref = event.detail.file
@@ -159,15 +187,30 @@ function handleHomeClick() {
 				<img src="images/NSCF logo.jpg" alt="NSCF logo"  style="height:100%;float:left" />
 				<button on:click={handleYardClick}>To to yard</button>
 				<button on:click={handleHomeClick}>To the App</button>
-				Logo, login buttons, etc
+				{#if !profile}
+					<div>
+						<button class="signin" on:click='{_ => currentPage = 'Register'}'><strong>Register</strong></button>
+						<button on:click='{_ => currentPage = 'SignIn'}'><strong>Sign In</strong></button>
+					</div>
+				{:else}
+					<div>
+						<span>Logged in as {profile.firstName} {profile.lastName}</span>
+						<button on:click={signOutClick}><strong>Sign Out</strong></button>
+					</div>
+				{/if}
 			</div>
 			<div class="content">
-				{#if currentPage == 'Login'}
-					<div id="firebaseui-auth-container"></div>					
+				{#if currentPage == 'Register'}
+					<Register {Firestore} {Auth} on:user-sign-in={handleSignInSuccess} />	
+				{/if}
+				{#if currentPage == 'SignIn'}
+					<SignIn {Firestore} {Auth} on:user-sign-in={handleSignInSuccess} />	
+				{/if}
+				{#if userID && currentPage != 'Georeference'}
+					<GeorefStats {Firebase} {statsRefStrings}  {statsLabels} descriptor={'Georef stats:'}/>
 				{/if}
 				{#if currentPage == 'ChooseFile'}
-					<GeorefStats {Firebase} {statsRefStrings}  {statsLabels}/>
-					<ChooseFile 
+				<ChooseFile 
 					on:file-selected={handleFileSelected} 
 					on:to-datasets={handleToDatasets}
 					fileMIMETypes={['text/csv', 'application/vnd.ms-excel']}/>
@@ -236,6 +279,7 @@ function handleHomeClick() {
 		height: 50px;
 		display:flex;
 		justify-content: space-between;
+		align-items: center;
 		box-sizing: border-box;
 	}
 
@@ -262,6 +306,12 @@ function handleHomeClick() {
 	button:hover {
 		color:white;
 		background-color: gray;
+	}
+
+	.signin {
+		color:white;
+		background-color:rgb(29, 74, 156);
+		font-weight: bolder;
 	}
 	
 </style>

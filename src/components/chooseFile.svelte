@@ -115,9 +115,6 @@ function toEmitOrNotToEmit(file){
     <div class='warning'><strong>Please note that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine localities</strong></div>
   </div>
   <input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
-  <div contenteditable="true">
-  abdcd
-  </div>
 </div>
 
 <!--##############################################-->

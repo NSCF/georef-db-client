@@ -47,14 +47,20 @@ const handleTransitionend = _ => {
   el.style.boxShadow = '0 0 2px 2px' + cols[0]
 }
 
+const getDateFromTimestamp = timestamp => {
+  let dts = new Date(timestamp)// dts = date from time stamp
+  let d = new Date(dts.getTime() - dts.getTimezoneOffset() * 60 * 1000) //corrected to current timezone so .toISOString will work
+  return d.toISOString().split('.')[0].replace('T', ' ')
+}
+
 </script>
 
 <!-- ############################################## -->
 <!-- HTML -->
 <span class="container" on:transitionend={handleTransitionend} bind:this={el}>
-  <span class="label">{labelText}:</span><span class="stat">{stat}</span>
+  <!--assume that any stats that are very large integers are timestamps-->
+  <span class="label">{labelText}:</span><span class="stat">{isNaN(stat) || stat < 1000000000 ? stat : getDateFromTimestamp(stat)}</span>
 </span>
-
 
 <!-- ############################################## -->
 <style>

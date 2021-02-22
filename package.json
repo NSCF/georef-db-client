@@ -4,7 +4,7 @@
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
-    "start": "sirv public",
+    "start": "sirv public --single",
     "compile": "babel tests src/components/georef --out-dir .compiled --source-maps --watch"
   },
   "devDependencies": {
@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@elastic/elasticsearch": "^7.9.0",
+    "@googlemaps/js-api-loader": "^1.11.1",
     "fast-csv": "^4.3.2",
     "firebase": "^7.14.6",
     "firebaseui": "^4.7.3",

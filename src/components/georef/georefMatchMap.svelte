@@ -1,31 +1,53 @@
 <!-- Note that this depends on having the google maps api script in your index.html file -->
 <script>
+import { Loader as MapsAPILoader } from '@googlemaps/js-api-loader';
 import MeasureTool from 'measuretool-googlemaps-v3';
 import { dataStore } from './dataStore.js'
-import {onDestroy, createEventDispatcher} from 'svelte'
+import {onMount} from 'svelte'
 import MapMarker from './georefMatchMapMarker.svelte'
-
-const dispatch = createEventDispatcher();
+import {mapsAPIKey} from '../../keys.js'
 
 export let pastedDecimalCoords
 
-let ready = false
 let container;
 let map;
 let marker
 let mapReady = false
 let currentGeorefs
 
-window.initMap = function ready() {
-	map = new google.maps.Map(container, {
+let googleMapAPIExists = false
+
+$: if(window.google) {
+  if (typeof window.google == 'object' && typeof window.google.maps == 'object' && typeof window.google.maps.Map == 'function') {
+    googleMapAPIExists = true
+  }
+  else {
+    googleMapAPIExists = false
+  }
+} 
+
+onMount(async _ => {
+  //we need this because otherwise the script reloads each time the component mounts which it complains about
+  if (!googleMapAPIExists){
+    const loader = new MapsAPILoader({
+      apiKey: mapsAPIKey,
+      version: "weekly",
+      libraries: ["geometry"]
+    }); 
+    await loader.load()
+  }
+
+  map = new google.maps.Map(container, {
     zoom: 5,
     center: {lat: -24.321476, lng: 24.909317}, 
     disableDoubleClickZoom:true
   });
 
-  const measureTool = new MeasureTool(map);
+  const measureTool = new MeasureTool(map); //don't remove this
   mapReady = true
-}
+})
+
+
 
 $:if ($dataStore.georefIndex && Object.keys($dataStore.georefIndex).length && mapReady) prepMap()
 
@@ -93,12 +115,6 @@ const prepMap = _ => {
 
 <!-- ############################################## -->
 <!-- HTML -->
-
-<svelte:head>
-  	<script 
-      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD_3Zs4G0iv3_teiE-cPMPEF4lotqiZPqU&libraries=geometry&callback=initMap">
-    </script>
-</svelte:head>
 
 <div class="mapview" bind:this={container}>
   {#if map && $dataStore.georefIndex}

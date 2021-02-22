@@ -6,6 +6,7 @@ const dispatch = createEventDispatcher();
 //const { open } = getContext('simple-modal');
 
 //PROPS
+export let userID
 export let fileMIMETypes
 
 //LOCALS
@@ -93,8 +94,8 @@ function toEmitOrNotToEmit(file){
   based on https://codepen.io/MSEdgeDev/pen/KzzNaZ
 -->
 <div style="text-align:center">
-  <h1>Welcome to the georeferencer</h1>
-  <button class="datasets-button" on:click={handleGoToDatasets}><strong>GO TO DATASETS</strong></button>
+  <h1>Welcome to the NSCF Georeferencer</h1>
+  <button class="datasets-button" disabled={!Boolean(userID)} on:click={handleGoToDatasets}><strong>GO TO DATASETS</strong></button>
   <h2 style="color:gray">OR</h2>
   <div id="wrapper" class="wrapper">
     <div 
@@ -120,7 +121,7 @@ function toEmitOrNotToEmit(file){
 <!--##############################################-->
 <style>
 	h1 {
-		color: #ff3e00;
+		color: rgb(72, 72, 148);
 		text-transform: uppercase;
 		font-size: 4em;
 		font-weight: 100;
@@ -163,7 +164,7 @@ function toEmitOrNotToEmit(file){
     border-radius: 2px;
   }
 
-  .datasets-button:hover {
+  .datasets-button:hover:enabled {
     box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
 
   }

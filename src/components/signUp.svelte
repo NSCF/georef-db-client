@@ -2,11 +2,14 @@
   //This is a registration form. See the separate sign in form
 
   import {createEventDispatcher} from 'svelte'
+  import Loader from './loader.svelte'
 
   const dispatch = createEventDispatcher()
   
   export let Auth
   export let Firestore
+
+  let busy = false
 
   let first, middle, last, inst, orcid, email, pwd, confPwd
   let instAbbrev = ''
@@ -82,11 +85,12 @@
 
   const handleRegisterClick = _ => {
     submitClicked = true
-
+    busy = true
     //we have to pause briefly to let all the watched values above update!!! A Svelte quirk I guess!!
     setTimeout(_ => {
       for (let warning of warnings){
         if(eval(warning)){
+          busy = false
           alert('required form fields incomplete')
           return
         }
@@ -121,6 +125,7 @@
           return
         }
 
+        busy = false
         dispatch('user-sign-in', {userCredential, profile})
 
       })
@@ -128,18 +133,23 @@
         switch (error.code) {
           case 'auth/email-already-in-use':
             alert(`Email address ${email} already in use. Please go to sign or register with another email address.`);
+            busy = false
             break;
           case 'auth/invalid-email':
             alert(`Email address ${email} is invalid.`);
+            busy = false
             break;
           case 'auth/operation-not-allowed':
             alert(`Error during sign up.`);
+            busy = false
             break;
           case 'auth/weak-password':
             alert('Password is not strong enough. Add additional characters including special characters and numbers.');
+            busy = false
             break;
           default:
             alert(error.message);
+            busy = false
             break;
         }
         return
@@ -157,69 +167,74 @@
 <!-- HTML -->
 <div class="container">
   <h3>Registration</h3>
-  <form>
-    <div class="formsection">
-      <h4>Your name</h4>
-      <div class="labelinputinline">
-        <input type="text" id="first" class:warning={firstWarning} bind:value={first} />
-        <label for="last">First name</label>
-      </div>
-      <div class="labelinputinline">
-        <input type="text" id="middle" bind:value={middle} />
-        <label for="middle">Middle name/s (optional)</label>
-      </div>
-      <div class="labelinputinline">
-        <input type="text" id="last" class:warning={lastWarning} bind:value={last} />
-        <label for="middle">Last name</label>
-      </div>
-    </div>
-    <div class="formsection flex">
-      <div>
-        <h4>Your institution</h4>
+  {#if busy}
+    <Loader/>
+  {:else}
+    <form>
+      <div class="formsection">
+        <h4>Your name</h4>
         <div class="labelinputinline">
-          <input style="width:400px" type="text" id="institution" bind:value={inst} />
-          <label for="institution">e.g. 'Bolus Herbarium' or 'SANBI'</label>
+          <input type="text" id="first" class:warning={firstWarning} bind:value={first} />
+          <label for="first">First name</label>
         </div>
-      </div>
-      <div>
-        <h4>Accronym</h4>
         <div class="labelinputinline">
-          <input type="text" id="instAbbrev" placeholder={instAbbrev} bind:value={userInstAbbrev} />
-          <label for="instAbbrev">e.g. 'BOL' or 'SANBI'</label>
+          <input type="text" id="middle" bind:value={middle} />
+          <label for="middle">Middle name/s (optional)</label>
+        </div>
+        <div class="labelinputinline">
+          <input type="text" id="last" class:warning={lastWarning} bind:value={last} />
+          <label for="last">Last name</label>
         </div>
       </div>
-    </div>
-    <p>Formatted name (for dwc:georefBy): <span style="text-decoration:underline">{formattedName}</span></p>
-    <input type=checkbox bind:checked={noInstAbbrev}><span>Do NOT include my institution acronym</span>
-    <div class="formsection">
-      <h4>Your ORCID ID<span class="material-icons md-18 iconbutton" title="Go to ORCID" on:click='{_ => window.open('https://orcid.org/')}'>open_in_new</span></h4>
-      <div class="labelinputinline">
-        <input style="width:400px" type="text" id="orcid" class:warning={orcidWarning} bind:value={orcid} />
-        <label for="orcid">e.g. https://orcid.org/0000-0001-2345-6789</label>
-      </div>
-    </div>
-    <div class="formsection">
-      <h4>Email</h4>
-      <div class="labelinputinline">
-        <input style="width:400px" type="email" id="email" placeholder="ex: [yourname]@[yourinstitution].org" class:warning={emailWarning} bind:value={email}/>
-        <label for="email">Example: [yourname]@[yourinstitution].org</label>
-      </div>
-    </div>
-    <div class="formsection">
-      <h4>Password</h4>
-      <div class="flex">
-        <div class="labelinputinline" style="width:200px">
-          <input style="width:100%" type="password" name="pass" id="pass" class:warning={pwdWarning} bind:value={pwd}/>
-          <label for="pass">Password (min. 8 chars with numbers and special chars)</label>
+      <div class="formsection flex">
+        <div>
+          <h4>Your institution</h4>
+          <div class="labelinputinline">
+            <input style="width:400px" type="text" id="institution" bind:value={inst} />
+            <label for="institution">e.g. 'Bolus Herbarium' or 'SANBI'</label>
+          </div>
         </div>
-        <div class="labelinputinline" style="width:200px;margin-left:4px;">
-          <input style="width:100%" type="password" name="confirmpass" id="confirmpass" class:warning={confPwdWarning} bind:value={confPwd}/>
-          <label for="confirmpass">Confirm password</label>
+        <div>
+          <h4>Accronym</h4>
+          <div class="labelinputinline">
+            <input type="text" id="instAbbrev" placeholder={instAbbrev} bind:value={userInstAbbrev} />
+            <label for="instAbbrev">e.g. 'BOL' or 'SANBI'</label>
+          </div>
         </div>
       </div>
-    </div>
-    <button style="width:200px;text-align:center;" on:click|preventDefault={handleRegisterClick}>Register</button>
-  </form>
+      <p>Formatted name (for dwc:georefBy): <span style="text-decoration:underline">{formattedName}</span></p>
+      <input type=checkbox bind:checked={noInstAbbrev}><span>Do NOT include my institution acronym</span>
+      <div class="formsection">
+        <h4>Your ORCID ID<span class="material-icons md-18 iconbutton" title="Go to ORCID" on:click='{_ => window.open('https://orcid.org/')}'>open_in_new</span></h4>
+        <div class="labelinputinline">
+          <input style="width:400px" type="text" id="orcid" class:warning={orcidWarning} bind:value={orcid} />
+          <label for="orcid">e.g. https://orcid.org/0000-0001-2345-6789</label>
+        </div>
+      </div>
+      <div class="formsection">
+        <h4>Email</h4>
+        <div class="labelinputinline">
+          <input style="width:400px" type="email" id="email" placeholder="ex: [yourname]@[yourinstitution].org" class:warning={emailWarning} bind:value={email}/>
+          <label for="email">Example: [yourname]@[yourinstitution].org</label>
+        </div>
+      </div>
+      <div class="formsection">
+        <h4>Password</h4>
+        <div class="flex">
+          <div class="labelinputinline" style="width:200px">
+            <input style="width:100%" type="password" name="pass" id="pass" class:warning={pwdWarning} bind:value={pwd}/>
+            <label for="pass">Password (min. 8 chars with numbers and special chars)</label>
+          </div>
+          <div class="labelinputinline" style="width:200px;margin-left:4px;">
+            <input style="width:100%" type="password" name="confirmpass" id="confirmpass" class:warning={confPwdWarning} bind:value={confPwd}/>
+            <label for="confirmpass">Confirm password</label>
+          </div>
+        </div>
+      </div>
+      <button style="width:200px;text-align:center;" on:click|preventDefault={handleRegisterClick}>Register</button>
+    </form>
+  {/if}
+  
 </div>
 
 <!-- ############################################## -->

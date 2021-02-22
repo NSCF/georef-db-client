@@ -1,6 +1,6 @@
 <script>
 //generate the ID and get the dataset details
-import shortid from 'shortid'
+import {nanoid } from 'nanoid'
 import Select from 'svelte-select'
 import {Realtime} from '../firebase.js'
 import { onMount, createEventDispatcher } from 'svelte';
@@ -25,7 +25,7 @@ let region = undefined
 let domain = undefined //terrestrial, freshwater, marine
 let remarks
 
-let datasetID = shortid.generate()
+let datasetID = nanoid()
 
 $: regionOptions, addRegionSelectOptions()
 $: completed = contactName && email && datasetName && collectionCode && region && domain

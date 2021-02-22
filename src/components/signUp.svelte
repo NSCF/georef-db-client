@@ -103,7 +103,7 @@
         let user = userCredential.user
         
         //we need the standardized search email
-        let searchEmail = email.replace(/@\./g, '').toLowerCase() //we don't need the @ again because we only use this for search
+        let searchEmail = email.replace(/[@\.\s]+/g, '').toLowerCase() //we don't need the @ again because we only use this for search
         let profile = {
           uid: user.uid,
           firstName: first,
@@ -117,17 +117,24 @@
           dateCreated: Date.now()
         }
 
-        try {
-          await Firestore.collection('users').doc(user.uid).set(profile)
+        const res = await fetch('https://us-central1-georef-745b9.cloudfunctions.net/addprofile', {
+          method: 'POST', // *GET, POST, PUT, DELETE, etc.
+          mode: 'cors', // no-cors, *cors, same-origin
+          headers: {
+            'Content-Type': 'application/json'
+            // 'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: JSON.stringify(data) // body data type must match "Content-Type" header
+        });
+
+        if(res.ok) {
+          busy = false
+          dispatch('user-sign-in', {userCredential, profile})
         }
-        catch(err) {
+        else {
           alert('error creating profile: ' + err.message)
           return
         }
-
-        busy = false
-        dispatch('user-sign-in', {userCredential, profile})
-
       })
       .catch((error) => {
         switch (error.code) {

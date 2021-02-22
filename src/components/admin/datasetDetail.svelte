@@ -135,6 +135,8 @@ const handleDownloadDataset = async _ => {
     georefIndex[georef._id] = georef._source
   }
 
+  //TODOs for this:
+  //
   for (let original of originals){
     let recordID = original[dataset.recordIDField]
     let georefDetails = recordGroupDetails.recordGeorefData[recordID] //this is the linking data

@@ -113,7 +113,7 @@ function toEmitOrNotToEmit(file){
     >
       <p>Drag and drop a Darwin Core CSV file here or click to select</p>
     </div>
-    <div class='warning'><strong>Please note that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine localities</strong></div>
+    <div class='warning'><strong>Please note that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine datasets</strong></div>
     
   </div>
   

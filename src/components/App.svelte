@@ -93,10 +93,11 @@ onMount(_ => {
 				setTimeout( async _ => {
 					if(!profile){
 						try {
-							let doc = await Firestore.collection('users').doc(user.uid).get()
-							if (doc.exists){
-								console.log('we got a doc')
-								profile = doc.data()
+							let fetchURL =`https://us-central1-georef-745b9.cloudfunctions.net/getprofilebyid?uid=${user.uid}`
+							let res = await fetch(fetchURL)
+							let fetchData = await res.json()
+							if (fetchData){
+								profile = fetchData
 								userID = user.uid
 								currentPage = 'ChooseFile'// TODO this must go back to previous page the user was on
 							}

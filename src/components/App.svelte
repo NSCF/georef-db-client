@@ -49,9 +49,9 @@ let statsLabels = [
 
 //for 'page navigation'
 // do we need a router??????
-let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeference' ]
+let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeferencer' ]
 let datasetPages = ['datsetList', 'datasetDetail']
-let georeferencePage = 'georef' //just the one
+let georeferencePage = 'Georeferencer' //just the one
 
 let currentPage = 'workshop'
 let pwdResetCode
@@ -89,22 +89,27 @@ onMount(_ => {
 				window.location = window.location.href.split('/auth/userMgmt')[0]
 			} 
 			else {
-				try {
-					let doc = await Firestore.collection('users').doc(user.uid).get()
-					if (doc.exists){
-						console.log('we got a doc')
-						profile = doc.data()
-						userID = user.uid
-						currentPage = 'ChooseFile'// TODO this must go back to previous page the user was on
+				//wait one moment for the dispatch to catch up if this is new registration
+				setTimeout( async _ => {
+					if(!profile){
+						try {
+							let doc = await Firestore.collection('users').doc(user.uid).get()
+							if (doc.exists){
+								console.log('we got a doc')
+								profile = doc.data()
+								userID = user.uid
+								currentPage = 'ChooseFile'// TODO this must go back to previous page the user was on
+							}
+							else {
+								console.log('no profile for this user')
+								//then we assume this is from first sing up, and the profile is not created yet. We'll get it from the dispatch
+							}
+						}
+						catch(err) {
+							alert('error fetching user profile: ' + err.message) //hopefully also doesn't happen
+						}
 					}
-					else {
-						console.log('no profile for this user')
-						//then we assume this is from first sing up, and the profile is not created yet. We'll get it from the dispatch
-					}
-				}
-				catch(err) {
-					alert('error fetching user profile: ' + err.message) //hopefully also doesn't happen
-				}
+				}, 100)
 			}
 		}
 	})
@@ -195,7 +200,7 @@ function handleDatasetSelected(ev){
 }
 
 function handleStartGeoreferencing(){
-	currentPage = 'georef'
+	currentPage = 'Georeferencer'
 }
 
 function handleBackToDatasets() {
@@ -236,7 +241,7 @@ function handleHomeClick() {
 				{/if}
 			</div>
 			<div class="content">
-				{#if userID && currentPage != 'Georeference'}
+				{#if userID && currentPage != 'Georeferencer'}
 					<GeorefStats {Firebase} {statsRefStrings}  {statsLabels} descriptor={'Georef stats:'}/>
 				{/if}
 				{#if currentPage == 'Register'}
@@ -286,7 +291,7 @@ function handleHomeClick() {
 				{#if currentPage == 'datasetDetail'}
 					<DatasetDetail dataset={selectedDataset} on:to-datasets={handleToDatasets} on:start-georeferencing={handleStartGeoreferencing}/>
 				{/if}
-				{#if currentPage == 'georef'}
+				{#if currentPage == 'Georeferencer'}
 					<Georeferencer dataset={selectedDataset} />
 				{/if}
 				{#if currentPage == 'workshop'}

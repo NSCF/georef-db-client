@@ -565,7 +565,7 @@ const handleUnload = ev => {
         <h4 title={locStringsTitle}>Locality strings</h4>
         <div class="recordgroup-remarks">
           <label for="slgr">Locality georef remarks</label>
-          <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder={`Add remarks about applying this georeference to ${!selectedCount || selectedCount > 1 ? 'these localities': 'this locality'} `} rows="2" />
+          <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder={`Add remarks about applying this georeference to ${!selectedCount || selectedCount > 1 ? 'these selected localities': 'this selected locality'} `} rows="2" />
         </div>
         <div>
           <button style="float:right;margin-left:5px;" on:click={handleBackToDatasets}>Done</button>

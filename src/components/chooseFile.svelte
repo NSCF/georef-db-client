@@ -93,7 +93,7 @@ function toEmitOrNotToEmit(file){
 <!--
   based on https://codepen.io/MSEdgeDev/pen/KzzNaZ
 -->
-<div style="text-align:center">
+<div class="container">
   <h1>Welcome to the NSCF Georeferencer</h1>
   <button class="datasets-button" disabled={!Boolean(userID)} on:click={handleGoToDatasets}><strong>GO TO DATASETS</strong></button>
   <h2 style="color:gray">OR</h2>
@@ -114,12 +114,19 @@ function toEmitOrNotToEmit(file){
       <p>Drag and drop a Darwin Core CSV file here or click to select</p>
     </div>
     <div class='warning'><strong>Please note that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine localities</strong></div>
+    
   </div>
+  
   <input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
+  
 </div>
-
 <!--##############################################-->
 <style>
+
+.container {
+  text-align:center;
+  height:100%;
+}
 	h1 {
 		color: rgb(72, 72, 148);
 		text-transform: uppercase;
@@ -175,5 +182,12 @@ function toEmitOrNotToEmit(file){
     border-radius: 2px;
     border-width: 20px;
     border: 4px solid #c98f18;
+  }
+
+  .footer-img {
+    position:absolute;
+    left:0;
+    bottom:0;
+    width:100%;
   }
 </style>

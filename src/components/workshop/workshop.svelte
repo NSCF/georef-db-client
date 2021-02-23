@@ -6,11 +6,10 @@
 import { Realtime as Firebase } from '../../firebase.js'
 
 import GeorefForm from './georefFormContainer.svelte'
-import IconInput from './decimalCoordsInputContainer.svelte'
-import Loader from '../Loader.svelte'
 import CustomSearch from '../georef/customSearch.svelte'
 import GeorefStat from './georefStatContainer.svelte'
 import GeorefStats from './georefStatsContainer.svelte'
+
 
 const handleCustomGeorefs = ev => {
   let georefs = ev.detail
@@ -28,28 +27,32 @@ const clearCustomSearch = _ => {
 
 <!-- ############################################## -->
 <!-- HTML -->
-<div class="container">
+<div>
   <GeorefStat stat={23} isGeoref={false} labelText={'georef count'} />
   <GeorefStat stat={11} isGeoref={true} labelText={'record count'} />
   <GeorefStats {Firebase} userID={'iansuserid'} datasetID={'9jp8aFSneKuDjjfOuJhR'}/>
-  <div class="form-container" style="width:500px">
-    <div class="form-flex">
-      <GeorefForm/>
+  <div class="stuff">
+    <div class="form-container" style="width:500px">
+      <div class="form-flex">
+        <GeorefForm/>
+      </div>
+      <div style="height:0;" />
     </div>
-    <div style="height:0;" />
-  </div>
-  <div>
-    <CustomSearch bind:customSearchString elasticindex="southernafricater" on:custom-georefs={handleCustomGeorefs}/>
-    <br/>
-    <button on:click={clearCustomSearch}>Clear custom search</button>
-  </div>
-  <div>
-    <Loader/>
+    <div>
+      <CustomSearch bind:customSearchString elasticindex="southernafricater" on:custom-georefs={handleCustomGeorefs}/>
+      <br/>
+      <button on:click={clearCustomSearch}>Clear custom search</button>
+    </div>
   </div>
 </div>
 
 <!-- ############################################## -->
 <style>
+
+.stuff {
+  display:flex;
+  align-items:center
+}
 .form-container {
   display: flex;
   flex-direction: column;

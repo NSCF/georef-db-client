@@ -99,7 +99,9 @@ onMount(_ => {
 							if (fetchData){
 								profile = fetchData
 								userID = user.uid
-								currentPage = 'ChooseFile'// TODO this must go back to previous page the user was on
+								if(currentPage != 'workshop') {
+									currentPage = 'ChooseFile'// TODO this must go back to previous page the user was on
+								}
 							}
 							else {
 								console.log('no profile for this user')
@@ -170,7 +172,7 @@ function handleFieldsConfirmed(event){
 }
 
 function handleConfirmCanceled() {
-	fileForGeoref = requiredFields = stuffToUpload = null
+	fileForGeoref = requiredFields = null
 	currentPage = 'ChooseFile'
 }
 

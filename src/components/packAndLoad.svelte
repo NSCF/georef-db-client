@@ -85,7 +85,7 @@ const lockAndLoad = async () => {
     
     //add the dataset for each userID
     for (let profile of datasetDetails.invitees){
-      let ref = Firestore.collection('userInvitedDatasets').doc(profile.uid)
+      let ref = Firestore.collection('userPendingDatasets').doc(profile.uid)
       let trans = Firestore.runTransaction(transaction => {
         return transaction.get(ref).then(snap => {
           if(!snap.exists){

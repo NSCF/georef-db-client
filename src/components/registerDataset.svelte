@@ -8,6 +8,8 @@ import { onMount, createEventDispatcher } from 'svelte';
 
 const dispatch = createEventDispatcher();
 
+export let userProfile
+
 const domainOptions = [
   {value: 'TER', label:'terrestrial'},
   {value: 'FW', label:'freshwater'},
@@ -18,8 +20,8 @@ let regionOptions
 
 let regionsSelectOptions = []
 
-let contactName
-let email
+let contactName =  userProfile.firstName + ' ' + userProfile.lastName
+let email = userProfile.email
 let datasetName
 let collectionCode
 let region = undefined
@@ -91,12 +93,15 @@ const handleSubmit = _ => {
       datasetID,
       contactName,
       email,
+      createdByProfile: userProfile,
       datasetName,
       collectionCode,
       region: region.value,
       domain: domain.value,
+      georeferencers: [],
       invitees, 
       newInvitees: newInvitees.map(x => x.toLowerCase()), //to simplify search later
+      declinedInvitees: [],
       remarks
   })
 }

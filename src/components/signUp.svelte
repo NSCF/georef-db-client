@@ -117,7 +117,24 @@
           dateCreated: Date.now()
         }
 
-        const res = await fetch('https://us-central1-georef-745b9.cloudfunctions.net/addprofile', {
+        //check if there are any invited datasets and move them
+        let updateDatasets = Firestore.collection('invitedUserPendingDatasets')
+        .where('email', '==', email.toLowerCase().trim())
+        .get()
+        .then(snap => {
+          if(snap.exists){
+            let data = snap.data()
+            return Firestore.collection('userPendingDatasets').doc(user.uid).set({datasets: data.datasets})
+          }
+          else {
+            return null
+          }
+        })
+        .catch(err => {
+          return err //not really used
+        })
+
+        let postProfile = fetch('https://us-central1-georef-745b9.cloudfunctions.net/addprofile', {
           method: 'POST', // *GET, POST, PUT, DELETE, etc.
           mode: 'cors', // no-cors, *cors, same-origin
           headers: {
@@ -125,16 +142,23 @@
             // 'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: JSON.stringify(data) // body data type must match "Content-Type" header
-        });
+        }).then(res => res)
+        .catch(err => err);
 
-        if(res.ok) {
-          busy = false
-          dispatch('user-sign-in', {userCredential, profile})
-        }
-        else {
-          alert('error creating profile: ' + err.message)
-          return
-        }
+        //I really hope there are no problems here
+        Promise.all([updateDatasets, postProfile]).then(results => {
+          if(results[0] && results[0].message) {
+            alert('error updating datasets on profile creation: ' + results[0].message)
+          }
+
+          if(results[1].ok) {
+            busy = false
+            dispatch('user-sign-in', {userCredential, profile})
+          }
+          else {
+            alert('error creating profile: ' + results[1].message)
+          }
+        })
       })
       .catch((error) => {
         switch (error.code) {

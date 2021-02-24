@@ -274,13 +274,14 @@ function handleHomeClick() {
 					<ConfirmData file={fileForGeoref} requiredFields={requiredFields} on:data-confirmed={handleFileContentsConfirmed} on:data-confirm-cancelled={handleConfirmCanceled}/>
 				{/if}
 				{#if currentPage == 'RegisterDataset'}
-					<RegisterDataset on:register-dataset={handleRegisterDataset}/>
+					<RegisterDataset userProfile={profile} on:register-dataset={handleRegisterDataset}/>
 				{/if}
 				{#if currentPage == 'UploadData'}
 					<PackAndLoad 
 						localityRecordIDMap={georefInputs.localityRecordIDMap} 
 						{datasetDetails}
 						{fileForGeoref}
+						{userID}
 						on:upload-complete={handleUploadComplete}
 					/>
 				{/if}
@@ -288,7 +289,7 @@ function handleHomeClick() {
 					<WellDone />
 				{/if}
 				{#if currentPage == 'datasetList'}
-					<DatasetList on:dataset-selected={handleDatasetSelected}/>
+					<DatasetList {userID} on:dataset-selected={handleDatasetSelected}/>
 				{/if}
 				{#if currentPage == 'datasetDetail'}
 					<DatasetDetail dataset={selectedDataset} on:to-datasets={handleToDatasets} on:start-georeferencing={handleStartGeoreferencing}/>

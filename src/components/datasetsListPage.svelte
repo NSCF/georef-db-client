@@ -4,17 +4,14 @@ import Datasets from './admin/datasetsList.svelte'
 
 const dispatch = createEventDispatcher()
 
-const handleDatasetSelected = ev => { //just bubbling up
-  let dataset = ev.detail
-  dispatch('dataset-selected', dataset)
-}
+export let userID
 
 </script>
 
 <!-- ############################################## -->
 <!-- HTML -->
 <h2>Current datasets:</h2>
-<Datasets on:dataset-selected={handleDatasetSelected}/>
+<Datasets {userID} on:dataset-selected/>
 
 <!-- ############################################## -->
 <style>

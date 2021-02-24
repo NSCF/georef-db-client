@@ -22,9 +22,8 @@ import Toast from '../toast.svelte'
 
 export let dataset
 
-//some mock values for now
-let userID = 'iansuserid'
-let userName ='Engelbrecht, I.'
+export let profile
+
 let datasetRef 
 
 $: if(Firestore) {
@@ -75,14 +74,14 @@ $: if($dataStore.recordGroup && $dataStore.recordGroup.groupLocalities) {
 //and finally the stats
 //these are stats while georeferencing
 let statsRefStrings = [
-	`stats/perDataset/${dataset.datasetID}/perUser/${userID}/georefsAdded`,
-	`stats/perDataset/${dataset.datasetID}/perUser/${userID}/recordsGeoreferenced`,
-	`stats/perDataset/${dataset.datasetID}/perUser/${userID}/daily/today/georefsAdded`,
-  `stats/perDataset/${dataset.datasetID}/perUser/${userID}/daily/today/recordsGeoreferenced`,
-  `stats/perDataset/${dataset.datasetID}/perUser/${userID}/weekly/yearweek/georefsAdded`,
-  `stats/perDataset/${dataset.datasetID}/perUser/${userID}/weekly/yearweek/recordsGeoreferenced`,
-  `stats/perDataset/${dataset.datasetID}/perUser/${userID}/monthly/yearmonth/georefsAdded`,
-  `stats/perDataset/${dataset.datasetID}/perUser/${userID}/monthly/yearmonth/recordsGeoreferenced`,
+	`stats/perDataset/${dataset.datasetID}/perUser/${profile.uid}/georefsAdded`,
+	`stats/perDataset/${dataset.datasetID}/perUser/${profile.uid}/recordsGeoreferenced`,
+	`stats/perDataset/${dataset.datasetID}/perUser/${profile.uid}/daily/today/georefsAdded`,
+  `stats/perDataset/${dataset.datasetID}/perUser/${profile.uid}/daily/today/recordsGeoreferenced`,
+  `stats/perDataset/${dataset.datasetID}/perUser/${profile.uid}/weekly/yearweek/georefsAdded`,
+  `stats/perDataset/${dataset.datasetID}/perUser/${profile.uid}/weekly/yearweek/recordsGeoreferenced`,
+  `stats/perDataset/${dataset.datasetID}/perUser/${profile.uid}/monthly/yearmonth/georefsAdded`,
+  `stats/perDataset/${dataset.datasetID}/perUser/${profile.uid}/monthly/yearmonth/recordsGeoreferenced`,
   `stats/perDataset/${dataset.datasetID}/georefsAdded`,
   `stats/perDataset/${dataset.datasetID}/recordsGeoreferenced`
 ]
@@ -104,8 +103,25 @@ onMount(async _ => {
 
   elasticindex = dataset.region.toLowerCase().replace(/\s+/g, '') + dataset.domain.toLowerCase()
 
+  let userLastSnap = null
+
   try {
-    fetchNextRecordGroup(0)
+    let lastRecordGroupIDSnap = await Firebase.ref(`userDatasetLastRecordGroup/${dataset.datasetID}`).get()
+    if (lastRecordGroupIDSnap.exists()){
+      let recordGroupID = lastRecordGroupIDSnap.val()
+      let fsSnap = Firestore.collection('recordGroups').doc(recordGroupID).get()
+      if(fsSnap.exists){
+        userLastSnap = fsSnap
+      }
+    }
+  }
+  catch(err){
+    alert('there was an error getting last recordgroup for this user: ' + err.message)
+    return
+  }
+
+  try {
+    fetchNextRecordGroup(userLastSnap)
   }
   catch(err){//only if offline
   //TODO handle error
@@ -299,8 +315,8 @@ const saveRecordGroup = async _ => {
         
       }
 
-      proms.push(updateGeorefStats(Firebase, georefsAdded, recordsGeoreferenced, userID, userName, dataset.datasetID))
-      proms.push(updateDatasetStats(Firestore, FieldValue, datasetRef, recordsGeoreferenced, userID, groupComplete, datasetGeorefsUsed))
+      proms.push(updateGeorefStats(Firebase, georefsAdded, recordsGeoreferenced, profile.uid, profile.formattedName, dataset.datasetID))
+      proms.push(updateDatasetStats(Firestore, FieldValue, datasetRef, recordsGeoreferenced, profile.uid, groupComplete, datasetGeorefsUsed))
       try {
         await Promise.all(proms)
       }
@@ -389,7 +405,7 @@ const handleSetGeoref = async ev => {
 
     if(saveGeoref){ //we treat it as a new georef
       georef.dateCreated = Date.now()
-      georef.createdBy = userName
+      georef.createdBy = profile.formattedName
 
       georef.used = true
       newGeorefsUsed.push(georef.georefID)
@@ -445,7 +461,7 @@ const handleSetGeoref = async ev => {
   
     for (let loc of selectedLocs){
       loc.georefID = georef.georefID
-      loc.georefBy = userName //TODO check the format is correct
+      loc.georefBy = profile.formattedName
       loc.georefDate = Date.now()
       loc.georefVerified = false
       loc.georefVerifiedBy = null
@@ -496,6 +512,10 @@ const handleBackToDatasets =  async _ => {
   }
   else {
     await releaseRecordGroup();
+  }
+
+  if ($dataStore.recordGroupSnap) {
+    await Firebase.ref(`userDatasetLastRecordGroup/${dataset.datasetID}`).set($dataStore.recordGroupSnap.id)
   }
   
   $dataStore.recordGroupSnap = null

@@ -96,7 +96,7 @@ const handleSubmit = _ => {
       region: region.value,
       domain: domain.value,
       invitees, 
-      newInvitees,
+      newInvitees: newInvitees.map(x => x.toLowerCase()), //to simplify search later
       remarks
   })
 }

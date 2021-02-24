@@ -1,6 +1,7 @@
 <script>
 import { createEventDispatcher } from 'svelte';
-import { Realtime, Firestore, Storage } from '../firebase.js'
+import Loader from './loader.svelte'
+import {Firestore, FieldValue, Storage } from '../firebase.js'
 import groupLocalities from '../CSVUtilities/groupLocalities.js'
 
 const dispatch = createEventDispatcher();
@@ -8,9 +9,9 @@ const dispatch = createEventDispatcher();
 export let fileForGeoref
 export let localityRecordIDMap
 export let datasetDetails
+export let userID
 
 let localityGroups = undefined
-let errorsInGettingGroups = false
 
 let uploadErrors = false
 let uploadErrorMessage = ''
@@ -61,11 +62,75 @@ const lockAndLoad = async () => {
     datasetDetails.dateCompleted = null
 
     let dataLoaders = []
-    dataLoaders.push(Firestore.collection('datasets').add(datasetDetails))
+    dataLoaders.push(Firestore.collection('datasets').doc(datasetDetails.datasetID).set(datasetDetails))
 
     let fileUploadRef = Storage.ref().child(`${datasetDetails.datasetID}.csv`)
     dataLoaders.push(fileUploadRef.put(fileForGeoref))
+
+    //add the dataset for the current user
+    let ref = Firestore.collection('userDatasets').doc(userID)
+    let trans = Firestore.runTransaction(transaction => {
+      return transaction.get(ref).then(snap => {
+        if(!snap.exists){
+          ref.set({
+            datasets: [datasetDetails.datasetID]
+          })
+        }
+        else {
+          transaction.update(ref, {datasets: FieldValue.arrayUnion(datasetDetails.datasetID)})
+        }
+      })
+    })
+    dataLoaders.push(trans)
     
+    //add the dataset for each userID
+    for (let profile of datasetDetails.invitees){
+      let ref = Firestore.collection('userInvitedDatasets').doc(profile.uid)
+      let trans = Firestore.runTransaction(transaction => {
+        return transaction.get(ref).then(snap => {
+          if(!snap.exists){
+            ref.set({
+              datasets: [datasetDetails.datasetID]
+            })
+          }
+          else {
+            transaction.update(ref, {datasets: FieldValue.arrayUnion(datasetDetails.datasetID)})
+          }
+        })
+      })
+      dataLoaders.push(trans)
+    }
+
+    for (let email of datasetDetails.newInvitees) {
+      let collRef = Firestore.collection('invitedUserPendingDatasets')
+      let op = collRef.where('email', '==', email) //it's already lowercase
+      .get()
+      .then(querySnap => {
+        if(querySnap.empty){
+          return collRef.add(
+            {
+              email,
+              datasets: [datasetDetails.datasetID]
+            }
+          )
+        }
+        else {
+          //there can only be one!
+          let docRef = querySnap.docs[0].ref
+          return Firestore.runTransaction(transaction => {
+            return transaction.get(docRef).then(docSnap => {
+              //it has to exist
+              transaction.update(docRef, {
+                datasets: FieldValue.arrayUnion(datasetDetails.datasetID)
+              })
+            })
+          })
+        }
+      })
+
+      dataLoaders.push(op)
+    }
+
     //now the groups
     let batch = Firestore.batch()
     let nextCommit = 499 //as long as we have no operations like timestamps inside each group, this should be fine, 500 at a time
@@ -107,13 +172,13 @@ const lockAndLoad = async () => {
 
 <!-- ############################################## -->
 <!-- HTML -->
-<h2>One moment please while we process the localities</h2>
 <div>
   {#if uploadErrors}
-    <p>There was a problem with the upload:</p>
+    <h2>There was a problem with the upload:</h2>
     <p>{uploadErrorMessage}</p>
   {:else}
-    We need a spinner here
+    <h2>Processing localities, this may take a few minutes...</h2>
+    <Loader />
   {/if}
 </div>
 

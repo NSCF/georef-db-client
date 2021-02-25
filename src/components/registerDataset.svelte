@@ -64,15 +64,12 @@ const handleProfileSelected = ev => {
   console.log('item is', item)
   if (typeof item == 'string' && item.trim() && item.includes('invite')){
     let s = item.replace('invite', '').trim()
-    console.log('updated email is', s)
     newInvitees.push(s)
     newInvitees = newInvitees //svelte
-    console.log('added to newInvitees')
   }
   else { //it must be a profile
     invitees.push(item)
     invitees = invitees //svelte
-    console.log('added to invitees')
   }
 }
 
@@ -99,7 +96,7 @@ const handleSubmit = _ => {
       region: region.value,
       domain: domain.value,
       georeferencers: [],
-      invitees, 
+      invitees: invitees.map(x=>x.uid), //we only want to store the uid, we don't need the whole profile
       newInvitees: newInvitees.map(x => x.toLowerCase()), //to simplify search later
       declinedInvitees: [],
       remarks

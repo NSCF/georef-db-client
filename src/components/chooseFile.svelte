@@ -6,7 +6,7 @@ const dispatch = createEventDispatcher();
 //const { open } = getContext('simple-modal');
 
 //PROPS
-export let userID
+export let profile
 export let fileMIMETypes
 
 //LOCALS
@@ -95,7 +95,7 @@ function toEmitOrNotToEmit(file){
 -->
 <div class="container">
   <h1>Welcome to the NSCF Georeferencer</h1>
-  <button class="datasets-button" disabled={!Boolean(userID)} on:click={handleGoToDatasets}><strong>GO TO DATASETS</strong></button>
+  <button class="datasets-button" disabled={!Boolean(profile)} on:click={handleGoToDatasets}><strong>GO TO DATASETS</strong></button>
   <h2 style="color:gray">OR</h2>
   <div id="wrapper" class="wrapper">
     <div 

@@ -1,5 +1,4 @@
 <script>
-import { Firestore, FieldValue, Realtime as Firebase } from '../../firebase.js'
 import {onMount, onDestroy, createEventDispatcher} from 'svelte'
 import { nanoid } from "nanoid/nanoid.js" //see https://github.com/ai/nanoid/issues/237
 
@@ -19,6 +18,10 @@ import MatchMap from './georefMatchMap.svelte'
 import GeorefForm from './georefForm.svelte'
 import CustomSearch from './customSearch.svelte'
 import Toast from '../toast.svelte'
+
+export let Firestore
+export let FieldValue
+export let Firebase
 
 export let dataset
 
@@ -58,11 +61,6 @@ let recordsGeoreferenced = 0 //this is the number of associated records georefer
 let datasetComplete = false //a flag to take us back to the datasets when this one is complete
 
 let locStringsTitle = "Select the items below that represent the same locality and then choose and apply or create an appropriate georeference"
-
-let selectedCount 
-$: if($dataStore.recordGroup){
-  selectedCount = $dataStore.recordGroup.groupLocalities.filter(x=>x.selected).length
-}
 
 let recordCount
 let locStringsCount
@@ -106,7 +104,7 @@ onMount(async _ => {
   let userLastSnap = null
 
   try {
-    let lastRecordGroupIDSnap = await Firebase.ref(`userDatasetLastRecordGroup/${dataset.datasetID}`).get()
+    let lastRecordGroupIDSnap = await Firebase.ref(`userDatasetLastRecordGroup/${profile.uid}/${dataset.datasetID}`).once('value')
     if (lastRecordGroupIDSnap.exists()){
       let recordGroupID = lastRecordGroupIDSnap.val()
       let fsSnap = Firestore.collection('recordGroups').doc(recordGroupID).get()
@@ -228,6 +226,9 @@ const fetchNextRecordGroup = async lastSnap => {
             else {
               console.log('no georefs!!!')
             }
+
+            //set the last snap on Firebase async
+            Firebase.ref(`userDatasetLastRecordGroup/${profile.uid}/${dataset.datasetID}`).set($dataStore.recordGroupSnap.id)
             
           }
           catch(err) {
@@ -513,10 +514,6 @@ const handleBackToDatasets =  async _ => {
   else {
     await releaseRecordGroup();
   }
-
-  if ($dataStore.recordGroupSnap) {
-    await Firebase.ref(`userDatasetLastRecordGroup/${dataset.datasetID}`).set($dataStore.recordGroupSnap.id)
-  }
   
   $dataStore.recordGroupSnap = null
   $dataStore.recordGroup = []
@@ -585,7 +582,7 @@ const handleUnload = ev => {
         <h4 title={locStringsTitle}>Locality strings</h4>
         <div class="recordgroup-remarks">
           <label for="slgr">Locality georef remarks</label>
-          <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder={`Add remarks about applying this georeference to ${!selectedCount || selectedCount > 1 ? 'these selected localities': 'this selected locality'} `} rows="2" />
+          <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder="Add remarks about applying this georeference to this/these selected localities" rows="2" />
         </div>
         <div>
           <button style="float:right;margin-left:5px;" on:click={handleBackToDatasets}>Done</button>
@@ -640,10 +637,10 @@ const handleUnload = ev => {
 <style>
 
 h4 {
-  color:  #bcd0ec;
+  color:  #86afe8;
   text-transform: uppercase;
   font-size: 1.5em;
-	font-weight: 100;
+	font-weight: 600;
   text-align: center;
   margin:0;
 }

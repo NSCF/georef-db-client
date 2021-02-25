@@ -3,26 +3,22 @@ import {onMount, createEventDispatcher} from 'svelte'
 import { Firestore, FieldValue } from '../../firebase.js'
 import Loader from '../loader.svelte'
 
-export let userID
+export let profile
 
 let dispatch = createEventDispatcher()
 
 let firstTab = true
 
-let datasets
-let lastVisible
-let tableHeader = ['dataset', 'collection', 'domain', 'total records', 'locality groups', 'countries', 'created', 'last georef', '% complete', 'completed']
-let tableRowKeys = ['datasetName', 'collectionCode', 'domain', 'recordCount', 'groupCount', '', '', '', '', '']
+let datasets = null
+let datasetIDs
+let firstInd = 0
 
 $: firstTab, reset()
 
-onMount(_ => {
-  getDatasets()
-})
-
 const reset = _ => {
-  lastVisible = null
   datasets = null
+  datasetIDs = null
+  firstInd = 0
   getDatasets()
 }
 
@@ -47,7 +43,7 @@ const getLocalDateTime = timestamp => {
 }
 
 const getDatasets = async _ => {
-  datasets = null
+  
   let collection
   if(firstTab){
     collection = 'userDatasets'
@@ -56,43 +52,64 @@ const getDatasets = async _ => {
     collection = 'userPendingDatasets'
   }
 
-  let userDatasetsSnap = await Firestore.collection(collection).doc(userID).get()
+  //get the IDs
+  if(!datasetIDs) {
+    console.log('fetching datasetIDs for', profile.uid, 'from', collection)
+    let userDatasetsSnap = await Firestore.collection(collection).doc(profile.uid).get()
 
-  if(userDatasetsSnap.exists){
-    let datasets = userDatasetsSnap.data().datasets
-    let query = Firestore.collection('datasets').where('datasetID', 'in', datasets)
-    .orderBy('dateCreated', 'desc')
-
-    if(lastVisible){
-      query = query.startAfter(lastVisible)
-    }
-
-    query = query.limit(20)
-
-    let snap = await query.get()
-
-    if(!snap.empty){
-      let temp = []
-      console.log(snap.size.toString(), 'datasets returned')
-      snap.forEach(doc =>{
-        temp.push(doc.data())
-      })
-      lastVisible = snap.docs[snap.docs.length-1]
-      datasets = temp
+    if(userDatasetsSnap.exists){
+      let searchDatasets = userDatasetsSnap.data().datasets
+      console.log('searchdatasets is ', searchDatasets)
+      if (!searchDatasets || !searchDatasets.length){
+        console.log('no datasetIDs returned')
+        datasetIDs = []
+        datasets = []
+        return
+      } 
+      else {
+        console.log('returned', searchDatasets.length, 'datasetIDs')
+        datasetIDs = searchDatasets.map(x=>x.trim())
+      }
     }
     else {
+      console.log('no datasets document exists for this user') //will happen on first registration if they have no datasets
+      datasetIDs = []
       datasets = []
+      return
     }
+  }
+
+  //we have datasetIDs
+  let lastInd = firstInd + 10 //we can only call ten at a time remember end not included in slice
+  let queryDatasetIDs = datasetIDs.slice(firstInd, lastInd)
+  firstInd += 10 //for the next time
+  
+  console.log('fetching datasets for IDs', queryDatasetIDs.join(', '))
+
+  //we can't sort because the IDs are random
+  let snap = await Firestore.collection('datasets').where('datasetID', 'in', queryDatasetIDs).get()
+
+  if(!snap.empty){
+    let temp = []
+    snap.forEach(doc =>{
+      temp.push(doc.data())
+    })
+    console.log('got', temp.length, 'datasets')
+    datasets = temp
+  }
+  else { //no datasets returned, this should not happen
+    console.log('got no datasets')
+    datasets = []
   }
 }
 
 const refresh = _ => {
-  lastVisible = null
-  datasets = getDatasets()
+  firstInd = 0
+  getDatasets()
 }
 
 const acceptInvitedDataset = async datasetID => {
-  let removeRef = Firestore.collection('userPendingDatasets').doc(userID)
+  let removeRef = Firestore.collection('userPendingDatasets').doc(profile.uid)
   let removeForUser = Firestore.runTransaction(transaction => {
     return transaction.get(removeRef).then(snap => {
       if(snap.exists){
@@ -104,11 +121,11 @@ const acceptInvitedDataset = async datasetID => {
     })
   })
 
-  let addRef = Firestore.collection('userDatasets').doc(userID)
+  let addRef = Firestore.collection('userDatasets').doc(profile.uid)
   let addForUser = Firestore.runTransaction(transaction => {
     return transaction.get(addRef).then(snap => {
       if(snap.exists) {
-        ransaction.update(addRef, {datasets: FieldValue.arrayUnion(datasetID)})
+        transaction.update(addRef, {datasets: FieldValue.arrayUnion(datasetID)})
       }
       else {
         return
@@ -121,8 +138,8 @@ const acceptInvitedDataset = async datasetID => {
     return transaction.get(updateDatasetRef).then(snap => {
       if(snap.exists){ //it should
         transaction.update(updateDatasetRef, {
-          invitees: FieldValue.arrayRemove(userID),
-          georeferencers: FieldValue.arrayUnion(userID)
+          invitees: FieldValue.arrayRemove(profile.uid),
+          georeferencers: FieldValue.arrayUnion(profile.uid)
         })
       }
       else {
@@ -131,18 +148,21 @@ const acceptInvitedDataset = async datasetID => {
     })
   })
 
+  let hold
   try {
+    hold = datasets
+    datasets = null
     await Promise.all([removeForUser, addForUser, updateForDataset])
+    let index = hold.findIndex(x => x.datasetID == datasetID)
+    if(index >= 0) { //it should be
+      hold.splice(index, 1)
+      datasets = hold //svelte
+    }
   }
   catch(err) {
     alert('there was an error updating invited datasets:' + err.message)
+    datasets = hold
     return
-  }
-  //else
-  let index = datasets.findIndex(x => x.datasetID == datasetID)
-  if(index >= 0) { //it should be
-    datasets.splice(index, 1)
-    datasets = datasets //svelte
   }
 }
 
@@ -158,7 +178,7 @@ const removeDataset = async datasetID => {
 
   let proms = []
 
-  let ref = Firestore.collection(collection).doc(userID)
+  let ref = Firestore.collection(collection).doc(profile.uid)
   let removeForUser = Firestore.runTransaction(transaction => {
     return transaction.get(ref).then(snap => {
       if(snap.exists){ //it should
@@ -179,8 +199,8 @@ const removeDataset = async datasetID => {
       return transaction.get(datasetRef).then(snap => {
         if(snap.exists){ //it should
           transaction.update(datasetRef, {
-            invitees: FieldValue.arrayRemove(userID),
-            declinedInvitees: FieldValue.arrayUnion(userID)
+            invitees: FieldValue.arrayRemove(profile.uid),
+            declinedInvitees: FieldValue.arrayUnion(profile.uid)
           })
         }
       })
@@ -188,19 +208,22 @@ const removeDataset = async datasetID => {
     proms.push(decline)
   }
 
+  let hold
   try {
+    hold = datasets
+    datasets = null
     await Promise.all(proms)
+    let index = hold.findIndex(x => x.datasetID == datasetID)
+    if(index >= 0) { //it should be
+      hold.splice(index, 1)
+      
+    }
+    datasets = hold
   }
   catch(err) {
     alert('error updating datasets on remove: ' + err.message)
+    datasets = hold
     return
-  }
-  //else
-  
-  let index = datasets.findIndex(x => x.datasetID == datasetID)
-  if(index >= 0) { //it should be
-    datasets.splice(index, 1)
-    datasets = datasets //svelte
   }
 }
 
@@ -221,7 +244,7 @@ const emitDataset = dataset => {
 		Invited datasets
 	</div>
 </div>
-{#if datasets && datasets.length}
+{#if datasets}
   {#if datasets.length}
   <div></div><!-- This is needed otherwise the table doesnt show  -->
   <table>
@@ -256,21 +279,25 @@ const emitDataset = dataset => {
         <td>{dataset.groupsComplete} ({Math.round(dataset.groupsComplete / dataset.groupCount * 100)}%)</td>
         <td>{dataset.lastGeoreference? getLocalDateTime(dataset.lastGeoreference) : null}</td>
         {#if !firstTab}
-          <td><button on:click='{_ => acceptInvitedDataset(dataset.datasetID)}'>Accept</button></td>
+          <td class="table-button"><button on:click|stopPropagation='{_ => acceptInvitedDataset(dataset.datasetID)}'>Accept</button></td>
         {/if}
-        <td><button on:click={_ => removeDataset(dataset.datasetID)}>Remove</button></td>
+        <td class="table-button"><button on:click|stopPropagation={_ => removeDataset(dataset.datasetID)}>Remove</button></td>
       </tr>
     {/each}
   </table>
   {:else}
+  <div class="nodatasets">
     No datasets to show
+  </div>
+    
   {/if}
-  <button on:click={refresh} >Start over</button>
-  <button on:click={getDatasets} >Show next</button>
+  <div>
+    <button on:click={refresh} >Start over</button>
+    <button disabled={!datasets.length} on:click={getDatasets} >Show next</button>
+  </div>
 {:else}
   <Loader />
-{/if}
-
+{/if}  
 
 <!-- ############################################## -->
 <style>
@@ -278,6 +305,7 @@ const emitDataset = dataset => {
 .tabs {
   display: grid;
   grid-template-columns: auto auto;
+  width: 400px;
   height: 40px;
 }
 
@@ -290,7 +318,7 @@ const emitDataset = dataset => {
 }
 
 .tab-selected {
-  background-color:#e6f2ff;
+  background-color:#b6d8fc;
   font-weight:500;
 }
 
@@ -301,6 +329,10 @@ th {
 .tr-hover:hover {
 	background-color: lightgray;
 	cursor: pointer;
+}
+
+.tr-hover:hover .table-button {
+  background-color: transparent;
 }
 
 .oddrow {
@@ -315,4 +347,11 @@ button:hover {
   background-color:grey;
 
 }
+
+.nodatasets {
+  margin:20px;
+  font-weight:bolder;
+}
+
+
 </style>

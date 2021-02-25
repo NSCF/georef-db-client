@@ -4,14 +4,14 @@ import Datasets from './admin/datasetsList.svelte'
 
 const dispatch = createEventDispatcher()
 
-export let userID
+export let profile
 
 </script>
 
 <!-- ############################################## -->
 <!-- HTML -->
 <h2>Current datasets:</h2>
-<Datasets {userID} on:dataset-selected/>
+<Datasets {profile} on:dataset-selected/>
 
 <!-- ############################################## -->
 <style>

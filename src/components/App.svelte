@@ -1,6 +1,6 @@
 <script>
 import {onMount} from 'svelte'
-import {Auth, Firestore, Realtime as Firebase } from '../firebase.js'
+import {Auth, Firestore, FieldValue, Realtime as Firebase } from '../firebase.js'
 
 import Modal from 'svelte-simple-modal';
 import Register from './signUp.svelte'
@@ -53,7 +53,7 @@ let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'ChooseFile', 'Confi
 let datasetPages = ['datsetList', 'datasetDetail']
 let georeferencePage = 'Georeferencer' //just the one
 
-let currentPage = 'workshop'
+let currentPage = 'ChooseFile'
 let pwdResetCode
 
 //locals
@@ -262,7 +262,7 @@ function handleHomeClick() {
 				{/if}
 				{#if currentPage == 'ChooseFile'}
 				<ChooseFile 
-					{userID}
+					{profile}
 					on:file-selected={handleFileSelected} 
 					on:to-datasets={handleToDatasets}
 					fileMIMETypes={['text/csv', 'application/vnd.ms-excel']}/>
@@ -289,19 +289,19 @@ function handleHomeClick() {
 					<WellDone />
 				{/if}
 				{#if currentPage == 'datasetList'}
-					<DatasetList {userID} on:dataset-selected={handleDatasetSelected}/>
+					<DatasetList {profile} on:dataset-selected={handleDatasetSelected}/>
 				{/if}
 				{#if currentPage == 'datasetDetail'}
 					<DatasetDetail dataset={selectedDataset} on:to-datasets={handleToDatasets} on:start-georeferencing={handleStartGeoreferencing}/>
 				{/if}
 				{#if currentPage == 'Georeferencer'}
-					<Georeferencer dataset={selectedDataset} />
+					<Georeferencer {Firestore} {Firebase} {FieldValue} {profile} dataset={selectedDataset} />
 				{/if}
 				{#if currentPage == 'workshop'}
 					<Workshop />
 				{/if}
 				{#if currentPage == 'yard'}
-					<Yard />
+					<Yard {Firestore} {Firebase} {FieldValue} {profile} />
 				{/if}
 			</div>
 		</div>

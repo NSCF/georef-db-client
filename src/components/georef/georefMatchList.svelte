@@ -16,7 +16,7 @@ import Loader from '../loader.svelte'
       </tr>
     </thead>
     {#each Object.keys($dataStore.georefIndex) as georefKey}
-      <MatchListRow {georefKey} on:georef-selected/>
+      <MatchListRow {georefKey}/>
     {/each}
   {:else}
     <Loader/>

@@ -35,9 +35,6 @@ $: if(Firestore) {
 
 let dispatch = createEventDispatcher()
 
-//the main prop!!
-let selectedGeorefCopy = null
-
 let connected = true //we assume this, but it could cause an issue
 let savingGeoref = false
 let savingRecordGroup = false
@@ -142,8 +139,7 @@ onMount(async _ => {
   fetch(`https://us-central1-georef-745b9.cloudfunctions.net/getambiguous?index=${elasticindex}`)
   .then(res => res.json())
   .then(data => {
-    ambiguous = data //just an object with an ID, not a Georef instance...
-    console.log('ambiguous georef record fetched')
+    ambiguous = data._source //just an object with an ID, not a Georef instance...
   })
   .catch(err => {
     console.log('err getting ambiguous georef:')
@@ -168,10 +164,6 @@ const fetchNextRecordGroup = async lastSnap => {
 
     newGeorefsUsed = [] //start over
     datasetGeorefsUsed = [] //start over
-
-    if(selectedGeorefCopy) {
-      selectedGeorefCopy = null
-    }
     
     let query = Firestore.collection('recordGroups')
     .where('datasetID', '==', dataset.datasetID)
@@ -365,10 +357,6 @@ const handleCustomSearchCleared = _ => {
   }
 }
 
-const handleGeorefSelected = _ => {
-  selectedGeorefCopy = $dataStore.selectedGeoref.copy() //a deep copy
-}
-
 const handleClearGeoref = _ => {
   if($dataStore.selectedGeoref) {
     let selectedMarker = $dataStore.markers[$dataStore.selectedGeoref.georefID]
@@ -384,7 +372,6 @@ const handleClearGeoref = _ => {
 
     $dataStore.selectedGeoref.selected = false
     $dataStore.selectedGeoref = null
-    selectedGeorefCopy = null
 
   }
 }
@@ -392,7 +379,7 @@ const handleClearGeoref = _ => {
 const handleFlagGeoref = ev => {
   let georefID = ev.detail
   $dataStore.georefIndex[georefID].flagged = true
-  let url = `https://us-central1-georef-745b9.cloudfunctions.net/flaggeoref?georefID=${georef.georefID}&index=${elasticindex}`
+  let url = `https://us-central1-georef-745b9.cloudfunctions.net/flaggeoref?georefID=${georefID}&index=${elasticindex}`
   fetch(url)
 }
 
@@ -446,7 +433,6 @@ const handleSetGeoref = async ev => {
 
       savingGeoref = false
       $dataStore.georefIndex[georef.georefID] = georef // so we can use it again
-      selectedGeorefCopy = georef.copy() //so we don't save it again if we use it again
 
       if(window.pushToast) {
         window.pushToast('new georef saved')
@@ -606,18 +592,18 @@ const handleUnload = ev => {
         <h4>Candidate georeferences</h4>
         <CustomSearch bind:customSearchString {elasticindex} on:custom-search-searching={handleCustomSearchSearching} on:custom-search-cleared={handleCustomSearchCleared} on:custom-georefs={handleCustomGeorefs} />
         <div class="matchlist-flex">
-          <MatchList on:georef-selected={handleGeorefSelected}/>
+          <MatchList/>
         </div>
         <div class="matchlist-flex-plug" />
       </div>
       <div class="matchmap-container">
-        <MatchMap bind:pastedDecimalCoords on:georef-selected={handleGeorefSelected}/>
+        <MatchMap bind:pastedDecimalCoords/>
       </div>
       <div class="georef-form-container">
         <h4 class="georef-flex-header">Georeference</h4>
         <div class="georef-form-flex">
           <GeorefForm 
-          georef={selectedGeorefCopy} 
+          georef={$dataStore.selectedGeoref} 
           submitButtonText={"Use this georeference"} 
           on:clear-georef={handleClearGeoref} 
           on:georef-flagged={handleFlagGeoref}

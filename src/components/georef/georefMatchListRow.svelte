@@ -1,6 +1,6 @@
 <script>
-import { createEventDispatcher } from 'svelte'
 import { dataStore } from './dataStore.js'
+import  {createEventDispatcher} from 'svelte'
 
 const dispatch = createEventDispatcher()
 
@@ -51,8 +51,6 @@ const handleRowClick = _ => {
 
       newMarker.setZIndex(1)
       newMarker.panToMe()
-
-      dispatch('georef-selected')
 
     }
     else { //this shouldn't happen ever

@@ -1,9 +1,6 @@
 <script>
-import { createEventDispatcher } from 'svelte'
 import { dataStore } from './dataStore.js'
 import {onDestroy} from 'svelte'
-
-const dispatch = createEventDispatcher()
 
 export let georefKey
 export let map
@@ -98,9 +95,6 @@ marker.addListener('click', _ => {
 
     $dataStore.georefIndex[georefKey].selected = true
     $dataStore.selectedGeoref = $dataStore.georefIndex[georefKey]
-    
-
-    dispatch('georef-selected')
 
   }
 })

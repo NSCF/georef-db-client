@@ -33,6 +33,7 @@ let datasetID = nanoid()
 let invitees = [] //existing users invited to georeference
 let newInvitees = [] // emails without profiles invited to georeference
 
+$: userProfile, addNameAndEmail()
 $: regionOptions, addRegionSelectOptions()
 $: completed = contactName && email && datasetName && collectionCode && region && domain
 
@@ -42,6 +43,11 @@ onMount(async _ => {
   regionOptions = snap.val() //its an object where keys are regions and values are countries in those regions
   console.log('georef regions fetched')
 })
+
+const addNameAndEmail = _ => {
+  contactName = userProfile.firstName + ' ' + userProfile.lastName
+  email =  userProfile.email
+}
 
 const addRegionSelectOptions = _ => {
   if(regionOptions && Object.keys(regionOptions).length){
@@ -61,7 +67,6 @@ const addRegionSelectOptions = _ => {
 
 const handleProfileSelected = ev => {
   let item = ev.detail
-  console.log('item is', item)
   if (typeof item == 'string' && item.trim() && item.includes('invite')){
     let s = item.replace('invite', '').trim()
     newInvitees.push(s)
@@ -90,12 +95,12 @@ const handleSubmit = _ => {
       datasetID,
       contactName,
       email,
-      createdByProfile: userProfile,
+      createdByID: userProfile.uid,
       datasetName,
       collectionCode,
       region: region.value,
       domain: domain.value,
-      georeferencers: [],
+      georeferencers: [userProfile.uid], //the creator is automatically a georeferencer
       invitees: invitees.map(x=>x.uid), //we only want to store the uid, we don't need the whole profile
       newInvitees: newInvitees.map(x => x.toLowerCase()), //to simplify search later
       declinedInvitees: [],

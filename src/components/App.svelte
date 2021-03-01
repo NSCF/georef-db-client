@@ -292,10 +292,10 @@ function handleHomeClick() {
 					<DatasetList {profile} on:dataset-selected={handleDatasetSelected}/>
 				{/if}
 				{#if currentPage == 'datasetDetail'}
-					<DatasetDetail dataset={selectedDataset} on:to-datasets={handleToDatasets} on:start-georeferencing={handleStartGeoreferencing}/>
+					<DatasetDetail userID={profile.uid} dataset={selectedDataset} on:to-datasets={handleToDatasets} on:start-georeferencing={handleStartGeoreferencing}/>
 				{/if}
 				{#if currentPage == 'Georeferencer'}
-					<Georeferencer {Firestore} {Firebase} {FieldValue} {profile} dataset={selectedDataset} />
+					<Georeferencer {Firestore} {Firebase} {FieldValue} {profile} dataset={selectedDataset} on:back-to-datasets='{_=> currentPage = 'datasetList'}'/>
 				{/if}
 				{#if currentPage == 'workshop'}
 					<Workshop />

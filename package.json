@@ -2,10 +2,9 @@
   "name": "svelte-app",
   "version": "1.0.0",
   "scripts": {
-    "build": "rollup -c",
+    "build": "rollup -c && npm run cachebust",
     "dev": "rollup -c -w",
-    "start": "sirv public --single",
-    "compile": "babel tests src/components/georef --out-dir .compiled --source-maps --watch"
+    "start": "sirv public --single"
   },
   "devDependencies": {
     "@babel/preset-stage-3": "^7.8.3",
@@ -47,5 +46,14 @@
     ],
     "sourceMaps": true,
     "retainLines": true
+  },
+  "cachebust": {
+    "source": [
+        "public/build/bundle.css",
+        "public/build/bundle.js"
+    ],
+    "target": [
+        "public/index.html"
+    ]
   }
 }

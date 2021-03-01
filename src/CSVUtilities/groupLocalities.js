@@ -1,3 +1,5 @@
+import { nanoid } from "nanoid/nanoid.js"
+
 const groupLocalities = async (localityRecordIDMap, datasetID) => {
   if(localityRecordIDMap && typeof localityRecordIDMap == 'object' && Object.keys(localityRecordIDMap).length > 0){
     
@@ -16,6 +18,7 @@ const groupLocalities = async (localityRecordIDMap, datasetID) => {
 
       let group = {
         datasetID,
+        groupID: nanoid(),
         groupKey: 'All localities',
         groupLocked: false,
         groupLocalities,
@@ -63,6 +66,7 @@ const groupLocalities = async (localityRecordIDMap, datasetID) => {
         
         let result = {
           datasetID,
+          groupID: nanoid(),
           groupKey,
           groupLocked: false,
           groupLocalities,
@@ -96,6 +100,7 @@ const groupLocalities = async (localityRecordIDMap, datasetID) => {
 
         let result = {
           datasetID,
+          groupID: nanoid(),
           groupKey: 'All localities',
           groupLocked: false,
           groupLocalities,

@@ -15,6 +15,7 @@ let localityGroups = undefined
 
 let uploadErrors = false
 let uploadErrorMessage = ''
+let messageString = ''
 let allDone = false
 
 $: localityRecordIDMap, getLocGroups()
@@ -37,7 +38,7 @@ const getLocGroups = async () => {
 
     try {
       localityGroups = await groupLocalities(localityRecordIDMap, datasetDetails.datasetID)
-      console.log('localitygroups updated')
+      messageString = 'localitygroups updated'
     }
     catch(err) {
       console.log(err.message)
@@ -47,10 +48,10 @@ const getLocGroups = async () => {
 }
 
 const lockAndLoad = async () => {
-  console.log('firing lock and load')
+  messageString = 'firing lock and load'
   if(localityGroups) {
     let totalRecordCount = localityGroups.reduce((total, localityGroup) => total + localityGroup.groupRecordCount, 0)
-    console.log('prepping for data upload')
+    messageString = 'prepping for data upload'
     datasetDetails.datasetURL = '' //to be updated shortly
     datasetDetails.recordCount = totalRecordCount 
     datasetDetails.recordsCompleted = 0
@@ -62,7 +63,8 @@ const lockAndLoad = async () => {
     datasetDetails.dateCompleted = null
 
     let dataLoaders = []
-    dataLoaders.push(Firestore.collection('datasets').doc(datasetDetails.datasetID).set(datasetDetails))
+    datasetRef = Firestore.collection('datasets').doc(datasetDetails.datasetID)
+    dataLoaders.push(datasetRef.set(datasetDetails))
 
     let fileUploadRef = Storage.ref().child(`${datasetDetails.datasetID}.csv`)
     dataLoaders.push(fileUploadRef.put(fileForGeoref))
@@ -152,11 +154,11 @@ const lockAndLoad = async () => {
 
     //first is the ref for the dataset doc, second is the snapshot of the file upload
     try {
-      console.log('saving data')
+      messageString = 'saving data'
       let loadResults = await Promise.all(dataLoaders)
       let fileStorageURL = await loadResults[1].ref.getDownloadURL()
-      console.log('updating dataset record with file URL')
-      await loadResults[0].update({ datasetURL: fileStorageURL })
+      messageString = 'updating dataset record with file URL'
+      await datasetRef.update({ datasetURL: fileStorageURL })
       allDone = true
     }
     catch(ex){
@@ -179,6 +181,7 @@ const lockAndLoad = async () => {
   {:else}
     <h2>Processing localities, this may take a few minutes...</h2>
     <Loader />
+    <div style="text-align:center">{messageString}</div>
   {/if}
 </div>
 

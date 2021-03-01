@@ -106,8 +106,9 @@ onMount(async _ => {
   try {
     let lastRecordGroupIDSnap = await Firebase.ref(`userDatasetLastRecordGroup/${profile.uid}/${dataset.datasetID}`).once('value')
     if (lastRecordGroupIDSnap.exists()){
+      console.log('found a last recorded worked on')
       let recordGroupID = lastRecordGroupIDSnap.val()
-      let fsSnap = Firestore.collection('recordGroups').doc(recordGroupID).get()
+      let fsSnap = await Firestore.collection('recordGroups').doc(recordGroupID).get()
       if(fsSnap.exists){
         userLastSnap = fsSnap
       }
@@ -118,11 +119,13 @@ onMount(async _ => {
     return
   }
 
+  console.log('last user snap is:', typeof userLastSnap)
+
   try {
     fetchNextRecordGroup(userLastSnap)
   }
   catch(err){//only if offline
-  //TODO handle error
+    alert('there was an error getting a record group to georeference: ' + err.message)
   }
 
   //manage connection status
@@ -140,6 +143,7 @@ onMount(async _ => {
   .then(res => res.json())
   .then(data => {
     ambiguous = data //just an object with an ID, not a Georef instance...
+    console.log('ambiguous georef record fetched')
   })
   .catch(err => {
     console.log('err getting ambiguous georef:')
@@ -176,6 +180,7 @@ const fetchNextRecordGroup = async lastSnap => {
     .orderBy('groupID')
     
     if(lastSnap) {
+      console.log('adding last user snap to query')
       query = query.startAfter(lastSnap)
     }
 
@@ -282,8 +287,7 @@ const saveRecordGroup = async _ => {
       await $dataStore.recordGroupSnap.ref.set($dataStore.recordGroup) //its an overwrite
     }
     catch(err){
-      alert('error saving record group:', err)
-      console.log('error saving record group; see console')
+      alert('error saving record group:' + err.message)
       console.log(err)
       console.log($dataStore.recordGroup)
       savingRecordGroup = false
@@ -459,10 +463,10 @@ const handleSetGeoref = async ev => {
 
     datasetGeorefsUsed.push(georef.georefID)
     
-  
     for (let loc of selectedLocs){
       loc.georefID = georef.georefID
       loc.georefBy = profile.formattedName
+      loc.georefByID = profile.orcid
       loc.georefDate = Date.now()
       loc.georefVerified = false
       loc.georefVerifiedBy = null
@@ -516,7 +520,7 @@ const handleBackToDatasets =  async _ => {
   }
   
   $dataStore.recordGroupSnap = null
-  $dataStore.recordGroup = []
+  $dataStore.recordGroup = null
   $dataStore.selectedGeoref = null
   $dataStore.georefIndex = null
 

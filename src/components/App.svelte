@@ -215,7 +215,12 @@ function handleYardClick() {
 }
 
 function handleHomeClick() {
-	currentPage = 'ChooseFile'
+	if(currentPage = 'Georeferencer'){
+		alert('to return home from the georeferencer please click on Done above the record group')
+	}
+	else {
+		currentPage = 'ChooseFile'
+	}
 }
 
 </script>
@@ -228,8 +233,6 @@ function handleHomeClick() {
 					<img src="images/NSCF logo.jpg" alt="NSCF logo"  style="height:100%" />
 					<span class="logo-span">Georeferencer</span>
 				</div>
-				<button on:click={handleYardClick}>To to yard</button>
-				<button on:click={handleHomeClick}>To the App</button>
 				{#if !profile}
 					<div>
 						<button class="signin" on:click='{_ => currentPage = 'Register'}'><strong>Register</strong></button>

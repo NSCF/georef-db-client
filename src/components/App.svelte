@@ -29,7 +29,9 @@ let profile
 let userID
 
 //the stats we want to show
-let statsRefStrings = [
+let statsRefStrings
+
+$: if(userID) statsRefStrings = [
 	`stats/perUser/${userID}/georefsAdded`,
   `stats/perUser/${userID}/recordsGeoreferenced`,
 	'stats/georefsAdded',

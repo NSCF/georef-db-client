@@ -13,55 +13,7 @@ $: if(georefKey){
 }
 
 const handleRowClick = _ => {
-  
-  if($dataStore.georefIndex[georefKey].selected){
-    console.log('you already clicked me')
-  }
-  else {
-    //we need an error check here
-    let georef = $dataStore.georefIndex[georefKey]
-    if(georef.decimalCoordinatesOkay){
-      if($dataStore.selectedGeoref) {
-
-        $dataStore.selectedGeoref.selected = false
-        
-        let selectedMarker = $dataStore.markers[$dataStore.selectedGeoref.georefID]
-        selectedMarker.setIcon({
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 5, 
-          fillColor: 'green', 
-          fillOpacity: 1,
-          strokeColor: 'green'
-        })
-
-        selectedMarker.setZIndex(0)
-      }
-
-      georef.selected = true
-      $dataStore.selectedGeoref = georef
-      
-      let newMarker = $dataStore.markers[$dataStore.selectedGeoref.georefID]
-      newMarker.setIcon({
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 5, 
-        fillColor: 'blue', 
-        fillOpacity: 1,
-        strokeColor: 'blue'
-      })
-
-      newMarker.setZIndex(1)
-      newMarker.panToMe()
-
-    }
-    else { //this shouldn't happen ever
-      let id = georef.georefID
-      let locality = georef.locality
-      let coords = georef.decimalCoordinates
-      console.log(`error with coordinates for ${locality} with ID ${id} : ${coords}`) //these should ideally be deleted
-      alert('there is an error with the coordinates for this georef, it will not be used. See console for details')
-    }
-    
-  }
+  dispatch('georef-selected', georefKey)
 }
 
 </script>

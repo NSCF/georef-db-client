@@ -35,6 +35,9 @@ $: if(Firestore) {
 
 let dispatch = createEventDispatcher()
 
+//the georef prop to send to the form
+let selectedGeoref
+
 let connected = true //we assume this, but it could cause an issue
 let savingGeoref = false
 let savingRecordGroup = false
@@ -160,7 +163,7 @@ const fetchNextRecordGroup = async lastSnap => {
     $dataStore.recordGroupSnap = null
     $dataStore.georefIndex = null
     $dataStore.locGeorefIndex = null
-    $dataStore.selectedGeoref = null
+    selectedGeoref = null
 
     newGeorefsUsed = [] //start over
     datasetGeorefsUsed = [] //start over
@@ -244,7 +247,7 @@ const fetchNextRecordGroup = async lastSnap => {
       $dataStore.recordGroupSnap = null
       $dataStore.recordGroup = null
       $dataStore.candidateGeorefs = null
-      $dataStore.selectedGeoref = null
+      selectedGeoref = null
       datasetComplete = true
     }
   }
@@ -358,22 +361,11 @@ const handleCustomSearchCleared = _ => {
 }
 
 const handleClearGeoref = _ => {
-  if($dataStore.selectedGeoref) {
-    let selectedMarker = $dataStore.markers[$dataStore.selectedGeoref.georefID]
-    selectedMarker.setIcon({
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 5, 
-      fillColor: 'green', 
-      fillOpacity: 1,
-      strokeColor: 'green'
-    })
-
-    selectedMarker.setZIndex(0)
-
-    $dataStore.selectedGeoref.selected = false
-    $dataStore.selectedGeoref = null
-
+  if($dataStore.selectedGeorefID) {
+    resetTableAndMap($dataStore.selectedGeorefID)
   }
+
+  selectedGeoref = null
 }
 
 const handleFlagGeoref = ev => {
@@ -385,6 +377,52 @@ const handleFlagGeoref = ev => {
 
 const handleCoordsFromPaste = ev => {
   pastedDecimalCoords = ev.detail
+}
+
+const handleGeorefSelected = ev => {
+
+  if($dataStore.selectedGeorefID){
+    resetTableAndMap($dataStore.selectedGeorefID)
+  }
+  
+  if(ev && ev.detail){
+    let georefID = ev.detail
+    
+    selectedGeoref = $dataStore.georefIndex[georefID].copy()
+    
+    $dataStore.georefIndex[georefID].selected = true
+
+    let newMarker = $dataStore.markers[georefID]
+    newMarker.setIcon({
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 5, 
+      fillColor: 'blue', 
+      fillOpacity: 1,
+      strokeColor: 'blue'
+    })
+
+    newMarker.setZIndex(1)
+    newMarker.panToMe()
+
+    $dataStore.selectedGeorefID = georefID
+  }
+  
+}
+
+//helper for above and below
+const resetTableAndMap = georefID => {
+  let selectedMarker = $dataStore.markers[georefID]
+  selectedMarker.setIcon({
+    path: google.maps.SymbolPath.CIRCLE,
+    scale: 5, 
+    fillColor: 'green', 
+    fillOpacity: 1,
+    strokeColor: 'green'
+  })
+  selectedMarker.setZIndex(0)
+
+  $dataStore.georefIndex[georefID].selected = false
+  $dataStore.georefIndex = $dataStore.georefIndex //svelte
 }
 
 //this is the heavy lifting
@@ -471,13 +509,9 @@ const handleSetGeoref = async ev => {
     
     $dataStore.recordGroup.groupLocalities = $dataStore.recordGroup.groupLocalities //the svelte update trigger
 
-    for (let [key, val] of Object.entries($dataStore.georefIndex)){
-      val.selected = false
-    }
-
-    $dataStore.selectedGeoref = null
-
-    $dataStore.georefIndex = $dataStore.georefIndex //svelte update
+    if($dataStore.selectedGeorefID) {
+      resetTableAndMap($dataStore.selectedGeorefID)
+    } 
 
     georefsAdded += selectedLocs.length
     console.log(`${georefsAdded} georefs added`)
@@ -507,7 +541,7 @@ const handleBackToDatasets =  async _ => {
   
   $dataStore.recordGroupSnap = null
   $dataStore.recordGroup = null
-  $dataStore.selectedGeoref = null
+  selectedGeoref = null
   $dataStore.georefIndex = null
 
   dispatch('back-to-datasets')
@@ -592,18 +626,18 @@ const handleUnload = ev => {
         <h4>Candidate georeferences</h4>
         <CustomSearch bind:customSearchString {elasticindex} on:custom-search-searching={handleCustomSearchSearching} on:custom-search-cleared={handleCustomSearchCleared} on:custom-georefs={handleCustomGeorefs} />
         <div class="matchlist-flex">
-          <MatchList/>
+          <MatchList on:georef-selected={handleGeorefSelected}/>
         </div>
         <div class="matchlist-flex-plug" />
       </div>
       <div class="matchmap-container">
-        <MatchMap bind:pastedDecimalCoords/>
+        <MatchMap bind:pastedDecimalCoords on:georef-selected={handleGeorefSelected}/>
       </div>
       <div class="georef-form-container">
         <h4 class="georef-flex-header">Georeference</h4>
         <div class="georef-form-flex">
           <GeorefForm 
-          georef={$dataStore.selectedGeoref} 
+          georef={selectedGeoref} 
           submitButtonText={"Use this georeference"} 
           on:clear-georef={handleClearGeoref} 
           on:georef-flagged={handleFlagGeoref}

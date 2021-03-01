@@ -119,7 +119,7 @@ const prepMap = _ => {
 <div class="mapview" bind:this={container}>
   {#if map && $dataStore.georefIndex}
 		{#each Object.keys($dataStore.georefIndex) as georefKey}
-      <MapMarker {georefKey} {map} />
+      <MapMarker {georefKey} {map} on:georef-selected/>
     {/each}
 	{/if}
 </div>

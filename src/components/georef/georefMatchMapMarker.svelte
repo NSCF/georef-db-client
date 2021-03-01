@@ -1,6 +1,8 @@
 <script>
 import { dataStore } from './dataStore.js'
-import {onDestroy} from 'svelte'
+import {createEventDispatcher, onDestroy} from 'svelte'
+
+const dispatch = createEventDispatcher()
 
 export let georefKey
 export let map
@@ -45,8 +47,6 @@ let marker = new google.maps.Marker({
 
 let circle //yes it needs to be here
 
-$: $dataStore.georefIndex[georefKey].selected
-
 if(accuracyM){
   circle = new google.maps.Circle({
     strokeColor: "#FF0000",
@@ -62,41 +62,7 @@ if(accuracyM){
 }
 
 marker.addListener('click', _ => {
-  
-  if($dataStore.georefIndex[georefKey].selected) {
-    console.log('you already clicked me')
-  }
-  else {
-    if($dataStore.selectedGeoref) {
-      $dataStore.selectedGeoref.selected = false
-      let selectedMarker = $dataStore.markers[$dataStore.selectedGeoref.georefID]
-      selectedMarker.setIcon({
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 5, 
-        fillColor: 'green', 
-        fillOpacity: 1,
-        strokeColor: 'green'
-      })
-
-      selectedMarker.setZIndex(0)
-    }
-    
-
-    marker.setIcon({
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 5, 
-      fillColor: 'blue', 
-      fillOpacity: 1,
-      strokeColor: 'blue'
-    })
-
-    marker.setZIndex(1)
-    map.panTo(marker.getPosition())
-
-    $dataStore.georefIndex[georefKey].selected = true
-    $dataStore.selectedGeoref = $dataStore.georefIndex[georefKey]
-
-  }
+  dispatch('georef-selected', georefID)
 })
 
 marker.panToMe = _ => {

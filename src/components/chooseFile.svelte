@@ -62,7 +62,12 @@ function handleDragDrop(evt){
 }
 
 function handleGoToDatasets(ev){
-	dispatch('to-datasets')
+  if(profile){
+    dispatch('to-datasets')
+  }
+  else {
+    alert('Please register or sign in to begin')
+  }
 }
 
 //HELPERS
@@ -85,8 +90,6 @@ function toEmitOrNotToEmit(file){
   }
 }
 
-
-
 </script>
 
 <!--##############################################-->
@@ -95,7 +98,7 @@ function toEmitOrNotToEmit(file){
 -->
 <div class="container">
   <h1>Welcome to the NSCF Georeferencer</h1>
-  <button class="datasets-button" disabled={!Boolean(profile)} on:click={handleGoToDatasets}><strong>GO TO DATASETS</strong></button>
+  <button class="datasets-button" on:click={handleGoToDatasets}><strong>GO TO DATASETS</strong></button>
   <h2 style="color:gray">OR</h2>
   <div id="wrapper" class="wrapper">
     <div 

@@ -2,7 +2,7 @@
   "name": "svelte-app",
   "version": "1.0.0",
   "scripts": {
-    "build": "rollup -c && npm run cachebust",
+    "build": "rollup -c && cachebust --restore && cachebust",
     "dev": "rollup -c -w",
     "start": "sirv public --single"
   },
@@ -25,6 +25,7 @@
   "dependencies": {
     "@elastic/elasticsearch": "^7.9.0",
     "@googlemaps/js-api-loader": "^1.11.1",
+    "@sparkbox/cachebust": "^0.3.0",
     "fast-csv": "^4.3.2",
     "firebase": "^7.14.6",
     "fuse.js": "^6.2.0",
@@ -49,11 +50,11 @@
   },
   "cachebust": {
     "source": [
-        "public/build/bundle.css",
-        "public/build/bundle.js"
+      "public/build/bundle.css",
+      "public/build/bundle.js"
     ],
     "target": [
-        "public/index.html"
+      "public/index.html"
     ]
   }
 }

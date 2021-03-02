@@ -56,27 +56,25 @@ const getDatasets = async _ => {
   if(!datasetIDs) {
     console.log('fetching datasetIDs for', profile.uid, 'from', collection)
     let userDatasetsSnap = await Firestore.collection(collection).doc(profile.uid).get()
-
-    if(userDatasetsSnap.exists){
-      let searchDatasets = userDatasetsSnap.data().datasets
-      console.log('searchdatasets is ', searchDatasets)
-      if (!searchDatasets || !searchDatasets.length){
-        console.log('no datasetIDs returned')
+      if(userDatasetsSnap.exists){
+        let searchDatasets = userDatasetsSnap.data().datasets
+        if (!searchDatasets || !searchDatasets.length){
+          console.log('no datasetIDs returned')
+          datasetIDs = []
+          datasets = []
+          return
+        } 
+        else {
+          console.log('returned', searchDatasets.length, 'datasetIDs')
+          datasetIDs = searchDatasets.map(x=>x.trim())
+        }
+      }
+      else {
+        console.log('no datasets document exists for this user') //will happen on first registration if they have no datasets
         datasetIDs = []
         datasets = []
         return
-      } 
-      else {
-        console.log('returned', searchDatasets.length, 'datasetIDs')
-        datasetIDs = searchDatasets.map(x=>x.trim())
       }
-    }
-    else {
-      console.log('no datasets document exists for this user') //will happen on first registration if they have no datasets
-      datasetIDs = []
-      datasets = []
-      return
-    }
   }
 
   //we have datasetIDs
@@ -113,7 +111,7 @@ const acceptInvitedDataset = async datasetID => {
   let removeForUser = Firestore.runTransaction(transaction => {
     return transaction.get(removeRef).then(snap => {
       if(snap.exists){
-        transaction.update(removeRef, {datasets: FieldValue.arrayRemove(datasetID)})
+        return transaction.update(removeRef, {datasets: FieldValue.arrayRemove(datasetID)})
       }
       else {
         return
@@ -125,10 +123,10 @@ const acceptInvitedDataset = async datasetID => {
   let addForUser = Firestore.runTransaction(transaction => {
     return transaction.get(addRef).then(snap => {
       if(snap.exists) {
-        transaction.update(addRef, {datasets: FieldValue.arrayUnion(datasetID)})
+        return transaction.update(addRef, {datasets: FieldValue.arrayUnion(datasetID)})
       }
       else {
-        return
+        return transaction.set(addRef, {datasets: [datasetID]})
       }
     })
   })
@@ -137,7 +135,7 @@ const acceptInvitedDataset = async datasetID => {
   let updateForDataset = Firestore.runTransaction(transaction => {
     return transaction.get(updateDatasetRef).then(snap => {
       if(snap.exists){ //it should
-        transaction.update(updateDatasetRef, {
+        return transaction.update(updateDatasetRef, {
           invitees: FieldValue.arrayRemove(profile.uid),
           georeferencers: FieldValue.arrayUnion(profile.uid)
         })
@@ -156,7 +154,7 @@ const acceptInvitedDataset = async datasetID => {
     let index = hold.findIndex(x => x.datasetID == datasetID)
     if(index >= 0) { //it should be
       hold.splice(index, 1)
-      datasets = hold //svelte
+      datasets = hold
     }
   }
   catch(err) {
@@ -192,9 +190,10 @@ const removeDataset = async datasetID => {
 
   proms.push(removeForUser)
   
-  //record invite declines
-  if (collection == 'userPendingDatasets') {
-    let datasetRef = Firestore.collection('datasets').doc(datasetID)
+  
+  let datasetRef = Firestore.collection('datasets').doc(datasetID)
+
+  if (collection == 'userPendingDatasets') { //record invite declines
     let decline = Firestore.transaction(transaction => {
       return transaction.get(datasetRef).then(snap => {
         if(snap.exists){ //it should
@@ -207,6 +206,17 @@ const removeDataset = async datasetID => {
     })
     proms.push(decline)
   }
+  else { //this is a georeferencer that has now removed the dataset
+    let leave = Firestore.transaction(transaction => {
+      return transaction.get(datasetRef).then(snap => {
+        if(snap.exists){ //it should
+          transaction.update(datasetRef, {
+            georeferencers: FieldValue.arrayRemove(profile.uid)          })
+        }
+      })
+    })
+    proms.push(leave)
+  }
 
   let hold
   try {
@@ -216,7 +226,6 @@ const removeDataset = async datasetID => {
     let index = hold.findIndex(x => x.datasetID == datasetID)
     if(index >= 0) { //it should be
       hold.splice(index, 1)
-      
     }
     datasets = hold
   }

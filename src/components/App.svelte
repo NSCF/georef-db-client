@@ -156,6 +156,7 @@ function signOutClick () {
 	Auth.signOut().then(_ => {
 		profile = null
 		userID = null
+		currentPage = 'chooseFile'
 	})
 	.catch(err => {
 		alert('error signing out: ' + err.message)

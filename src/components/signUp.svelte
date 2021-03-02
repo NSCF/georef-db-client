@@ -24,7 +24,7 @@
   let warnings = ['firstWarning', 'lastWarning', 'orcidWarning', 'emailWarning', 'pwdWarning', 'confPwdWarning']
   $: firstWarning = submitClicked && (!first || !first.trim())
   $: lastWarning = submitClicked && (!last || !last.trim())
-  $: orcidWarning = (orcid && orcid.trim() && !orcidRE.test(orcid)) || (submitClicked && (!orcid || !orcid.trim()))
+  $: orcidWarning = orcid && orcid.trim() && !orcidRE.test(orcid)
   $: emailWarning = submitClicked && (!email || !email.trim() || !/\S+@\S+\.\S+/.test(email)) //see regex at https://stackoverflow.com/a/9204568/3210158
   $: pwdWarning = Boolean((submitClicked && !pwd) || (pwd && pwd.trim() && !pwdRE.test(pwd))) //see regex at https://stackoverflow.com/a/9204568/3210158, at least one num, one char, one special, min 8chars
   $: confPwdWarning = Boolean(pwd && pwd.trim() && pwd != confPwd)
@@ -96,6 +96,7 @@
         }
       }
 
+      console.log('starting create user')
       Auth.createUserWithEmailAndPassword(email, pwd)
       .then( async userCredential => {
         // Signed in 
@@ -118,13 +119,22 @@
         }
 
         //check if there are any invited datasets and move them
-        let updateDatasets = Firestore.collection('invitedUserPendingDatasets')
+        let moveInvite
+        let deleteOriginalInvite
+        await Firestore.collection('invitedUserPendingDatasets')
         .where('email', '==', email.toLowerCase().trim())
         .get()
         .then(snap => {
-          if(snap.exists){
-            let data = snap.data()
-            return Firestore.collection('userPendingDatasets').doc(user.uid).set({datasets: data.datasets})
+          if(!snap.empty){
+            console.log('got a results for invitedUserPendingDatasets')
+            let data = snap.docs[0].data()
+            console.log('invited datasets for this user are:', data.datasets.join(', '))
+            
+            moveInvite = Firestore.collection('userPendingDatasets')
+            .doc(user.uid)
+            .set({datasets: data.datasets})
+
+            deleteOriginalInvite = snap.docs[0].ref.delete()
           }
           else {
             return null
@@ -141,22 +151,23 @@
             'Content-Type': 'application/json'
             // 'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: JSON.stringify(data) // body data type must match "Content-Type" header
+          body: JSON.stringify(profile) // body data type must match "Content-Type" header
         }).then(res => res)
         .catch(err => err);
 
         //I really hope there are no problems here
-        Promise.all([updateDatasets, postProfile]).then(results => {
+        Promise.all([moveInvite, deleteOriginalInvite, postProfile]).then(results => {
           if(results[0] && results[0].message) {
             alert('error updating datasets on profile creation: ' + results[0].message)
           }
 
-          if(results[1].ok) {
+          if(results[2].ok) {
             busy = false
             dispatch('user-sign-in', {userCredential, profile})
           }
           else {
-            alert('error creating profile: ' + results[1].message)
+            busy = false
+            alert('error creating profile: ' + results[2].message)
           }
         })
       })
@@ -275,6 +286,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  height: 100%;
+  overflow:auto;
 }
 
 form {

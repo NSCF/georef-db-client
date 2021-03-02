@@ -47,9 +47,12 @@ let ambiguous //for the ambiguous georef
 let newGeorefsUsed = [] //for storing georefIDs of georefs not used before, this allows undo of setting them to used when resetting a record group
 let datasetGeorefsUsed = []
 
+let snapStart = 'startAt'
+
 //vars for custom georef searches
 let customSearchString = null
 let georefIndexOnHold = null
+let markersOnHold = null
 let searchingGeorefs = false
 
 let selectedLocGeorefRemarks
@@ -176,7 +179,7 @@ const fetchNextRecordGroup = async lastSnap => {
     
     if(lastSnap) {
       console.log('adding last user snap to query')
-      query = query.startAfter(lastSnap)
+      query = query[snapStart](lastSnap)
     }
 
     query = query.limit(1)
@@ -316,7 +319,7 @@ const saveRecordGroup = async _ => {
       }
 
       proms.push(updateGeorefStats(Firebase, georefsAdded, recordsGeoreferenced, profile.uid, profile.formattedName, dataset.datasetID))
-      proms.push(updateDatasetStats(Firestore, FieldValue, datasetRef, recordsGeoreferenced, profile.uid, groupComplete, datasetGeorefsUsed))
+      proms.push(updateDatasetStats(Firestore, FieldValue, datasetRef, recordsGeoreferenced, profile.formattedName, groupComplete, datasetGeorefsUsed))
       try {
         await Promise.all(proms)
       }
@@ -340,10 +343,15 @@ const handleSkipRecordGroup = async _ => {
     await releaseRecordGroup();
   }
 
+  snapStart = 'startAfter'
+
   fetchNextRecordGroup($dataStore.recordGroupSnap)
 }
 
 const handleCustomSearchSearching = _ => {
+  if($dataStore.selectedGeorefID) {
+    resetTableAndMap($dataStore.selectedGeorefID)
+  }
   georefIndexOnHold = $dataStore.georefIndex
   $dataStore.georefIndex = null
 }
@@ -354,6 +362,10 @@ const handleCustomGeorefs = ev => {
 }
 
 const handleCustomSearchCleared = _ => {
+  if($dataStore.selectedGeorefID) {
+    resetTableAndMap($dataStore.selectedGeorefID)
+  }
+
   if(georefIndexOnHold) {
     $dataStore.georefIndex = georefIndexOnHold
     georefIndexOnHold = null
@@ -364,7 +376,6 @@ const handleClearGeoref = _ => {
   if($dataStore.selectedGeorefID) {
     resetTableAndMap($dataStore.selectedGeorefID)
   }
-
   selectedGeoref = null
 }
 
@@ -392,8 +403,8 @@ const handleGeorefSelected = ev => {
     
     $dataStore.georefIndex[georefID].selected = true
 
-    let newMarker = $dataStore.markers[georefID]
-    newMarker.setIcon({
+    let selectedMarker = $dataStore.markers[georefID]
+    selectedMarker.setIcon({
       path: google.maps.SymbolPath.CIRCLE,
       scale: 5, 
       fillColor: 'blue', 
@@ -401,12 +412,11 @@ const handleGeorefSelected = ev => {
       strokeColor: 'blue'
     })
 
-    newMarker.setZIndex(1)
-    newMarker.panToMe()
+    selectedMarker.setZIndex(1)
+    selectedMarker.panToMe()
 
     $dataStore.selectedGeorefID = georefID
   }
-  
 }
 
 //helper for above and below
@@ -422,12 +432,14 @@ const resetTableAndMap = georefID => {
   selectedMarker.setZIndex(0)
 
   $dataStore.georefIndex[georefID].selected = false
+  $dataStore.selectedGeorefID = null
+  selectedGeoref = null
+
   $dataStore.georefIndex = $dataStore.georefIndex //svelte
 }
 
 //this is the heavy lifting
 const handleSetGeoref = async ev => {
-  //TODO NB we need to lock everything while the georef saves
   let selectedLocs = $dataStore.recordGroup.groupLocalities.filter(x => x.selected)
   if(selectedLocs.length){ //it has to be
     let georef = ev.detail.georef
@@ -443,38 +455,62 @@ const handleSetGeoref = async ev => {
       if(!georef.originalGeorefSource || !georef.originalGeorefSource.trim()) {
         georef.originalGeorefSource = 'NSCF georeference database'
       }
-
-      savingGeoref = true
       
       //save it to elastic via our API
+      //this is async so we don't slow down
       console.log('saving to georef database')
       let url = 'https://us-central1-georef-745b9.cloudfunctions.net/addgeoref'
-      let res = await fetch(url, {
+      fetch(url, {
         method: 'POST', 
         headers: {
           'Content-Type': 'application/json'
         },
         body: (JSON.stringify({georef, index: elasticindex}))
+      }).then(res => {
+        if(res.status != 200) {
+          res.json().then(body => {
+            if(body.validation) {
+              georef.validationErrors = body.validation
+              try {
+                Firestore.collection('saveGeorefErrors').add(georef) //async
+              }
+              catch(err) {
+                //do nothing, we don't want to slow down
+              }
+              
+              let message = 'There was an error saving a new georeference.\r\n\r\n'
+              message += 'There were validation errors with these fields:' + body.validation + '\r\n\r\n'
+              message += 'Please alert the NSCF on data@nscf.org.za'
+              alert(message)
+            }
+            else {
+              georef.saveErrors = body
+              try {
+                Firestore.collection('saveGeorefErrors').add(georef) //async
+              }
+              catch(err) {
+                //do nothing, we don't want to slow down
+              }
+              
+              let message = 'There was an error saving a new georeference.\r\n\r\n'
+              message += 'There were validation errors with these fields:' + body + '\r\n\r\n'
+              message += 'Please alert the NSCF on data@nscf.org.za'
+              alert(message)
+            }
+          })
+        }
+
+        $dataStore.georefIndex[georef.georefID] = georef // so we can use it again
+
+        if(window.pushToast) {
+          window.pushToast('new georef saved')
+        } 
+      })
+      .catch(err => {
+
       })
 
-      if(res.status != 200) {
-        await navigator.clipboard.writeText(JSON.stringify(georef))
-        console.log('error saving georef, see clipboard')
-        let body = await res.json()
-        if(body.validation){
-          alert('there were validation errors with these fields:' + body.validation)
-        }
-        console.log(body)
-        alert('there was an error saving this new georeference:' + body)
-        return
-      }
-
-      savingGeoref = false
-      $dataStore.georefIndex[georef.georefID] = georef // so we can use it again
-
-      if(window.pushToast) {
-        window.pushToast('new georef saved')
-      }
+      
     }
 
     if(!georef.used) {
@@ -614,10 +650,12 @@ const handleUnload = ev => {
           <button style="float:right;margin-left:5px;" disabled={!$dataStore.georefIndex} on:click={handleSkipRecordGroup}>Skip</button>
           <button style="float:right;margin-left:5px;" on:click={handleAmbiguous}>Ambiguous</button>
         </div>
-        <div style="text-align:right;">
-          <span>Localities: {locStringsCount}</span>
-          <span>Records: {recordCount}</span>
-        </div>
+        {#if $dataStore.recordGroup}
+          <div style="text-align:right;">
+            <span>Localities: {locStringsCount}</span>
+            <span>Records: {recordCount}</span>
+          </div>
+        {/if}
         <div class="recordgroup">
           <RecordGroup busy={savingGeoref || savingRecordGroup} on:locality-copied={handleLocalityCopied}></RecordGroup>
         </div>

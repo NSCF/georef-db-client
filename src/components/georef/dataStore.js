@@ -6,6 +6,5 @@ export const dataStore = writable({
   georefIndex: null,
   locGeorefIndex: null,
   selectedGeorefID: null,
-  selectedMarker: null, //for storing the map marker that's selected
   markers: null //a dictionary for storing pointers to all the markers
 });

@@ -83,10 +83,8 @@ function copyGeorefInputsToClipBoard(){
 onMount(_ => {
 	//hopefully this is triggered when we open the page again and sign in is persisted
 	Auth.onAuthStateChanged(async user => {
-		console.log('sign in state changed')
 		//TODO wait to get it from the registration dispatch
 		if(user){
-			console.log('we have a user')
 			if(window.location.href.includes('/auth/userMgmt')) {
 				window.location = window.location.href.split('/auth/userMgmt')[0]
 			} 
@@ -211,19 +209,6 @@ function handleStartGeoreferencing(){
 function handleBackToDatasets() {
 	selectedDataset = null
 	currentPage = 'datasetList'
-}
-
-function handleYardClick() {
-	currentPage = 'yard'
-}
-
-function handleHomeClick() {
-	if(currentPage = 'Georeferencer'){
-		alert('to return home from the georeferencer please click on Done above the record group')
-	}
-	else {
-		currentPage = 'ChooseFile'
-	}
 }
 
 </script>

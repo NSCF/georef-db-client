@@ -203,38 +203,41 @@ let m = d.getMonth() + 1
 return `${y} ${m.toString().padStart(2, '0')}`
 }
 
-const updateDatasetStats = (Firestore, FieldValue, datasetRef, recordsGeoreferenced, userID, groupComplete, georefIDs) => {
-  return Firestore.runTransaction(function(transaction) {
+const updateDatasetStats = (Firestore, FieldValue, datasetRef, recordsGeoreferenced, formattedName, groupComplete, georefIDs) => {
+  return Firestore.runTransaction(async transaction => {
     // This code may get re-run multiple times if there are conflicts.
-    return transaction.get(datasetRef).then(function(docSnap) {
-      if (!docSnap.exists) {
-          throw "Document does not exist!"; //this should not happen!!!
-      }
+    let datasetSnap = await transaction.get(datasetRef)
+    if (!datasetSnap.exists) {
+      throw "Document does not exist!"; //this should not happen!!!
+    }
 
-      let data = docSnap.data()
-      //TODO add the georefs used
-      let update = {
-        recordsCompleted: data.recordsCompleted + recordsGeoreferenced, 
-        lastGeoreference: Date.now(),
-        lastGeoreferenceBy: userID
-      }
+    let dataset = datasetSnap.data()
+    
+    let datasetGeorefsRef = Firestore.collection('datasetGeorefs').doc(dataset.datasetID)
+    let datasetGeorefsSnap = await transaction.get(datasetGeorefsRef)
 
-      //we cant add a count here because we don't know what the result of arrayUnion will be
-      if(data.georefsUsed){
-        update.georefsUsed = FieldValue.arrayUnion(...georefIDs)
-      }
-      else {
-        update.georefsUsed = georefIDs
-      }
+    let datasetUpdate = {
+      recordsCompleted: dataset.recordsCompleted + recordsGeoreferenced, 
+      lastGeoreference: Date.now(),
+      lastGeoreferenceBy: formattedName
+    }
 
-      if(groupComplete) {
-        //console.log('updating groups completed')
-        //console.log('Value of dataset.groupsComplete:', data.groupsComplete)
-        update.groupsComplete = data.groupsComplete++
-      }
+    if(groupComplete) {
+      //console.log('updating groups completed')
+      //console.log('Value of dataset.groupsComplete:', data.groupsComplete)
+      datasetUpdate.groupsComplete = dataset.groupsComplete++
+    }
 
-      transaction.update(datasetRef, update);
-    });
+    await transaction.update(datasetRef, datasetUpdate);
+
+    //we cant add a count here because we don't know what the result of arrayUnion will be
+    if(datasetGeorefsSnap.exists){
+      await transaction.update(datasetGeorefsRef, {georefIDs: FieldValue.arrayUnion(...georefIDs)}) 
+    }
+    else {
+      await transaction.set(datasetGeorefsRef, {datasets: georefIDs})
+    }
+
   }).then(function() {
     let i = 0 //do nothing
     //console.log("Dataset record updated!");

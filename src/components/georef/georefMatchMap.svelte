@@ -3,15 +3,16 @@
 import { Loader as MapsAPILoader } from '@googlemaps/js-api-loader';
 import MeasureTool from 'measuretool-googlemaps-v3';
 import { dataStore } from './dataStore.js'
-import {onMount} from 'svelte'
-import MapMarker from './georefMatchMapMarker.svelte'
+import {onMount, createEventDispatcher} from 'svelte'
 import {mapsAPIKey} from '../../keys.js'
+
+const dispatch = createEventDispatcher()
 
 export let pastedDecimalCoords
 
 let container;
 let map;
-let marker
+let coordsPin
 let mapReady = false
 let currentGeorefs
 
@@ -26,6 +27,7 @@ $: if(window.google) {
   }
 } 
 
+//this creates the map
 onMount(async _ => {
   //we need this because otherwise the script reloads each time the component mounts which it complains about
   if (!googleMapAPIExists){
@@ -39,7 +41,7 @@ onMount(async _ => {
 
   map = new google.maps.Map(container, {
     zoom: 5,
-    center: {lat: -24.321476, lng: 24.909317}, 
+    center: {lat: -24.321476, lng: 24.909317}, //TODO set an appropriate coordinate for the region
     disableDoubleClickZoom:true
   });
 
@@ -47,45 +49,47 @@ onMount(async _ => {
   mapReady = true
 })
 
+$: if ($dataStore.georefIndex && Object.keys($dataStore.georefIndex).length && mapReady) setPoints()
 
-
-$:if ($dataStore.georefIndex && Object.keys($dataStore.georefIndex).length && mapReady) prepMap()
-
-$: if(map && marker && pastedDecimalCoords) {
+$: if(map && coordsPin && pastedDecimalCoords) {
   let latlon = pastedDecimalCoords.split(',').map(x=>Number(x))
   let pos = {lat: latlon[0], lng: latlon[1]} //google.maps.LatLngLiteral
-  marker.setPosition(pos)
+  coordsPin.setPosition(pos)
   map.panTo(pos)
 }
 
-const prepMap = _ => {
+const setPoints = _ => {
 
-  if(currentGeorefs == $dataStore.georefIndex) return //so this only happens once
+  if(currentGeorefs == $dataStore.georefIndex) { //so this only happens once
+    return
+  }
+
 
   //set bounds and add marker
   let bounds = new google.maps.LatLngBounds()
-  for (let georefKey of Object.keys($dataStore.georefIndex)){
-    let georef = $dataStore.georefIndex[georefKey]
+  for (let georefID of Object.keys($dataStore.georefIndex)){
+    let georef = $dataStore.georefIndex[georefID]
     let coords = new google.maps.LatLng(georef.decimalLatitude, georef.decimalLongitude);
     bounds.extend(coords);
   }
+  
   map.fitBounds(bounds)
 
-  let markerPos = bounds.getCenter()
-  if(marker){
+  let coordsPinPos = bounds.getCenter()
+  if(coordsPin){
     //move it
-    marker.setPosition(markerPos)
+    coordsPin.setPosition(coordsPinPos)
     navigator.clipboard.writeText('') //clear it just in case
   } else {
     //make it
-    marker = new google.maps.Marker({
-      position: markerPos,
+    coordsPin = new google.maps.Marker({
+      position: coordsPinPos,
       map: map,
       draggable:true,
       title:"Use for coordinates"
     });
 
-    google.maps.event.addListener(marker, 'dragend', function(evt){
+    google.maps.event.addListener(coordsPin, 'dragend', function(evt){
       let coords = evt.latLng.toUrlValue()
       navigator.clipboard.writeText(coords).then(_ => {
         console.log('coords copied')
@@ -97,7 +101,7 @@ const prepMap = _ => {
 
     google.maps.event.addListener(map, 'dblclick', function(e) {
       var positionDoubleclick = e.latLng;
-      marker.setPosition(positionDoubleclick);
+      coordsPin.setPosition(positionDoubleclick);
       let coords = positionDoubleclick.toUrlValue()
       navigator.clipboard.writeText(coords).then(_ => console.log('coords copied'))
       map.panTo(positionDoubleclick);
@@ -107,8 +111,88 @@ const prepMap = _ => {
     });
   }
 
-  currentGeorefs = $dataStore.georefIndex
+  //add the markers, but first remove the last ones if we already have markers
+  if($dataStore.markers && Object.keys($dataStore.markers).length){
+    for (let marker of Object.values($dataStore.markers)){
+      if(marker.circle){
+        marker.circle.setMap(null)
+      }
+      marker.setMap(null)
+    }
+    $dataStore.markers = null
+  }
+  else {
+  }
 
+  for (let [georefID, georef] of Object.entries($dataStore.georefIndex)) {
+    let center = new google.maps.LatLng(georef.decimalLatitude, georef.decimalLongitude);
+    let marker = new google.maps.Marker({
+      position: center,
+      map, 
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 5, 
+        fillColor: 'green', 
+        fillOpacity: 1,
+        strokeColor: 'green'
+      }, 
+      zIndex: 0
+    })
+
+    let accuracy = getRadiusM(georef.uncertainty, georef.uncertaintyUnit)
+
+    if(accuracy){
+      let circle = new google.maps.Circle({
+        strokeColor: "#FF0000",
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: "#FF0000",
+        fillOpacity: 0.2,
+        center,
+        map,
+        radius: accuracy
+      });
+
+      marker.circle = circle
+    }
+
+    marker.addListener('click', _ => {
+      dispatch('georef-selected', georefID)
+    })
+
+    marker.panToMe = _ => {
+      map.panTo(marker.getPosition())
+    }
+
+    if(!$dataStore.markers){
+      $dataStore.markers = {}
+    }
+
+    $dataStore.markers[georefID] = marker
+  }
+
+  currentGeorefs = $dataStore.georefIndex
+}
+
+//helper for above
+const getRadiusM = (accuracy, unit) => {
+  if (!isNaN(accuracy) && 
+    accuracy > 0 &&
+    unit && 
+    unit.trim() && 
+    ['m', 'km', 'mi'].includes(unit.toLowerCase())){
+    unit = unit.trim().toLowerCase()
+    if (unit == 'm'){
+      return accuracy
+    }
+    else if (unit == 'km') {
+      return accuracy * 1000
+    }
+    else { //it's miles
+      return Number((accuracy * 1.60934 * 1000).toFixed(2))
+    }
+  }
+  else return 0
 }
 
 </script>
@@ -116,13 +200,7 @@ const prepMap = _ => {
 <!-- ############################################## -->
 <!-- HTML -->
 
-<div class="mapview" bind:this={container}>
-  {#if map && $dataStore.georefIndex}
-		{#each Object.keys($dataStore.georefIndex) as georefKey}
-      <MapMarker {georefKey} {map} on:georef-selected/>
-    {/each}
-	{/if}
-</div>
+<div class="mapview" bind:this={container} />
 
 <!-- ############################################## -->
 <style>

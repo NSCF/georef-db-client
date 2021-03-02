@@ -67,7 +67,7 @@ let validateCSVContent = (targetFile, requiredFields) => {
 
         locality = row.data[requiredFields.localityField]
         if(locality && locality.trim()) {
-          locality = locality.trim().replace(/\s+/g, ' ').replace(/[\.,;-\s]+$/, '')
+          locality = locality.trim().replace(/\s+/g, ' ').replace(/[\.,;-\s]+$/, '').replace(/^[\.,;-\s]+/, '')
           if(!locality){
             if(recordID){
               rowsWithoutLocality.push(recordID)

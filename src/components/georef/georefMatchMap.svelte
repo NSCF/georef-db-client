@@ -1,7 +1,7 @@
 <!-- Note that this depends on having the google maps api script in your index.html file -->
 <script>
 import { Loader as MapsAPILoader } from '@googlemaps/js-api-loader';
-import MeasureTool from 'measuretool-googlemaps-v3';
+import MeasureTool from 'measuretool-googlemaps-v3'; //https://www.npmjs.com/package/measuretool-googlemaps-v3
 import { dataStore } from './dataStore.js'
 import {onMount, createEventDispatcher} from 'svelte'
 import {mapsAPIKey} from '../../keys.js'
@@ -45,7 +45,7 @@ onMount(async _ => {
     disableDoubleClickZoom:true
   });
 
-  const measureTool = new MeasureTool(map); //don't remove this
+  const measureTool = new MeasureTool(map, {showSegmentLength: false}); //don't remove this
   mapReady = true
 })
 

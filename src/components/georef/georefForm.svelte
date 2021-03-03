@@ -211,10 +211,16 @@ const flagGeoref = _ => {
 }
 
 const handleCoordsFromVerbatim = ev => {
-  console.log('coordinates recievied:', ev.detail)
+  console.log('coordinates received:', ev.detail)
   try {
     let coordsFromVerbatim = ev.detail
-    if (localGeoref.decimalCoordinates && localGeoref.decimalCoordinates.replace(/\s+/g, '') != coordsFromVerbatim) {
+    if (localGeoref.decimalCoordinates && localGeoref.decimalCoordinates.replace(/\s+/g, '') != coordsFromVerbatim) { //only change if they are different
+      localGeoref.decimalCoordinates = coordsFromVerbatim
+      localGeoref.sources = 'verbatim coordinates'
+      localGeoref.originalGeorefSource = null
+      dispatch('coords-from-paste')
+    }
+    else {
       localGeoref.decimalCoordinates = coordsFromVerbatim
       localGeoref.sources = 'verbatim coordinates'
       localGeoref.originalGeorefSource = null

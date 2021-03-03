@@ -120,24 +120,18 @@
 
         //check if there are any invited datasets and move them
         let moveInvite
-        let deleteOriginalInvite
         await Firestore.collection('invitedUserPendingDatasets')
         .where('email', '==', email.toLowerCase().trim())
         .get()
         .then(snap => {
           if(!snap.empty){
-            console.log('got a results for invitedUserPendingDatasets')
+            console.log('got results for invitedUserPendingDatasets')
             let data = snap.docs[0].data()
             console.log('invited datasets for this user are:', data.datasets.join(', '))
             
             moveInvite = Firestore.collection('userPendingDatasets')
             .doc(user.uid)
-            .set({datasets: data.datasets})
-
-            deleteOriginalInvite = snap.docs[0].ref.delete()
-          }
-          else {
-            return null
+            .set({datasets: data.datasets}).then(_ => snap.docs[0].ref.delete()).catch(err => err)
           }
         })
         .catch(err => {
@@ -156,20 +150,38 @@
         .catch(err => err);
 
         //I really hope there are no problems here
-        Promise.all([moveInvite, deleteOriginalInvite, postProfile]).then(results => {
-          if(results[0] && results[0].message) {
-            alert('error updating datasets on profile creation: ' + results[0].message)
-          }
+        if(moveInvite) {
+          Promise.all([moveInvite, postProfile]).then(results => {
+            if(results[0] && results[0].message) {
+              alert('error updating datasets on profile creation: ' + results[0].message)
+            }
 
-          if(results[2].ok) {
-            busy = false
-            dispatch('user-sign-in', {userCredential, profile})
-          }
-          else {
-            busy = false
-            alert('error creating profile: ' + results[2].message)
-          }
-        })
+            if(results[1].ok) {
+              busy = false
+              console.log('successfully moved invitations and created profile')
+              dispatch('user-sign-in', {userCredential, profile})
+            }
+            else {
+              busy = false
+              alert('error creating profile: ' + results[1].statusText)
+            }
+          }).catch(err => {
+            alert('There was an issue creating the profile: ' + err.message)
+          })
+        }
+        else {
+          postProfile.then(res => {
+            if(res.ok) {
+              busy = false
+              console.log('successfully created profile')
+              dispatch('user-sign-in', {userCredential, profile})
+            }
+            else {
+              busy = false
+              alert('error creating profile: ' + res.statusText)
+            }
+          })
+        }
       })
       .catch((error) => {
         switch (error.code) {

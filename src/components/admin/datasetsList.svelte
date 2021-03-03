@@ -194,7 +194,7 @@ const removeDataset = async datasetID => {
   let datasetRef = Firestore.collection('datasets').doc(datasetID)
 
   if (collection == 'userPendingDatasets') { //record invite declines
-    let decline = Firestore.transaction(transaction => {
+    let decline = Firestore.runTransaction(transaction => {
       return transaction.get(datasetRef).then(snap => {
         if(snap.exists){ //it should
           transaction.update(datasetRef, {
@@ -207,7 +207,7 @@ const removeDataset = async datasetID => {
     proms.push(decline)
   }
   else { //this is a georeferencer that has now removed the dataset
-    let leave = Firestore.transaction(transaction => {
+    let leave = Firestore.runTransaction(transaction => {
       return transaction.get(datasetRef).then(snap => {
         if(snap.exists){ //it should
           transaction.update(datasetRef, {

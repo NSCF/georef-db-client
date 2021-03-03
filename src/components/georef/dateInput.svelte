@@ -13,7 +13,7 @@ const addDate = _ => {
     value = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
   }
   else {
-    alert('\'by\' is required before a date can be added')
+    alert('\'georef by\' is required before a date can be added')
   }
 }
 

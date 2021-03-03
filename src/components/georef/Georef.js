@@ -11,6 +11,7 @@ export default class Georef {
     this.uncertaintyUnit = null
     this.datum = null
     this.by = null
+    this.byORCID = null
     this.date = null
     this.sources = null
     this.originalGeorefSource = null
@@ -18,10 +19,12 @@ export default class Georef {
     this.remarks = null
     this.verified = false
     this.verifiedBy = null
+    this.verifiedByORCID = null
     this.verifiedDate = null
     this.verifiedByRole = null
     this.dateCreated = Date.now()
     this.createdBy = null
+    this.createdByORCID = null
     this.lastEdited = null
     this.lastEditedBy = null
     this.lastEditRemarks = null

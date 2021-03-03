@@ -57,15 +57,12 @@ const georefsEqual = (georef1, georef2) => {
         else {
           //they key is on 1 but not 2 so it must be empty
           if(!isEmpty(obj1[key], true)) {
-            console.log(key, 'has changed. Old = ', obj1[key], ', new =', obj2[key])
             return false
           }
         }
       }
       else { //it must have been on 2 so it must be null or empty there
         if(!isEmpty(obj2[key], true)) {
-          console.log(key, 'has changed')
-          console.log(key, 'has changed. Old = ', obj1[key], ', new =', obj2[key])
           return false
         }
       }

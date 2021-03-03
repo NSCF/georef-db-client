@@ -16,6 +16,8 @@ let dispatch = createEventDispatcher();
 //must be class Georef or null
 //should be a copy that has no references pointing to it in any of of the other components
 export let georef
+export let defaultGeorefBy = null
+export let defaultGeorefByORCID = null
 let localGeoref = new Georef() //this is the local copy we work with
 
 //settings
@@ -71,6 +73,9 @@ $: verifierRoleHasError = Boolean(hasLocalityAndCoords && requiredFields.include
 //watchers
 $: georef, setLocalGeoref()
 
+$: localGeoref.by, setDefaultORCID('by')
+$: localGeoref.verifiedBy, setDefaultORCID('verifiedBy')
+
 $: localGeoref.locality, updateOnLocalityChange()
 
 $: if(uncertaintySelect && !localGeoref.uncertaintyUnit){
@@ -104,6 +109,28 @@ const setLocalGeoref = _ => {
   }
   else  {
     localGeoref = new Georef() //trying to avoid nulls in the HTML here
+    if (defaultGeorefBy) {
+      localGeoref.by = defaultGeorefBy
+      let now = new Date()
+      localGeoref.date = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
+      if(defaultGeorefByORCID){
+        localGeoref.byORCID = defaultGeorefByORCID
+      }
+    }
+  }
+}
+
+const setDefaultORCID = field => {
+  if(localGeoref[field] && localGeoref[field].trim()){
+    if(defaultGeorefBy){
+      if(defaultGeorefByORCID) {
+        if(!localGeoref[field + 'ORCID'] || !localGeoref[field + 'ORCID'].trim()){
+          if(localGeoref[field] == defaultGeorefBy){
+            localGeoref[field + 'ORCID'] = defaultGeorefByORCID
+          }
+        }
+      }
+    }
   }
 }
 
@@ -157,6 +184,15 @@ const handleClearClick = _ => {
   }
   else {
     localGeoref = new Georef()
+    if (defaultGeorefBy) {
+      localGeoref.by = defaultGeorefBy
+      let now = new Date()
+      localGeoref.date = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
+      if(defaultGeorefByORCID){
+        localGeoref.byORCID = defaultGeorefByORCID
+      }
+    }
+
     if(window.pushToast) {
       window.pushToast('new georef')
     }
@@ -236,7 +272,6 @@ const handleFormSubmit = _ => {
     let saveGeoref = false
     let georefsAreEqual = georefsEqual(georef, localGeoref)
     if(!georefsAreEqual){
-      console.log('the georef has changed')
       localGeoref.georefID = nanoid()
       localGeoref.flagged = false
       localGeoref.selected = false
@@ -310,6 +345,10 @@ const handleFormSubmit = _ => {
     <input class:hasError={georefByHasError} type="text" id="georefBy" style="width:50%" bind:value={localGeoref.by}/>
   </div>
   <div class="oneliner">
+    <label for="georefByORCID">georef by ORCID</label>
+    <input type="text" id="georefByORCID" style="width:100%;max-width:300px" bind:value={localGeoref.byORCID}/>
+  </div>
+  <div class="oneliner">
     <div class="fields">
       <div class="flex">
         <label for="georefDate" style="padding-right:10px">georef date</label>
@@ -332,6 +371,10 @@ const handleFormSubmit = _ => {
     <div class="oneliner">
       <label for="verifiedBy">verified by</label>
       <input type="text" id="verifiedBy" style="width:50%" class:hasError={verifiedByHasError} bind:value={localGeoref.verifiedBy}/>
+    </div>
+    <div class="oneliner">
+      <label for="verifiedByORCID">verified by ORCID</label>
+      <input type="text" id="verifiedByORCID" style="width:100%;max-width:300px" bind:value={localGeoref.verifiedByORCID}/>
     </div>
     <div class="oneliner">
       <label for="verifierRole">verifier role</label>

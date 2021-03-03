@@ -144,6 +144,18 @@ onMount(_ => {
 
 //METHODS
 
+function handleHomeClick() {
+	if(currentPage == 'Georeferencer') {
+		alert('Please click \'Done\' above the locality group to return')
+	}
+	else if (currentPage == 'ChooseFile'){
+		alert('This is the home page')
+	}
+	else {
+		currentPage = "ChooseFile"
+	}
+}
+
 function handleSignInSuccess(ev){
 	let user = ev.detail.userCredential.user
 	userID = user.uid
@@ -154,7 +166,7 @@ function signOutClick () {
 	Auth.signOut().then(_ => {
 		profile = null
 		userID = null
-		currentPage = 'chooseFile'
+		currentPage = 'ChooseFile'
 	})
 	.catch(err => {
 		alert('error signing out: ' + err.message)
@@ -218,20 +230,27 @@ function handleBackToDatasets() {
 		<div class="flex-container">
 			<div class="header">
 				<div class="header-flex" style="height:100%">
-					<img src="images/NSCF logo.jpg" alt="NSCF logo"  style="height:100%" />
-					<span class="logo-span">Georeferencer</span>
+					<img src="images/NSCF logo no text transparent.png" alt="NSCF logo"  style="height:100%" />
+					<span class="logo-span">NSCF Georeferencer</span>
 				</div>
-				{#if !profile}
-					<div>
-						<button class="signin" on:click='{_ => currentPage = 'Register'}'><strong>Register</strong></button>
-						<button on:click='{_ => currentPage = 'SignIn'}'><strong>Sign In</strong></button>
+				<div class="header-right">
+					<div class="menu">
+						<span class="menuitem" on:click={handleHomeClick}>Home</span>
+						<span class="menuitem" on:click='{_ => alert('About is still to come')}'>About</span>
 					</div>
-				{:else}
-					<div>
-						<span>Logged in as {profile.firstName} {profile.lastName}</span>
-						<button on:click={signOutClick}><strong>Sign Out</strong></button>
-					</div>
-				{/if}
+					{#if !profile}
+						<div class="header-right">
+							<button class="signin" on:click='{_ => currentPage = 'Register'}'><strong>Register</strong></button>
+							<button on:click='{_ => currentPage = 'SignIn'}'><strong>Sign In</strong></button>
+						</div>
+					{:else}
+						<div class="header-right">
+							<span style="margin-right:10px">Logged in as {profile.firstName} {profile.lastName}</span>
+							<button on:click={signOutClick}><strong>Sign Out</strong></button>
+						</div>
+					{/if}	
+				</div>
+				
 			</div>
 			<div class="content">
 				{#if userID && currentPage != 'Georeferencer'}
@@ -325,6 +344,26 @@ function handleBackToDatasets() {
 		justify-content: space-between;
 		align-items: center;
 		box-sizing: border-box;
+	}
+
+	.header-right {
+		display:flex;
+		align-items: center;
+	}
+
+	.menu {
+		display: flex;
+		margin-right:20px;
+	}
+
+	.menuitem {
+		margin-right:20px;
+		text-decoration: underline;
+	}
+
+	.menuitem:hover {
+		cursor: pointer;
+		font-weight:bold;
 	}
 
 	.content {

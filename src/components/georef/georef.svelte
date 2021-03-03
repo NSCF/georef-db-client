@@ -352,7 +352,9 @@ const handleCustomSearchSearching = _ => {
   if($dataStore.selectedGeorefID) {
     resetTableAndMap($dataStore.selectedGeorefID)
   }
-  georefIndexOnHold = $dataStore.georefIndex
+  if(!georefIndexOnHold){
+    georefIndexOnHold = $dataStore.georefIndex
+  }
   $dataStore.georefIndex = null
 }
 
@@ -499,18 +501,28 @@ const handleSetGeoref = async ev => {
             }
           })
         }
-
-        $dataStore.georefIndex[georef.georefID] = georef // so we can use it again
+        else {
+          console.log('new georef saved')
+        }
 
         if(window.pushToast) {
           window.pushToast('new georef saved')
         } 
       })
       .catch(err => {
-
+        georef.saveError = err.message
+        try {
+          Firestore.collection('saveGeorefErrors').add(georef) //async
+        }
+        catch(err) {
+          //do nothing, we don't want to slow down
+        }
       })
 
-      
+      $dataStore.georefIndex[georef.georefID] = georef // so we can use it again
+      if(georefIndexOnHold){
+        georefIndexOnHold[georef.georefID] = georef
+      }
     }
 
     if(!georef.used) {
@@ -548,6 +560,8 @@ const handleSetGeoref = async ev => {
     if($dataStore.selectedGeorefID) {
       resetTableAndMap($dataStore.selectedGeorefID)
     } 
+
+    selectedGeoref = null //just to clear
 
     georefsAdded += selectedLocs.length
     console.log(`${georefsAdded} georefs added`)
@@ -676,6 +690,8 @@ const handleUnload = ev => {
         <div class="georef-form-flex">
           <GeorefForm 
           georef={selectedGeoref} 
+          defaultGeorefBy={profile.formattedName}
+          defaultGeorefByORCID={profile.orcid}
           submitButtonText={"Use this georeference"} 
           on:clear-georef={handleClearGeoref} 
           on:georef-flagged={handleFlagGeoref}

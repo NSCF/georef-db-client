@@ -256,7 +256,7 @@ const handleUncertaintyBlur = _ => {
   }
 }
 
-const handleFormSubmit = _ => {
+const checkAndDispatchGeoref = _ => {
   
   //simple validation first
   let invalidFields = []
@@ -300,7 +300,7 @@ const handleFormSubmit = _ => {
 <!-- ############################################## -->
 <!-- HTML -->
 
-<form on:submit|preventDefault={handleFormSubmit}>
+<form on:submit|preventDefault={checkAndDispatchGeoref}>
   {#if showButtons}
     <div style="text-align:right">
       <span class="material-icons iconbutton" title="Clear all" on:click={handleClearClick}>restore_page</span>
@@ -348,7 +348,14 @@ const handleFormSubmit = _ => {
   </div>
   <div class="oneliner">
     <label for="georefBy">georef by</label>
-    <input class:hasError={georefByHasError} type="text" id="georefBy" style="width:50%" bind:value={localGeoref.by}/>
+    {#if defaultGeorefBy}
+      <input class:hasError={georefByHasError} type="text" list="defaultGeorefBy" id="georefBy" style="width:50%" bind:value={localGeoref.by}/>
+      <datalist id="defaultGeorefBy">
+        <option value={defaultGeorefBy}>
+      </datalist>
+    {:else}
+      <input class:hasError={georefByHasError} type="text" id="georefBy" style="width:50%" bind:value={localGeoref.by}/>
+    {/if}
   </div>
   <div class="oneliner">
     <label for="georefByORCID">georef by ORCID</label>

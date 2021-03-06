@@ -17,7 +17,7 @@ const getGeorefs = async _ => {
     customSearchSearching = true
     let obj = {loc:customSearchString}
     try{
-      let georefs = await fetchCandidateGeorefs([obj], elasticindex) //this usually works with groupLocalities
+      let georefs = await fetchCandidateGeorefs([obj], elasticindex, 20) //this usually works with groupLocalities
       dispatch('custom-georefs', georefs.georefIndex)
       customSearchSearching = false
     }

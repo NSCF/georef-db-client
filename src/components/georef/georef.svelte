@@ -84,7 +84,9 @@ let statsRefStrings = [
   `stats/perDataset/${dataset.datasetID}/perUser/${profile.uid}/monthly/yearmonth/georefsAdded`,
   `stats/perDataset/${dataset.datasetID}/perUser/${profile.uid}/monthly/yearmonth/recordsGeoreferenced`,
   `stats/perDataset/${dataset.datasetID}/georefsAdded`,
-  `stats/perDataset/${dataset.datasetID}/recordsGeoreferenced`
+  `stats/perDataset/${dataset.datasetID}/recordsGeoreferenced`,
+  `stats/perDataset/${dataset.datasetID}/lastGeorefAddedBy`,
+  `stats/perDataset/${dataset.datasetID}/lastGeorefAdded`
 ]
 
 let statsLabels = [
@@ -146,6 +148,7 @@ onMount(async _ => {
   .then(res => res.json())
   .then(data => {
     ambiguous = data._source //just an object with an ID, not a Georef instance...
+    ambiguous.remarks = null //because we now use this for no georef
   })
   .catch(err => {
     console.log('err getting ambiguous georef:')
@@ -518,11 +521,13 @@ const handleSetGeoref = async ev => {
           //do nothing, we don't want to slow down
         }
       })
-
+      
+      georef.selected = false //just in case
       $dataStore.georefIndex[georef.georefID] = georef // so we can use it again
       if(georefIndexOnHold){
         georefIndexOnHold[georef.georefID] = georef
       }
+      $dataStore.georefIndex = $dataStore.georefIndex //svelte
     }
 
     if(!georef.used) {
@@ -620,15 +625,21 @@ const handleStartOver = _ => { //just clear out any georefIDs
   }
 }
 
-const handleAmbiguous = _ => {
+const handleNoGeoref = _ => {
   //piggy backing on setGeoref
-  let fakeEv = {
-    detail : {
-        georef: ambiguous,
-        saveGeoref: false
+  if(selectedLocGeorefRemarks && selectedLocGeorefRemarks.trim()){
+    let fakeEv = {
+      detail : {
+          georef: ambiguous,
+          saveGeoref: false
+        }
       }
-    }
-  handleSetGeoref(fakeEv)
+    handleSetGeoref(fakeEv)
+  }
+  else {
+    alert('A value is record for remarks under Locality Strings in order to apply no georef')
+  }
+  
 }
 
 const handleLocalityCopied = async => {
@@ -662,7 +673,7 @@ const handleUnload = ev => {
           <button style="float:right;margin-left:5px;" on:click={handleBackToDatasets}>Done</button>
           <button style="float:right;margin-left:5px;" on:click={handleStartOver}>Reset</button>
           <button style="float:right;margin-left:5px;" disabled={!$dataStore.georefIndex} on:click={handleSkipRecordGroup}>Skip</button>
-          <button style="float:right;margin-left:5px;" on:click={handleAmbiguous}>Ambiguous</button>
+          <button style="float:right;margin-left:5px;" on:click={handleNoGeoref}>No georef</button>
         </div>
         {#if $dataStore.recordGroup}
           <div style="text-align:right;">

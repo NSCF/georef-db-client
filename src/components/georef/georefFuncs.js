@@ -2,14 +2,14 @@
 
 const Georef =require('./Georef.js')
 
-const fetchCandidateGeorefs = async (groupLocalities, elasticindex) => {
+const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
   //groupLocalities must be a set of {id: ..., loc: ... } objects
 
   if(groupLocalities && groupLocalities.length){
     let elasticFetches = []//promise array
 
     for (let loc of groupLocalities){
-      elasticFetches.push(fetchGeorefsForLoc(loc.loc, elasticindex))
+      elasticFetches.push(fetchGeorefsForLoc(loc.loc, elasticindex, limit))
     }
 
     let fetchResults
@@ -71,9 +71,12 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex) => {
 }
 
 //just a helper for above
-const fetchGeorefsForLoc = async (locString, index) => {
+const fetchGeorefsForLoc = async (locString, index, limit) => {
   let search = encodeURI(locString)
   let url = `https://us-central1-georef-745b9.cloudfunctions.net/getgeorefs?search=${search}&index=${index}`
+  if (limit && !isNaN(limit)){
+    url += `&limit=${limit}`
+  }
   let response = await fetch(url)
   let data = await response.json()
   return data
@@ -105,6 +108,7 @@ const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, u
     `stats/perDataset/${datasetID}/perUser/${userID}/weekly/${yearweek}/recordsGeoreferenced`,
     `stats/perDataset/${datasetID}/perUser/${userID}/monthly/${yearmonth}/georefsAdded`,
     `stats/perDataset/${datasetID}/perUser/${userID}/monthly/${yearmonth}/recordsGeoreferenced`,
+    
 
     //perUser
     `stats/perUser/${userID}/georefsAdded`,
@@ -137,11 +141,6 @@ const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, u
     return current
   })
 
-  let updateLastGeorefsAddedByID = Firebase.ref('stats/lastGeorefAddedByID').transaction(current => {
-    current = userID
-    return current
-  })
-
   let updateDatasetLastGeorefsAdded = Firebase.ref(`stats/perDataset/${datasetID}/lastGeorefAdded`).transaction(current => {
     current = Date.now()
     return current
@@ -152,18 +151,11 @@ const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, u
     return current
   })
 
-  let updateDatasetLastGeorefsAddedByID = Firebase.ref(`stats/perDataset/${datasetID}/lastGeorefAddedByID`).transaction(current => {
-    current = userID
-    return current
-  })
-
   proms.push(updateLastGeorefsAdded)
   proms.push(updateLastGeorefsAddedBy)
-  proms.push(updateLastGeorefsAddedByID)
 
   proms.push(updateDatasetLastGeorefsAdded)
   proms.push(updateDatasetLastGeorefsAddedBy)
-  proms.push(updateDatasetLastGeorefsAddedByID)
 
   await Promise.all(proms) //thats 30 in total!!
 

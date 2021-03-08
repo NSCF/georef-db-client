@@ -16,6 +16,8 @@ let coordsPin
 let mapReady = false
 let currentGeorefs
 
+let measureTool
+
 let googleMapAPIExists = false
 
 $: if(window.google) {
@@ -45,7 +47,7 @@ onMount(async _ => {
     disableDoubleClickZoom:true
   });
 
-  const measureTool = new MeasureTool(map, {showSegmentLength: false}); //don't remove this
+  measureTool = new MeasureTool(map, {showSegmentLength: false}); //don't remove this
   mapReady = true
 })
 
@@ -150,10 +152,15 @@ const setPoints = _ => {
         fillOpacity: 0.2,
         center,
         map,
-        radius: accuracy
+        radius: accuracy, 
+        clickable: false
       });
 
       marker.circle = circle
+
+      google.maps.event.addListener(circle, 'dblclick', function(e) {
+        google.maps.event.trigger(map, 'dblclick', e);
+      })
     }
 
     marker.addListener('click', _ => {

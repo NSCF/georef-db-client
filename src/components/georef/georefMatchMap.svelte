@@ -15,8 +15,9 @@ let map;
 let coordsPin
 let mapReady = false
 let currentGeorefs
+let circlesOn = true
 
-let measureTool
+
 
 let googleMapAPIExists = false
 
@@ -41,13 +42,45 @@ onMount(async _ => {
     await loader.load()
   }
 
+  //the circle toggle button....
+  //copied and modified from https://developers.google.com/maps/documentation/javascript/examples/control-custom 
+  function CenterControl(controlDiv, map) {
+    // Set CSS for the control border.
+    const controlUI = document.createElement("div");
+    controlUI.style.backgroundColor = "#fff";
+    controlUI.style.border = "2px solid #fff";
+    controlUI.style.borderRadius = "3px";
+    controlUI.style.boxShadow = "0 2px 6px rgba(0,0,0,.3)";
+    controlUI.style.cursor = "pointer";
+    /*controlUI.style.marginBottom = "22px";*/
+    controlUI.style.textAlign = "center";
+    controlUI.title = "Click to toggle uncertainty circles";
+    controlDiv.appendChild(controlUI);
+    // Set CSS for the control interior.
+    const controlText = document.createElement("div");
+    controlText.style.color = "rgb(25,25,25)";
+    controlText.style.fontFamily = "Roboto,Arial,sans-serif";
+    controlText.style.fontSize = "16px";
+    controlText.style.lineHeight = "38px";
+    controlText.style.paddingLeft = "5px";
+    controlText.style.paddingRight = "5px";
+    controlText.innerHTML = "Circles";
+    controlUI.appendChild(controlText);
+    // Setup the click event listeners: simply set the map to Chicago.
+    controlUI.addEventListener("click", toggleCircles)
+  }
+
   map = new google.maps.Map(container, {
     zoom: 5,
     center: {lat: -24.321476, lng: 24.909317}, //TODO set an appropriate coordinate for the region
     disableDoubleClickZoom:true
   });
 
-  measureTool = new MeasureTool(map, {showSegmentLength: false}); //don't remove this
+  const centerControlDiv = document.createElement("div");
+  CenterControl(centerControlDiv, map);
+  map.controls[google.maps.ControlPosition.TOP_RIGHT].push(centerControlDiv);
+
+  const measureTool = new MeasureTool(map, {showSegmentLength: false}); //don't remove this
   mapReady = true
 })
 
@@ -123,8 +156,6 @@ const setPoints = _ => {
     }
     $dataStore.markers = null
   }
-  else {
-  }
 
   for (let [georefID, georef] of Object.entries($dataStore.georefIndex)) {
     let center = new google.maps.LatLng(georef.decimalLatitude, georef.decimalLongitude);
@@ -179,6 +210,27 @@ const setPoints = _ => {
   }
 
   currentGeorefs = $dataStore.georefIndex
+}
+
+const toggleCircles = _ => {
+  if($dataStore.markers && Object.keys($dataStore.markers).length) {
+    if(circlesOn){
+      for (let marker of Object.values($dataStore.markers)){
+        if(marker.circle) {
+          marker.circle.setVisible(false)
+        }
+      }
+      circlesOn = false
+    }
+    else {
+      for (let marker of Object.values($dataStore.markers)){
+        if(marker.circle) {
+          marker.circle.setVisible(true)
+        }
+      }
+      circlesOn = true
+    }
+  }
 }
 
 //helper for above

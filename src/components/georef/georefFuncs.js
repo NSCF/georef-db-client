@@ -195,21 +195,23 @@ let m = d.getMonth() + 1
 return `${y} ${m.toString().padStart(2, '0')}`
 }
 
-const updateDatasetStats = (Firestore, FieldValue, datasetRef, recordsGeoreferenced, formattedName, groupComplete, georefIDs) => {
+const updateDatasetStats = (Firestore, datasetRef, recordsGeoreferenced, formattedName, groupComplete) => {
   return Firestore.runTransaction(async transaction => {
     // This code may get re-run multiple times if there are conflicts.
+    console.log(recordsGeoreferenced + ' records have been georeferenced')
+    console.log('updating stats for dataset ID', datasetRef.id)
     let datasetSnap = await transaction.get(datasetRef)
     if (!datasetSnap.exists) {
       throw "Document does not exist!"; //this should not happen!!!
     }
 
     let dataset = datasetSnap.data()
-    
-    let datasetGeorefsRef = Firestore.collection('datasetGeorefs').doc(dataset.datasetID)
-    let datasetGeorefsSnap = await transaction.get(datasetGeorefsRef)
+    console.log('original records completed:', dataset.recordsCompleted)
 
+    let originalRecordsCompleted = dataset.recordsCompleted
+    dataset.recordsCompleted += recordsGeoreferenced
     let datasetUpdate = {
-      recordsCompleted: dataset.recordsCompleted + recordsGeoreferenced, 
+      recordsCompleted: dataset.recordsCompleted,
       lastGeoreference: Date.now(),
       lastGeoreferenceBy: formattedName
     }
@@ -217,11 +219,20 @@ const updateDatasetStats = (Firestore, FieldValue, datasetRef, recordsGeoreferen
     if(groupComplete) {
       //console.log('updating groups completed')
       //console.log('Value of dataset.groupsComplete:', data.groupsComplete)
-      datasetUpdate.groupsComplete = dataset.groupsComplete++
+      datasetUpdate.groupsComplete = ++dataset.groupsComplete
     }
 
-    await transaction.update(datasetRef, datasetUpdate);
+    console.log('updating dataset recordsCompleted from', originalRecordsCompleted, 'to', dataset.recordsCompleted)
 
+    await transaction.update(datasetRef, datasetUpdate);
+    return
+  })
+}
+
+const updateDatasetGeorefs = (Firestore, FieldValue, datasetID, georefIDs) => {
+  return Firestore.runTransaction(async transaction => {
+    let datasetGeorefsRef = Firestore.collection('datasetGeorefs').doc(datasetID)
+    let datasetGeorefsSnap = await transaction.get(datasetGeorefsRef)
     //we cant add a count here because we don't know what the result of arrayUnion will be
     if(datasetGeorefsSnap.exists){
       await transaction.update(datasetGeorefsRef, {georefIDs: FieldValue.arrayUnion(...georefIDs)}) 
@@ -229,18 +240,12 @@ const updateDatasetStats = (Firestore, FieldValue, datasetRef, recordsGeoreferen
     else {
       await transaction.set(datasetGeorefsRef, {datasets: georefIDs})
     }
-
-  }).then(function() {
-    let i = 0 //do nothing
-    //console.log("Dataset record updated!");
-  }).catch(function(error) {
-    throw error;
-  });
+    return
+  })
 }
 
 const updateGeorefRecords = (Firestore, FieldValue, docRef, georef, datasetID, recordIDs) => {
   return Firestore.runTransaction(function(transaction) {
-    // This code may get re-run multiple times if there are conflicts.
     return transaction.get(docRef).then(function(docSnap) {
       if (!docSnap.exists) {
         let newDoc = {}
@@ -283,6 +288,7 @@ const updateGeorefRecords = (Firestore, FieldValue, docRef, georef, datasetID, r
 module.exports = {
   updateGeorefStats,
   updateDatasetStats, 
+  updateDatasetGeorefs,
   fetchCandidateGeorefs,
   updateGeorefRecords
 }

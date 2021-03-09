@@ -218,13 +218,13 @@ const handleCoordsFromVerbatim = ev => {
       localGeoref.decimalCoordinates = coordsFromVerbatim
       localGeoref.sources = 'verbatim coordinates'
       localGeoref.originalGeorefSource = null
-      dispatch('coords-from-paste')
+      dispatch('coords-from-paste', localGeoref.decimalCoordinates)
     }
     else {
       localGeoref.decimalCoordinates = coordsFromVerbatim
       localGeoref.sources = 'verbatim coordinates'
       localGeoref.originalGeorefSource = null
-      dispatch('coords-from-paste')
+      dispatch('coords-from-paste', localGeoref.decimalCoordinates)
     }
   }
   catch(err) {

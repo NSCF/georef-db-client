@@ -211,6 +211,7 @@ function handleToDatasets(){
 
 function handleDatasetSelected(ev){
 	selectedDataset = ev.detail
+	console.log('selected dataset ID:', selectedDataset.datasetID)
 	currentPage = 'datasetDetail'
 }
 

@@ -17,8 +17,6 @@ let mapReady = false
 let currentGeorefs
 let circlesOn = true
 
-
-
 let googleMapAPIExists = false
 
 $: if(window.google) {
@@ -52,7 +50,7 @@ onMount(async _ => {
     controlUI.style.borderRadius = "3px";
     controlUI.style.boxShadow = "0 2px 6px rgba(0,0,0,.3)";
     controlUI.style.cursor = "pointer";
-    /*controlUI.style.marginBottom = "22px";*/
+    controlUI.style.margin = "10px";
     controlUI.style.textAlign = "center";
     controlUI.title = "Click to toggle uncertainty circles";
     controlDiv.appendChild(controlUI);
@@ -156,6 +154,8 @@ const setPoints = _ => {
     }
     $dataStore.markers = null
   }
+
+  circlesOn = true //just to make sure
 
   for (let [georefID, georef] of Object.entries($dataStore.georefIndex)) {
     let center = new google.maps.LatLng(georef.decimalLatitude, georef.decimalLongitude);

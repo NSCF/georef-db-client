@@ -5,6 +5,7 @@ import { nanoid } from "nanoid/nanoid.js" //see https://github.com/ai/nanoid/iss
 import {
     updateGeorefStats,
     updateDatasetStats, 
+    updateDatasetGeorefs,
     fetchCandidateGeorefs,
     updateGeorefRecords
   } from './georefFuncs.js'
@@ -30,7 +31,7 @@ export let profile
 let datasetRef 
 
 $: if(Firestore) {
-  datasetRef = Firestore.collection('datasets').doc('9jp8aFSneKuDjjfOuJhR')
+  datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
 }
 
 let dispatch = createEventDispatcher()
@@ -85,8 +86,8 @@ let statsRefStrings = [
   `stats/perDataset/${dataset.datasetID}/perUser/${profile.uid}/monthly/yearmonth/recordsGeoreferenced`,
   `stats/perDataset/${dataset.datasetID}/georefsAdded`,
   `stats/perDataset/${dataset.datasetID}/recordsGeoreferenced`,
-  `stats/perDataset/${dataset.datasetID}/lastGeorefAddedBy`,
-  `stats/perDataset/${dataset.datasetID}/lastGeorefAdded`
+  `stats/perDataset/${dataset.datasetID}/lastGeorefAdded`,
+  `stats/perDataset/${dataset.datasetID}/lastGeorefAddedBy`
 ]
 
 let statsLabels = [
@@ -99,7 +100,9 @@ let statsLabels = [
   'My georefs this month', 
   'My records this month', 
   'Total georefs',
-  'Total records'
+  'Total records', 
+  'Last georef', 
+  'Last georef by'
 ]
 
 onMount(async _ => { 
@@ -322,7 +325,8 @@ const saveRecordGroup = async _ => {
       }
 
       proms.push(updateGeorefStats(Firebase, georefsAdded, recordsGeoreferenced, profile.uid, profile.formattedName, dataset.datasetID))
-      proms.push(updateDatasetStats(Firestore, FieldValue, datasetRef, recordsGeoreferenced, profile.formattedName, groupComplete, datasetGeorefsUsed))
+      proms.push(updateDatasetStats(Firestore, datasetRef, recordsGeoreferenced, profile.formattedName, groupComplete))
+      proms.push(updateDatasetGeorefs(Firestore, FieldValue, dataset.datasetID, datasetGeorefsUsed))
       try {
         await Promise.all(proms)
       }
@@ -332,7 +336,6 @@ const saveRecordGroup = async _ => {
         alert('there was an error updating stats: ' + err.message)
       }
     }
-
     savingRecordGroup = false
   }
 }
@@ -409,17 +412,19 @@ const handleGeorefSelected = ev => {
     $dataStore.georefIndex[georefID].selected = true
 
     let selectedMarker = $dataStore.markers[georefID]
-    selectedMarker.setIcon({
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 5, 
-      fillColor: 'blue', 
-      fillOpacity: 1,
-      strokeColor: 'blue'
-    })
+    if(selectedMarker) {
+      selectedMarker.setIcon({
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 5, 
+        fillColor: 'blue', 
+        fillOpacity: 1,
+        strokeColor: 'blue'
+      })
 
-    selectedMarker.setZIndex(1)
-    selectedMarker.panToMe()
-
+      selectedMarker.setZIndex(1)
+      selectedMarker.panToMe()
+    }
+    
     $dataStore.selectedGeorefID = georefID
   }
 }
@@ -427,15 +432,17 @@ const handleGeorefSelected = ev => {
 //helper for above and below
 const resetTableAndMap = georefID => {
   let selectedMarker = $dataStore.markers[georefID]
-  selectedMarker.setIcon({
-    path: google.maps.SymbolPath.CIRCLE,
-    scale: 5, 
-    fillColor: 'green', 
-    fillOpacity: 1,
-    strokeColor: 'green'
-  })
-  selectedMarker.setZIndex(0)
-
+  if(selectedMarker) {
+    selectedMarker.setIcon({
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 5, 
+      fillColor: 'green', 
+      fillOpacity: 1,
+      strokeColor: 'green'
+    })
+    selectedMarker.setZIndex(0)
+  }
+  
   $dataStore.georefIndex[georefID].selected = false
   $dataStore.selectedGeorefID = null
   selectedGeoref = null
@@ -522,12 +529,20 @@ const handleSetGeoref = async ev => {
         }
       })
       
-      georef.selected = false //just in case
+      
       $dataStore.georefIndex[georef.georefID] = georef // so we can use it again
       if(georefIndexOnHold){
         georefIndexOnHold[georef.georefID] = georef
       }
       $dataStore.georefIndex = $dataStore.georefIndex //svelte
+
+      //we fake it
+      let ev = {
+        detail: georef.georefID
+      }
+
+      handleGeorefSelected(ev)
+
     }
 
     if(!georef.used) {

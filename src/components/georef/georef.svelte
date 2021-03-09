@@ -680,10 +680,6 @@ const handleUnload = ev => {
     <div class="grid-container">
       <div class="recordgroup-container">
         <h4 title={locStringsTitle}>Locality strings</h4>
-        <div class="recordgroup-remarks">
-          <label for="slgr">Locality georef remarks</label>
-          <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder="Add remarks about applying this georeference to this/these selected localities" rows="2" />
-        </div>
         <div>
           <button style="float:right;margin-left:5px;" on:click={handleBackToDatasets}>Done</button>
           <button style="float:right;margin-left:5px;" on:click={handleStartOver}>Reset</button>
@@ -698,6 +694,10 @@ const handleUnload = ev => {
         {/if}
         <div class="recordgroup">
           <RecordGroup busy={savingGeoref || savingRecordGroup} on:locality-copied={handleLocalityCopied}></RecordGroup>
+        </div>
+        <div class="recordgroup-remarks">
+          <label for="slgr">Locality georef remarks</label>
+          <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder="Add remarks about applying this georeference to this/these selected localities" rows="2" />
         </div>
       </div>
       <div class="matchlist-container">

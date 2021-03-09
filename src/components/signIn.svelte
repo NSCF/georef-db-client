@@ -5,7 +5,6 @@
   const dispatch = createEventDispatcher()
 
   export let Auth
-  export let Firestore
 
   let submitClicked = false
   let busy = false
@@ -25,20 +24,6 @@
 
     busy = true
     Auth.signInWithEmailAndPassword(email, pwd)
-    .then(async userCredential => {
-      // Signed in
-      var user = userCredential.user;
-      
-      try {
-        let profile = await Firestore.collection('users').doc(user.uid).get()
-        dispatch('user-sign-in', {userCredential, profile})
-      }
-      catch(err) {
-        alert('Failed to fetch user profile: ' + err.message)
-        return
-      }
-
-    })
     .catch((error) => {
       switch (error.code) {
         case 'auth/invalid-email':

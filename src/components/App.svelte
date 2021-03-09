@@ -24,9 +24,12 @@ import GeorefStats from './georefStats.svelte'
 import Workshop from './workshop/workshop.svelte'
 import Yard from './yard.svelte'
 
+import { Circle } from 'svelte-loading-spinners'
+
 //just for now
 let profile
 let userID
+let firstAuth = false
 
 //the stats we want to show
 let statsRefStrings
@@ -97,8 +100,10 @@ onMount(_ => {
 							let res = await fetch(fetchURL)
 							let fetchData = await res.json()
 							if (fetchData){
+								console.log('setting profile')
 								profile = fetchData
 								userID = user.uid
+								firstAuth = true
 								if(currentPage != 'workshop') {
 									currentPage = 'ChooseFile'// TODO this must go back to previous page the user was on
 								}
@@ -114,6 +119,11 @@ onMount(_ => {
 					}
 				}, 100)
 			}
+		}
+		else {
+			profile = null
+			userID = null
+			firstAuth = true
 		}
 	})
 
@@ -239,17 +249,21 @@ function handleBackToDatasets() {
 						<span class="menuitem" on:click={handleHomeClick}>Home</span>
 						<span class="menuitem" on:click='{_ => alert('About is still to come')}'>About</span>
 					</div>
-					{#if !profile}
-						<div class="header-right">
-							<button class="signin" on:click='{_ => currentPage = 'Register'}'><strong>Register</strong></button>
-							<button on:click='{_ => currentPage = 'SignIn'}'><strong>Sign In</strong></button>
-						</div>
+					{#if !firstAuth}
+						<Circle size="1.5" color="#1d4a9c" unit="em" />
 					{:else}
-						<div class="header-right">
-							<span style="margin-right:10px">Logged in as {profile.firstName} {profile.lastName}</span>
-							<button on:click={signOutClick}><strong>Sign Out</strong></button>
-						</div>
-					{/if}	
+						{#if !profile}
+							<div class="header-right">
+								<button class="signin" on:click='{_ => currentPage = 'Register'}'><strong>Register</strong></button>
+								<button on:click='{_ => currentPage = 'SignIn'}'><strong>Sign In</strong></button>
+							</div>
+						{:else}
+							<div class="header-right">
+								<span style="margin-right:10px">Logged in as {profile.firstName} {profile.lastName}</span>
+								<button on:click={signOutClick}><strong>Sign Out</strong></button>
+							</div>
+						{/if}	
+					{/if}
 				</div>
 				
 			</div>
@@ -261,7 +275,7 @@ function handleBackToDatasets() {
 					<Register {Firestore} {Auth} on:user-sign-in={handleSignInSuccess} />	
 				{/if}
 				{#if currentPage == 'SignIn'}
-					<SignIn {Firestore} {Auth} 
+					<SignIn {Auth} 
 					on:to-forgot-pwd='{_ => currentPage = 'ForgotPwd'}' 
 					on:user-sign-in={handleSignInSuccess} />	
 				{/if}

@@ -287,6 +287,7 @@ const checkAndDispatchGeoref = _ => {
       localGeoref.verifiedByRole = null
       saveGeoref = true
     }
+    georef = localGeoref.copy() //so we don't get duplicates of new ones
     dispatch('set-georef', {georef: localGeoref, saveGeoref})
   }
   catch(err) {

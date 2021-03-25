@@ -1,8 +1,9 @@
 <script>
-  import { Firestore, FieldValue } from '../../firebase.js'
+  import { Firestore, FieldValue, Storage } from '../../firebase.js'
   import Papa from 'papaparse'
   import {onMount, createEventDispatcher} from 'svelte'
   import ProfileSelect from '../profileSelect.svelte'
+  import Loader from '../loader.svelte'
 
   const dispatch = createEventDispatcher()
 
@@ -12,6 +13,9 @@
   let profilesIndex = null
 
   let updating = false
+
+  let downloading = false
+  let showDownloadComplete = false
 
   let editable = false
   let downloadErrors = false
@@ -171,108 +175,193 @@
   }
 
   const handleDownloadDataset = async _ => {
-
+    downloading = true
+    let originals
     try {
       downloadProgessMessage = "fetching original dataset..."
-      let originals = await getOriginalDataset(dataset.datasetURL)
+      if(!dataset.datasetURL){
+        dataset.datasetURL = await Storage.ref(`${dataset.datasetID}.csv`).getDownloadURL()
+      }
+      originals = await getOriginalDataset(dataset.datasetURL)
     }
     catch(err) {
-      alert('error fetching original dataset: ', err.message)
-      downloadProgessMessage = null
-      return
+      if(err.length) {
+        console.log('errors fetching original dataset:')
+        for (let e of err){
+          console.log(e)
+        }
+        alert('error fetching original dataset, see console')
+        downloadProgessMessage = null
+        downloading = false
+        return
+      }
+      else {
+        alert('error fetching original dataset: ', err.message)
+        downloadProgessMessage = null
+        downloading = false
+        return
+      }
+      
     }
 
-    let recordGroupDetails
+    downloadProgessMessage = "fetching recordGroups..."
+    let recordGroupDetails = await getRecordGroups()
+    
+    downloadProgessMessage = "fetching georefs..."
     let georefs
     try {
-      downloadProgessMessage = "and georeferences..."
-      recordGroupDetails = await getRecordGroups()
-      let georefIDs = Object.keys(recordGroupDetails.georefKeys)
+      
+      let georefIDs = Object.keys(recordGroupDetails.georefIDs)
       if(!georefIDs.length) {//there are no georefs for this dataset yet
         alert('there are no georeferences for this dataset yet, nothing will be downloaded')
         downloadProgessMessage = null
         return
       }
       //else
-      let index = `${dataset.region}${dataset.domain}`.toLowerCase()
+      let index = `${dataset.region.replace(/\s+/g,'')}${dataset.domain.replace(/\s+/g,'')}`.toLowerCase()
+
       georefs = await getGeorefs(georefIDs, index)
+      console.log(georefs[0])
+
     }
     catch(err) {
       alert('Error with download: ' + err.message)
       downloadProgessMessage = null
       return
     }
-    downloadProgessMessage = "and finally reassembling everthing..."
+
+    downloadProgessMessage = "and finally assembling everthing..."
     
     let georefIndex = {}
     for (let georef of georefs){
-      georefIndex[georef._id] = georef._source
+      georefIndex[georef.georefID] = georef
     }
 
-    //TODOs for this:
-    //
+    let problems = []
+
+    //we need to record the fields to return at the end
+    let fields = Object.keys(originals[0])
+
     for (let original of originals){
       let recordID = original[dataset.recordIDField]
-      let georefDetails = recordGroupDetails.recordGeorefData[recordID] //this is the linking data
-      let georef = georefIndex[georefDetails.georefID]
 
-      original.nscfGeorefID = georef.georefID
-      original.georeferenceCountry = georef.country
-      original.georeferenceStateProvince = georef.stateProvince
-      original.georeferenceLocality = georef.locality
-      original.decimalCoordinates = georef.decimalCoordinates
-      original['dwc:decimalLatitude'] = georef.decimalLatitude
-      original['dwc:decimalLongitude'] = georef.decimalLongitude
-      original.georeferenceUncertainty = georef.uncertainty 
-      original.georeferenceUncertaintyUnit = georef.uncertaintyUnit 
-      original['dwc:geodeticDatum'] = georef.datum 
-      original['dwc:georeferencedBy'] = georefDetails.georefBy 
-      original['dwc:georeferencedDate'] = georefDetails.georefDate
-      original.originalGeoreferenceBy = georef.by
-      original.originalGeoreferenceDate = georef.date 
-      original['dwc:georeferenceSources'] = georef.sources
-      original.originalGeorefSource = georef.originalGeorefSource 
-      original['dwc:georeferenceProtocol'] = georef.protocol 
-      original['dwc:georeferenceRemarks'] = georefDetails.georefRemarks
-      original.originalGeoreferenceRemarks = georef.remarks
+      //we only have details for records that have been georeferenced
+      if(recordGroupDetails.recordGeorefData[recordID]) {
+        let georefDetails = recordGroupDetails.recordGeorefData[recordID] //this is the stuff from applying a georeference to a locality string
+        let georef = georefIndex[georefDetails.georefID] //this is the original georef applied
+        if(!georef){
+          problems.push(recordID)
+          continue
+        }
 
-      if(georefDetails.georefVerified){
-        if(georefDetails.georefVerifiedByRole) {
-          original['dwc:georeferenceVerificationStatus'] = 'verified by ' + georefDetails.georefVerifiedByRole
+        original.nscfGeorefID = georef.georefID
+        original.georeferenceCountry = georef.country
+        original.georeferenceStateProvince = georef.stateProvince
+        original.georeferenceLocality = georef.locality
+        original.decimalCoordinates = georef.decimalCoordinates
+        original['dwc:decimalLatitude'] = georef.decimalLatitude
+        original['dwc:decimalLongitude'] = georef.decimalLongitude
+        original.georeferenceUncertainty = georef.uncertainty 
+        original.georeferenceUncertaintyUnit = georef.uncertaintyUnit 
+
+        if(georef.uncertainty) {
+          let uncertM = georef.uncertainty 
+          if(georef.uncertaintyUnit == 'km'){
+            uncertM = georef.uncertainty * 1000
+          }
+          original['dwc:coordinateUncertaintyInMeters'] = uncertM
         }
         else {
-          original['dwc:georeferenceVerificationStatus'] = 'verified (no role indicated)'
+          original['dwc:coordinateUncertaintyInMeters'] = null
         }
-      }
-      else {
-        original['dwc:georeferenceVerificationStatus'] = 'requires verification'
-      }
+        
+        original['dwc:geodeticDatum'] = georef.datum 
+        original['dwc:georeferencedBy'] = georefDetails.georefBy 
+        original.georeferencedByID = georefDetails.georefByID
 
-      original.georeferenceVerifiedBy = georefDetails.georefVerifiedBy
-      original.georeferenceVerifiedDate = georefDetails.georefVerifiedDate
+        let d = new Date(georefDetails.georefDate) //its a timestamp
+        let local = new Date(d.getTime() - d.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
+        original['dwc:georeferencedDate'] = local
 
-      if(georef.verified){
-        if(georef.verifiedByRole) {
-          original.originalGeoreferenceVerificationStatus = 'verified by ' + georef.verifiedByRole
+        original.originalGeoreferencedBy = georef.by
+        original.originalGeoreferenceByID = georef.byORCID
+        original.originalGeoreferenceDate = georef.date //this is not a timestamp
+        original['dwc:georeferenceSources'] = georef.sources
+        original.originalGeorefSource = georef.originalGeorefSource 
+        original['dwc:georeferenceProtocol'] = georef.protocol 
+        original['dwc:georeferenceRemarks'] = georefDetails.georefRemarks
+        original.originalGeoreferenceRemarks = georef.remarks
+
+        if(georefDetails.georefVerified){
+          if(georefDetails.georefVerifiedByRole) {
+            original['dwc:georeferenceVerificationStatus'] = 'verified by ' + georefDetails.georefVerifiedByRole
+          }
+          else {
+            original['dwc:georeferenceVerificationStatus'] = 'verified (no role indicated)'
+          }
         }
         else {
-          original.originalGeoreferenceVerificationStatus = 'verified (no role indicated)'
+          original['dwc:georeferenceVerificationStatus'] = 'requires verification'
         }
-      }
-      else {
-        original.originalGeoreferenceVerificationStatus = 'requires verification'
-      }
 
-      original.originalGeoreferenceVerifiedBy = georef.verifiedBy 
-      original.originalGeoreferenceVerifiedDate = georef.verifiedDate
+        original.georeferenceVerifiedBy = georefDetails.georefVerifiedBy
+        original.georeferenceVerifiedDate = georefDetails.georefVerifiedDate
 
+        if(georef.verified){
+          if(georef.verifiedByRole) {
+            original.originalGeoreferenceVerificationStatus = 'verified by ' + georef.verifiedByRole
+          }
+          else {
+            original.originalGeoreferenceVerificationStatus = 'verified (no role indicated)'
+          }
+        }
+        else {
+          original.originalGeoreferenceVerificationStatus = 'requires verification'
+        }
+
+        original.originalGeoreferenceVerifiedBy = georef.verifiedBy 
+        original.originalGeoreferenceVerifiedDate = georef.verifiedDate
+      }
     }
 
     //and download to the local machine
-    let csv = Papa.unparse(originals)
+    downloadProgessMessage = 'saving file...'
+    fields = [...fields, ...[
+      'nscfGeorefID',
+      'georeferenceCountry',
+      'georeferenceStateProvince',
+      'georeferenceLocality',
+      'decimalCoordinates',
+      'dwc:decimalLatitude',
+      'dwc:decimalLongitude',
+      'georeferenceUncertainty',
+      'georeferenceUncertaintyUnit',
+      'dwc:coordinateUncertaintyInMeters',
+      'dwc:geodeticDatum',
+      'dwc:georeferencedBy',
+      'georeferencedByID',
+      'dwc:georeferencedDate',
+      'originalGeoreferencedBy',
+      'originalGeoreferenceByID',
+      'originalGeoreferenceDate',
+      'dwc:georeferenceSources',
+      'originalGeorefSource',
+      'dwc:georeferenceProtocol',
+      'dwc:georeferenceRemarks',
+      'originalGeoreferenceRemarks',
+      'dwc:georeferenceVerificationStatus',
+      'georeferenceVerifiedBy',
+      'georeferenceVerifiedDate',
+      'originalGeoreferenceVerificationStatus',
+      'originalGeoreferenceVerifiedBy',
+      'originalGeoreferenceVerifiedDate'
+    ]]
+    let csv = Papa.unparse({fields, data: originals})
+
+    console.log(csv.slice(0,100))
     let now = new Date()
-    let date = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
-    date = date.replace(/-/g, '')
+    let date = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString() //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
+    date = date.replace(/-:/g, '')
     let newDatasetName = dataset.datasetName + '_georeferenced' + date + '.csv'
 
     //taken from https://code-maven.com/create-and-download-csv-with-javascript
@@ -283,7 +372,8 @@
     hiddenDownload.click();
     
     //TODO mark on Firestore with last download timestamp (who, when and what) -- probably better before the bit above
-
+    showDownloadComplete = true
+    downloading = false
   }
 
   const handleDownloadGeorefs = async _ => {
@@ -315,33 +405,37 @@
     }
     else {
       let recordGroups = recordGroupsQuerySnap.docs.map(x=>x.data())
-      let georefKeys = {} //an index
+      let georefIDs = {} //an index
       let recordGeorefData = {} //this is the beginning of the data to be returned........
       for (let recordGroup of recordGroups){
         if(recordGroup.groupLocalities && recordGroup.groupLocalities.length){
           for (let groupLoc of recordGroup.groupLocalities) { //this now has the georef fields
-            
-            if(groupLoc.georefID && !georefKeys[groupLoc.georefID]) {
-              georefKeys[groupLoc.georefID] = true
+            if(groupLoc.georefID) {
+              if (!georefIDs[groupLoc.georefID]) {
+                georefIDs[groupLoc.georefID] = true
+              }
+              for (let recordID of groupLoc.recordIDs) {
+                recordGeorefData[recordID] = {
+                  georefID: groupLoc.georefID,
+                  georefBy: groupLoc.georefBy,
+                  georefByID: groupLoc.georefByID,
+                  georefDate: groupLoc.georefDate,
+                  georefVerified: groupLoc.georefVerified,
+                  georefVerifiedBy: groupLoc.georefVerifiedBy,
+                  georefVerifiedDate: groupLoc.georefVerifiedDate,
+                  georefVerifiedByRole: groupLoc.georefVerifiedByRole,
+                  georefRemarks: groupLoc.georefRemarks
+                }
+              }
             }
-
-            let georefData = {
-              georefID: groupLoc.georefID || null,
-              georefBy: groupLoc.georefBy || null,
-              georefDate: groupLoc.georefDate || null, 
-              georefRemarks: groupLoc.selectedLocGeorefRemarks || null,
-            }
-
-            for (let recordID of groupLoc.recordIDs) {
-              recordGroup[recordID] = georefData
-            }
-
           }
         }
       }
 
+      console.log(Object.keys(georefIDs).join(';'))
+
       return {
-        georefKeys,
+        georefIDs,
         recordGeorefData
       }
     }
@@ -351,13 +445,7 @@
     if(Array.isArray(georefKeys) && georefKeys.length) {
       let search = {
         index: elasticIndex,
-        body: {
-          query: {
-            ids: {
-              values: georefKeys
-            }
-          }
-        }
+        georefIDs: georefKeys
       }
       let url = 'https://us-central1-georef-745b9.cloudfunctions.net/getgeorefsbyid'
       try {
@@ -369,6 +457,7 @@
           body: (JSON.stringify(search))
         })
         let georefs = await res.json()
+        georefs =  georefs.map(x=>x._source)
         return georefs;
       }
       catch(err) {
@@ -382,15 +471,25 @@
 
   const getOriginalDataset = url => {
     return new Promise((resolve, reject) => {
-      Papa.parse(url, {
-        download: true,
-        complete: function(results) {
-          resolve(results);
-        }, 
-        error: function(err) {
-          reject(err)
-        }
-      });
+      fetch(url).then(res => res.blob()).then(blob => blob.text()).then(file => {
+        Papa.parse(file, {
+          header: true,
+          complete: function(results) {
+            if(results.errors.length){
+              reject(results.errors)
+            }
+            else {
+              resolve(results.data);
+            }
+          }, 
+          error: function(err) {
+            reject(err)
+          }
+        });
+      })
+      .catch(err => {
+        reject(err)
+      })
     })
   }
 
@@ -465,118 +564,164 @@
 
 <!-- ############################################## -->
 <!-- HTML -->
-<h2>{dataset.collectionCode}: {dataset.datasetName}</h2>
-<div class="content">
-  <div>
-    <label>Dataset</label>
-    <span>{dataset.datasetName}</span>
-  </div>
-  <div>
-    <label>Collection</label>
-    <span>{dataset.collectionCode}</span>
-  </div>
-  <div>
-    <label>Region</label>
-    <span>{dataset.region}</span>
-  </div>
-  <div>
-    <label>Domain</label>
-    <span>{dataset.domain}</span>
-  </div>
-  <div>
-    <label>Date created</label>
-    <span>{dataset.dateCreated? getLocalDate(dataset.dateCreated) : null}</span>
-  </div>
-  <div>
-    <label>Contact</label>
-    <span>{dataset.contactName}</span>
-  </div>
-  <div>
-    <label>Contact email</label>
-    <span>{dataset.email}</span>
-  </div>
-  <div>
-    <label>Date completed</label>
-    <span>{dataset.completed? getLocalDate(dataset.dateCompleted) : 'NA'}</span>
-  </div>
-  <div>
-    <label>Total Records</label>
-    <span>{dataset.recordCount}</span>
-  </div>
-  <div>
-    <label>Records Completed</label>
-    <span>{dataset.recordsCompleted}</span>
-  </div>
-  <div>
-    <label>Total groups</label>
-    <span>{dataset.groupCount}</span>
-  </div>
-  <div>
-    <label>Groups complete</label>
-    <span>{dataset.groupsComplete}</span>
-  </div>
-  <div>
-    <label>Last georeference</label>
-    <span>{dataset.lastGeoreference? getLocalDateTime(dataset.lastGeoreference): 'NA'}</span>
-  </div>
-  <div>
-    <label>Last georeference by</label>
-    <span>{dataset.lastGeoreferenceBy? dataset.lastGeoreferenceBy : 'NA'}</span>
-  </div>
-  {#if dataset.createdByID == userID && profilesIndex}
-    <div>
-      <label>Invited</label>
-      <div class="inviteelist">
-        {#each dataset.invitees as uid}
-          <div class="inviteecontainer">
-            <span>{profilesIndex[uid].formattedName + " (" + profilesIndex[uid].email + ")"}</span>
-            <span class="material-icons icon-input-icon" title="remove" on:click='{_ => removeInvitee(uid)}'>clear</span>
-          </div>
-        {/each}
-        {#each dataset.newInvitees as email}
-          <div class="inviteecontainer">
-            <span>{email}</span>
-            <span class="material-icons icon-input-icon" title="remove" on:click='{_ => removeNewInvitee(email)}'>clear</span>
-          </div>
-        {/each}
-      </div>
+<div class="outer">
+  <div class="container">
+    {#if downloading}
+    <div class="vertical">
+      {downloadProgessMessage}
       <div>
-        <ProfileSelect on:profile-selected={handleProfileSelected} />
+        <Loader/>
       </div>
     </div>
-    <div>
-      <label>Georeferencers</label>
-      <div class="inviteelist">
-        {#each dataset.georeferencers as uid}
-          <div class="inviteecontainer">
-            <span>{profilesIndex[uid].formattedName + " (" + profilesIndex[uid].email + ")"}</span>
+    {:else if showDownloadComplete}
+    <div class="vertical">
+      <p style="margin-bottom:20px">The download has completed. Please remember to open the file in a UTF-8 friendly way...</p>
+      <button on:click="{_ => showDownloadComplete = false}">Okay</button>
+    </div>
+    {:else}
+      <h2>{dataset.collectionCode}: {dataset.datasetName}</h2>
+      <div class="content">
+        <div>
+          <label>Dataset</label>
+          <span>{dataset.datasetName}</span>
+        </div>
+        <div>
+          <label>Collection</label>
+          <span>{dataset.collectionCode}</span>
+        </div>
+        <div>
+          <label>Region</label>
+          <span>{dataset.region}</span>
+        </div>
+        <div>
+          <label>Domain</label>
+          <span>{dataset.domain}</span>
+        </div>
+        <div>
+          <label>Date created</label>
+          <span>{dataset.dateCreated? getLocalDate(dataset.dateCreated) : null}</span>
+        </div>
+        <div>
+          <label>Contact</label>
+          <span>{dataset.contactName}</span>
+        </div>
+        <div>
+          <label>Contact email</label>
+          <span>{dataset.email}</span>
+        </div>
+        <div>
+          <label>Date completed</label>
+          <span>{dataset.completed? getLocalDate(dataset.dateCompleted) : 'NA'}</span>
+        </div>
+        <div>
+          <label>Total Records</label>
+          <span>{dataset.recordCount}</span>
+        </div>
+        <div>
+          <label>Records Completed</label>
+          <span>{dataset.recordsCompleted}</span>
+        </div>
+        <div>
+          <label>Total groups</label>
+          <span>{dataset.groupCount}</span>
+        </div>
+        <div>
+          <label>Groups complete</label>
+          <span>{dataset.groupsComplete}</span>
+        </div>
+        <div>
+          <label>Last georeference</label>
+          <span>{dataset.lastGeoreference? getLocalDateTime(dataset.lastGeoreference): 'NA'}</span>
+        </div>
+        <div>
+          <label>Last georeference by</label>
+          <span>{dataset.lastGeoreferenceBy? dataset.lastGeoreferenceBy : 'NA'}</span>
+        </div>
+      </div>
+      {#if dataset.createdByID == userID && profilesIndex}
+        <div>
+          <div>
+            <label>Invited</label>
+            <div class="inviteelist">
+              {#each dataset.invitees as uid}
+                <div class="inviteecontainer">
+                  <div>{profilesIndex[uid].formattedName + " (" + profilesIndex[uid].email + ")"}</div>
+                  <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeInvitee(uid)}'>clear</div>
+                </div>
+              {/each}
+              {#each dataset.newInvitees as email}
+                <div class="inviteecontainer">
+                  <div>{email}</div>
+                  <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeNewInvitee(email)}'>clear</div>
+                </div>
+              {/each}
+            </div>
+            <div>
+              <ProfileSelect on:profile-selected={handleProfileSelected} />
+            </div>
           </div>
-        {/each}
+          <div>
+            <label>Georeferencers</label>
+            <div class="inviteelist">
+              {#each dataset.georeferencers as uid}
+                <div class="inviteecontainer">
+                  <div>{profilesIndex[uid].formattedName + " (" + profilesIndex[uid].email + ")"}</div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        </div>
+      {/if}  
+      <div class="button-container">
+        <button on:click={handleStartGeoreferencing}>Start georeferencing</button>
+        <button on:click={handleBackToDatasets}>Back to datasets</button>
+        {#if dataset.createdByID == userID}
+          <button on:click = {clearLockedRecordGroups}>Clear locked record groups</button> <!--TODO add only for admins-->
+          <button on:click={handleDownloadDataset}>Download dataset with georeferences</button>
+          <button on:click={handleDownloadGeorefs}>Download georeferences only</button>
+        {/if}
       </div>
-    </div>
-  {/if}
+    {/if}
+    
+  </div>
 </div>
-<div class="button-container">
-  <button on:click={handleStartGeoreferencing}>Start georeferencing</button>
-  <button on:click = {clearLockedRecordGroups}>Clear locked record groups</button> <!--TODO add only for admins-->
-  <button on:click={handleBackToDatasets}>Back to datasets</button>
-  <button on:click={handleDownloadDataset}>Download dataset with georeferences</button>
-  <button on:click={handleDownloadGeorefs}>Download georeferences only</button>
-</div>
+
+
 
 <!-- ############################################## -->
 <style>
 h2 {
-		color:  rgb(73, 93, 158);
-		font-size: 2em;
-		font-weight: 100;
-  }
+  color:  rgb(73, 93, 158);
+  font-size: 2em;
+  font-weight: 400;
+}
+
+.outer {
+  height:calc(100% - 3em); /* we need this because the stats take up some of the parent height */
+  width:100%;
+  overflow-y:auto
+}
+
+.container {
+  height:100%;
+  width:50%;
+  min-width: 500px;
+  margin: auto;
+}
   
 .content {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.vertical {
+  display:flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height:100%;
+}
 
 .content > div {
   display:inline-block;
@@ -592,24 +737,24 @@ label {
 }
 
 span {
-    
-    border-radius: 2px;
-    margin-bottom:0.5em;
-    height:2em;
-  }
-
-.button-container {
-  display: flex;
-  flex-direction:column;
-  align-content: center;
+  border-radius: 2px;
+  margin-bottom:0.5em;
+  height:2em;
 }
 
-button {
-  display:inline-block;
+.button-container {
+  display:flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 300px;
+}
+
+.button-container > button {
+  display:block;
   background-color: lightgray;
   width:100%;
   max-width:400px;
-  margin:10px auto;
+  margin:10px;
   padding:10px;
 }
 
@@ -620,8 +765,8 @@ button:hover {
 
 .inviteelist {
   display:flex;
+  flex-wrap: wrap;
   width: 100%;
-  height:80px;
   background-color: white;
   border-radius: 2px;
   border: 1px solid gainsboro;
@@ -641,7 +786,6 @@ button:hover {
 .inviteecontainer {
   display:flex;
   align-items: center;
-  height:1em;
   color:white;
   background-color: grey;
   border-radius: 4px;

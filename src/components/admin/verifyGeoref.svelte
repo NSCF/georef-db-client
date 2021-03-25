@@ -1,6 +1,7 @@
 <script>
   import {onMount, createEventDispatcher} from 'svelte'
   import GeorefForm from '../georef/georefForm.svelte'
+  import Loader from '../loader.svelte'
   import VerifyMap from './verifyGeorefMap.svelte'
 
   let dispatch = createEventDispatcher()
@@ -10,19 +11,21 @@
 
   let elasticindex
 
-  let datasetGeorefsIDs
+  let georefQueue = [] //a queue of {snapshot, georef} objects, with snapshot from firestore, georef from elastic
+  let desiredQueueLength = 3 //just setting a param here
+  let noMoreGeorefs = false
+
+  let datasetGeorefsIDs = []
   let searchIndStart = 0
-  let currentGeorefID //used to trigger the georef fetch from elastic
+
   let currentGeoref
   let previousCoords = [] //just so we hand handle accidental pin moves
 
-  let noMoreGeorefsToVerify = false
 
   onMount(async _ => {
-    let georefsSnap = await Firestore.collection('datasetGeorefs').doc(dataset.datasetID).get()
+    let datasetGeorefsSnap = await Firestore.collection('datasetGeorefs').doc(dataset.datasetID).get()
     if(georefsSnap.exists) {
       datasetGeorefsIDs = georefsSnap.data().georefIDs
-      getNextGeorefToVerify()
     }
     else {
       alert('no georefs available for this dataset')
@@ -34,56 +37,73 @@
     elasticindex = (dataset.region + dataset.domain).toLowerCase()
   }
 
-  $: if(currentGeorefID) {
-    fetchGeoref(currentGeorefID)
+  $: if(georefQueue && datasetGeorefsIDs.length) {
+    getGeorefsToVerify()
   }
 
   //this looks for one to lock in Firestore
-  const getNextGeorefToVerify = async _ => {
-    let lockInd = 0
-    let lockSuccess = false
-    let searchIDs = datasetGeorefsIDs.slice(searchIndStart, searchIndStart + 10)
-    let querySnap = Firestore.collection('georefRecords')
-    .where('georefID', 'in', searchIDs)
-    .where('verified', '==', false)
-    .where('locked', '==', false) //this assumes that once locked it will be verified
+  //uses two while loops to loop through all the georef IDs
+  const getGeorefsToVerify = async _ => {
+    while (searchIndStart < datasetGeorefsIDs.length && georefQueue.length < desiredQueueLength) {
+      //get unlocked, unverified georefs used in this dataset
+      let lockInd = 0
+      let searchIDs = datasetGeorefsIDs.slice(searchIndStart, searchIndStart + 10)
+      let querySnap = await Firestore.collection('georefRecords')
+      .where('georefID', 'in', searchIDs)
+      .where('verified', '==', false)
+      .where('locked', '==', false) //this assumes that once locked it will be verified
 
-    if(!querySnap.empty) {
-      let ref
-      while (lockInd < searchIDs.length && !lockSuccess) {
-        ref = querySnap.docs[0].ref
-        try {
-          await Firestore.runTransaction(transaction => {
-            transaction.update(ref, {locked: true})
-          })
-          lockSuccess = true
+      //try to lock and queue some
+      if(!querySnap.empty) {
+        let ref
+        while (lockInd < querySnap.docs.length && georefQueue.length < desiredQueueLength) {
+          ref = querySnap.docs[lockInd].ref
+          try {
+            await Firestore.runTransaction(transaction => {
+              return transaction.get(ref).then(snap => {
+                if(snap.data().locked) { //it might have been locked between query time and now
+                  return
+                }
+                else {
+                  return transaction.update(ref, {locked: true})
+                }
+              })
+            })
+
+            //if it doesn't lock it throws before we get here
+            try {
+              let georef = await fetchGeoref(querySnap.docs[lockInd].id)
+              if(currentGeoref) {
+                georefQueue = [...georefQueue, {snap: querySnap.docs[lockInd], georef}]
+              }
+              else {
+                currentGeoref = {snap: querySnap.docs[lockInd], georef}
+              }
+              lockInd++
+            }
+            catch(err) {
+              console.log('error fetching georef from elastic:', err.message)
+              lockInd++
+            }
+          }
+          catch(err) { //this is a failed transaction, so we try next
+            lockInd++
+          }
         }
-        catch(err) { //this is a failed transaction, so we try next
-          lockInd++
+        
+        //we may not have three so let's try again
+        if(georefQueue.length < desiredQueueLength) {
+          searchIndStart += 10
         }
-      }
-      
-      if(lockSuccess) {
-        currentGeorefID = ref.id
       }
       else {
         searchIndStart += 10
-        if(searchIndStart >= datasetGeorefsIDs.length) {
-          noMoreGeorefsToVerify = true
-        }
-        else {
-          getNextGeorefToVerify() //try again
-        }
       }
     }
-    else {
-      searchIndStart += 10
-      if(searchIndStart >= datasetGeorefsIDs.length) {
-        noMoreGeorefsToVerify = true
-      }
-      else {
-        getNextGeorefToVerify() //try again
-      }
+
+    //if we get here and there is nothing in the queue then we've looked at them all
+    if(georefQueue.length == 0) {
+      noMoreGeorefs = true
     }
   }
 
@@ -111,6 +131,7 @@
     }
   }
 
+  //for undoing coordinate changes on the georef being verified
   const handleKeyUp = ev => {
     if (ev.code == 'KeyZ' && (ev.ctrlKey || ev.metaKey)) {
       if(previousCoords.length) {
@@ -132,17 +153,33 @@
     let georef = ev.detail.georef
     let url = 'https://us-central1-georef-745b9.cloudfunctions.net/updategeoref'
     
-    let res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({georef, index: elasticindex}) 
-    })
+    //send it off async and hope for the best, we don't want to slow down!!
+    try {
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({georef, index: elasticindex}) 
+      })
+    }
+    catch(err) {
+      alert('Oops, something went wrong while trying to save georef with ID ' + georef.georefID + ': ' + err.message)
+    }
+    
+    //same for the firebase update
+    try {
+      currentGeoref.snap.ref.update({verified: true, locked: false})
+    }
+    catch(err) {
+      alert('Oops, something went wrong with the georef verification update to Firestore for georef with ID ' + georef.georefID + ': ' + err.message)
+    }
 
-    if(res.ok) {
+    if(georefQueue.length){
+      currentGeoref = georefQueue.shift() //this triggers fetching the next
+    }
+    else {
       currentGeoref = null
-      getNextGeorefToVerify()
     }
   }
 
@@ -156,12 +193,22 @@
 <!-- HTML -->
 <svelte:window on:beforeunload={handleUnload} /> <!--in case the user just closes-->
 <div on:keyup={handleKeyUp} class="container">
-  <div class="map">
-    <VerifyMap georef={currentGeoref} on:new-coords={handleNewCoords}/>
-  </div>
-  <div class="form">
-    <GeorefForm georef={currentGeoref} on:set-georef={handleSetGeoref} />
-  </div>
+  {#if !noMoreGeorefs}
+    {#if currentGeoref}
+      <div class="map">
+        <VerifyMap georef={currentGeoref.georef} on:new-coords={handleNewCoords}/>
+      </div>
+      <div class="form">
+        <GeorefForm georef={currentGeoref.georef} on:set-georef={handleSetGeoref} />
+      </div>
+    {:else}
+      <div class="loader">
+        <Loader />
+      </div>
+    {/if}
+  {:else}
+    No more georefs
+  {/if}
 </div>
 
 <!-- ############################################## -->
@@ -181,6 +228,12 @@
     width: 30%;
     height: 100%;
     overflow-y: auto;
+  }
+
+  .loader {
+    text-align: center;
+    width: 100%;
+    height: 100%;
   }
 
 </style>

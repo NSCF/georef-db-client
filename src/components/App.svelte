@@ -159,7 +159,7 @@ function handleHomeClick() {
 		alert('Please click \'Done\' above the locality group to return')
 	}
 	else if (currentPage == 'ChooseFile'){
-		alert('This is the home page')
+		return //do nothing
 	}
 	else {
 		currentPage = "ChooseFile"
@@ -240,7 +240,7 @@ function handleBackToDatasets() {
 	<Modal>
 		<div class="flex-container">
 			<div class="header">
-				<div class="header-flex" style="height:100%">
+				<div class="header-flex" style="height:100%" on:click={handleHomeClick}>
 					<img src="images/NSCF logo no text transparent.png" alt="NSCF logo"  style="height:100%" />
 					<span class="logo-span">NSCF Georeferencer</span>
 				</div>
@@ -267,10 +267,11 @@ function handleBackToDatasets() {
 				</div>
 				
 			</div>
-			<div class="content">
-				{#if userID && currentPage != 'Georeferencer'}
+			{#if userID && currentPage != 'Georeferencer'}
 					<GeorefStats {Firebase} {statsRefStrings}  {statsLabels} descriptor={'Georef stats:'}/>
-				{/if}
+			{/if}
+			<div class="content">
+				
 				{#if currentPage == 'Register'}
 					<Register {Firestore} {Auth} on:user-sign-in={handleSignInSuccess} />	
 				{/if}
@@ -329,18 +330,16 @@ function handleBackToDatasets() {
 					<Yard {Firestore} {Firebase} {FieldValue} {profile} />
 				{/if}
 			</div>
+			<div class="stopper"></div>
 		</div>
-		<div class="stopper"></div>
 	</Modal>
 </main>
 
 <style>
 
 	main {
-		width:99vw;
-		height:99vh;
-		padding:5px;
-		box-sizing: border-box;
+		width:100%;
+		height:100%;
 	}
 
 	.flex-container {
@@ -349,7 +348,6 @@ function handleBackToDatasets() {
 		flex-direction: column;
 		width:100%;
 		height:100%;
-		box-sizing: border-box;
 	}
 
 	.header {
@@ -372,6 +370,7 @@ function handleBackToDatasets() {
 	}
 
 	.menuitem {
+		width:40px;
 		margin-right:20px;
 		text-decoration: underline;
 	}
@@ -382,11 +381,7 @@ function handleBackToDatasets() {
 	}
 
 	.content {
-		flex-grow: 1;
-		flex-shrink: 1;
-		flex-basis: auto;
-		max-height:calc(height-50px);
-		box-sizing: border-box;
+		flex: 1 1 auto;
 		overflow:hidden;
 	}
 
@@ -415,6 +410,10 @@ function handleBackToDatasets() {
 	.header-flex {
 		display:flex;
 		align-items: center;
+	}
+
+	.header-flex:hover {
+		cursor: pointer;
 	}
 
 	.logo-span {

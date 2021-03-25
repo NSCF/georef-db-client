@@ -129,6 +129,7 @@ function toEmitOrNotToEmit(file){
 .container {
   text-align:center;
   height:100%;
+  overflow-y: auto;
 }
 	h1 {
 		color: rgb(72, 72, 148);

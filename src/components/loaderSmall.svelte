@@ -11,6 +11,7 @@
 .icn-spinner {
   animation: spin-animation 0.5s infinite;
   display: inline-block;
+  box-sizing: border-box;
 }
 
 @keyframes spin-animation {

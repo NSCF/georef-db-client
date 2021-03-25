@@ -443,7 +443,9 @@ const resetTableAndMap = georefID => {
     selectedMarker.setZIndex(0)
   }
   
-  $dataStore.georefIndex[georefID].selected = false
+  if($dataStore.georefIndex[georefID]) {
+    $dataStore.georefIndex[georefID].selected = false
+  }
   $dataStore.selectedGeorefID = null
   selectedGeoref = null
 

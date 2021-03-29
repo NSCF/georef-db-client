@@ -8,25 +8,20 @@
   const dispatch = createEventDispatcher()
 
   export let dataset
-  export let userID //we dont' need the rest
+  export let user //we dont' need the rest
 
   let profilesIndex = null
 
-  let updating = false
-
   let downloading = false
   let showDownloadComplete = false
-
-  let editable = false
-  let downloadErrors = false
-  let downloadErrorMessage
+  let downloadProblems = []
 
   let downloadProgessMessage = ""
 
   onMount(async _ => {
 
     //only the person who created the dataset can see the georeferencers
-    if(dataset.createdByID == userID){
+    if(dataset.createdByID == user.uid){
       //we have georeferencers, invited and newInvitees
       let uids = [...dataset.georeferencers, ...dataset.invitees].filter(x => x && x.trim()).map(x => x.trim()) //filter just in case
       let res = await fetch('https://us-central1-georef-745b9.cloudfunctions.net/getprofilesforidlist', {
@@ -93,7 +88,7 @@
     }
     else { //it must be a profile
       
-      let updRef = Firestore.collection('userPendingDatasets').doc(userID)
+      let updRef = Firestore.collection('userPendingDatasets').doc(user.uid)
       let updSnap = await updRef.get()
       let updUpdate
       if(updSnap.exists){
@@ -174,6 +169,80 @@
     dispatch('to-datasets')
   }
 
+  //helper for the next two functions, this is the meat of combining georefs back to their records
+  //remember that georefDetails is from the application of a georef to a record, while georef is the original georef object
+  const addGeorefToRecord = (record, georef, georefDetails) => {
+
+    record.nscfGeorefID = georef.georefID
+    record.georeferenceCountry = georef.country
+    record.georeferenceStateProvince = georef.stateProvince
+    record.georeferenceLocality = georef.locality
+    record.decimalCoordinates = georef.decimalCoordinates
+    record['dwc:decimalLatitude'] = georef.decimalLatitude
+    record['dwc:decimalLongitude'] = georef.decimalLongitude
+    record.georeferenceUncertainty = georef.uncertainty 
+    record.georeferenceUncertaintyUnit = georef.uncertaintyUnit 
+
+    if(georef.uncertainty) {
+      let uncertM = georef.uncertainty 
+      if(georef.uncertaintyUnit == 'km'){
+        uncertM = georef.uncertainty * 1000
+      }
+      record['dwc:coordinateUncertaintyInMeters'] = uncertM
+    }
+    else {
+      record['dwc:coordinateUncertaintyInMeters'] = null
+    }
+    
+    record['dwc:geodeticDatum'] = georef.datum 
+    record['dwc:georeferencedBy'] = georefDetails.georefBy 
+    record.georeferencedByID = georefDetails.georefByID
+
+    let d = new Date(georefDetails.georefDate) //its a timestamp
+    let local = new Date(d.getTime() - d.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
+    record['dwc:georeferencedDate'] = local
+
+    record.originalGeoreferencedBy = georef.by
+    record.originalGeoreferenceByID = georef.byORCID
+    record.originalGeoreferenceDate = georef.date //this is not a timestamp
+    record['dwc:georeferenceSources'] = georef.sources
+    record.originalGeorefSource = georef.originalGeorefSource 
+    record['dwc:georeferenceProtocol'] = georef.protocol 
+    record['dwc:georeferenceRemarks'] = georefDetails.georefRemarks
+    record.originalGeoreferenceRemarks = georef.remarks
+
+    if(georefDetails.georefVerified){
+      if(georefDetails.georefVerifiedByRole) {
+        record['dwc:georeferenceVerificationStatus'] = 'verified by ' + georefDetails.georefVerifiedByRole
+      }
+      else {
+        record['dwc:georeferenceVerificationStatus'] = 'verified (no role indicated)'
+      }
+    }
+    else {
+      record['dwc:georeferenceVerificationStatus'] = 'requires verification'
+    }
+
+    record.georeferenceVerifiedBy = georefDetails.georefVerifiedBy
+    record.georeferenceVerifiedDate = georefDetails.georefVerifiedDate
+
+    if(georef.verified){
+      if(georef.verifiedByRole) {
+        record.originalGeoreferenceVerificationStatus = 'verified by ' + georef.verifiedByRole
+      }
+      else {
+        record.originalGeoreferenceVerificationStatus = 'verified (no role indicated)'
+      }
+    }
+    else {
+      record.originalGeoreferenceVerificationStatus = 'requires verification'
+    }
+
+    record.originalGeoreferenceVerifiedBy = georef.verifiedBy 
+    record.originalGeoreferenceVerifiedDate = georef.verifiedDate
+
+  }
+
   const handleDownloadDataset = async _ => {
     downloading = true
     let originals
@@ -201,7 +270,6 @@
         downloading = false
         return
       }
-      
     }
 
     downloadProgessMessage = "fetching recordGroups..."
@@ -237,8 +305,6 @@
       georefIndex[georef.georefID] = georef
     }
 
-    let problems = []
-
     //we need to record the fields to return at the end
     let fields = Object.keys(originals[0])
 
@@ -250,77 +316,11 @@
         let georefDetails = recordGroupDetails.recordGeorefData[recordID] //this is the stuff from applying a georeference to a locality string
         let georef = georefIndex[georefDetails.georefID] //this is the original georef applied
         if(!georef){
-          problems.push(recordID)
+          downloadProblems.push(recordID)
           continue
         }
 
-        original.nscfGeorefID = georef.georefID
-        original.georeferenceCountry = georef.country
-        original.georeferenceStateProvince = georef.stateProvince
-        original.georeferenceLocality = georef.locality
-        original.decimalCoordinates = georef.decimalCoordinates
-        original['dwc:decimalLatitude'] = georef.decimalLatitude
-        original['dwc:decimalLongitude'] = georef.decimalLongitude
-        original.georeferenceUncertainty = georef.uncertainty 
-        original.georeferenceUncertaintyUnit = georef.uncertaintyUnit 
-
-        if(georef.uncertainty) {
-          let uncertM = georef.uncertainty 
-          if(georef.uncertaintyUnit == 'km'){
-            uncertM = georef.uncertainty * 1000
-          }
-          original['dwc:coordinateUncertaintyInMeters'] = uncertM
-        }
-        else {
-          original['dwc:coordinateUncertaintyInMeters'] = null
-        }
-        
-        original['dwc:geodeticDatum'] = georef.datum 
-        original['dwc:georeferencedBy'] = georefDetails.georefBy 
-        original.georeferencedByID = georefDetails.georefByID
-
-        let d = new Date(georefDetails.georefDate) //its a timestamp
-        let local = new Date(d.getTime() - d.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
-        original['dwc:georeferencedDate'] = local
-
-        original.originalGeoreferencedBy = georef.by
-        original.originalGeoreferenceByID = georef.byORCID
-        original.originalGeoreferenceDate = georef.date //this is not a timestamp
-        original['dwc:georeferenceSources'] = georef.sources
-        original.originalGeorefSource = georef.originalGeorefSource 
-        original['dwc:georeferenceProtocol'] = georef.protocol 
-        original['dwc:georeferenceRemarks'] = georefDetails.georefRemarks
-        original.originalGeoreferenceRemarks = georef.remarks
-
-        if(georefDetails.georefVerified){
-          if(georefDetails.georefVerifiedByRole) {
-            original['dwc:georeferenceVerificationStatus'] = 'verified by ' + georefDetails.georefVerifiedByRole
-          }
-          else {
-            original['dwc:georeferenceVerificationStatus'] = 'verified (no role indicated)'
-          }
-        }
-        else {
-          original['dwc:georeferenceVerificationStatus'] = 'requires verification'
-        }
-
-        original.georeferenceVerifiedBy = georefDetails.georefVerifiedBy
-        original.georeferenceVerifiedDate = georefDetails.georefVerifiedDate
-
-        if(georef.verified){
-          if(georef.verifiedByRole) {
-            original.originalGeoreferenceVerificationStatus = 'verified by ' + georef.verifiedByRole
-          }
-          else {
-            original.originalGeoreferenceVerificationStatus = 'verified (no role indicated)'
-          }
-        }
-        else {
-          original.originalGeoreferenceVerificationStatus = 'requires verification'
-        }
-
-        original.originalGeoreferenceVerifiedBy = georef.verifiedBy 
-        original.originalGeoreferenceVerifiedDate = georef.verifiedDate
+        addGeorefToRecord(original, georef, georefDetails)
       }
     }
 
@@ -358,7 +358,6 @@
     ]]
     let csv = Papa.unparse({fields, data: originals})
 
-    console.log(csv.slice(0,100))
     let now = new Date()
     let date = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString() //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
     date = date.replace(/-:/g, '')
@@ -371,28 +370,98 @@
     hiddenDownload.download = newDatasetName
     hiddenDownload.click();
     
-    //TODO mark on Firestore with last download timestamp (who, when and what) -- probably better before the bit above
+    updateLastDownload('dataset')
     showDownloadComplete = true
     downloading = false
   }
 
   const handleDownloadGeorefs = async _ => {
-    //TODO needs comfirmation modal
+
+    downloading = true
+    downloadProgessMessage = "fetching record groups"
+    let recordGroupDetails = await getRecordGroups()
+    
+    //this is identical to above
+    downloadProgessMessage = "fetching georefs..."
+    let georefs
     try {
-      console.log('testing Firestore permissions')
-      let res = await Firestore.collection('recordGroups').doc('00aBJzjYjGvXJnZhb67H').get()
+      
+      let georefIDs = Object.keys(recordGroupDetails.georefIDs)
+      if(!georefIDs.length) {//there are no georefs for this dataset yet
+        alert('there are no georeferences for this dataset yet, nothing will be downloaded')
+        downloadProgessMessage = null
+        return
+      }
+      //else
+      let index = `${dataset.region.replace(/\s+/g,'')}${dataset.domain.replace(/\s+/g,'')}`.toLowerCase()
+
+      georefs = await getGeorefs(georefIDs, index)
+      console.log(georefs[0])
+
     }
     catch(err) {
-      console.log(err.message)
-      downloadErrorMessage = err.message
-      downloadErrors = true
+      alert('Error with download: ' + err.message)
+      downloadProgessMessage = null
       return
     }
 
-    //fetch the georeferences from Elastic
-    //fetch the recordGroups
-    //join everything up and save to the users computer
-    //mark on Firestore with last download timestamp (who, when and what)
+    downloadProgessMessage = "and finally assembling everthing..."
+    
+    let georefIndex = {}
+    for (let georef of georefs){
+      georefIndex[georef.georefID] = georef
+    }
+
+    let records = []
+    for (let [recordID, georefDetails] of Object.entries(recordGroupDetails.recordGeorefData)){
+      let obj = {}
+      obj[dataset.recordIDField] = recordID
+      let georef = georefIndex[georefDetails.georefID]
+      if (!georef){
+        downloadProblems.push(recordID)
+        continue
+      }
+
+      addGeorefToRecord(obj, georef, georefDetails)
+
+      records.push(obj)
+
+    }
+
+    let csv = Papa.unparse(records)
+
+    //note this is not identical to above
+    let now = new Date()
+    let date = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString() //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
+    date = date.replace(/-:/g, '')
+    let newDatasetName = dataset.datasetName + '_georeferences' + date + '.csv' //very slight difference here to above
+
+    //taken from https://code-maven.com/create-and-download-csv-with-javascript
+    let hiddenDownload = document.createElement('a');
+    hiddenDownload.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
+    hiddenDownload.target = '_blank';
+    hiddenDownload.download = newDatasetName
+    hiddenDownload.click();
+    
+    updateLastDownload('georefs only')
+    showDownloadComplete = true
+    downloading = false
+
+  }
+
+  const updateLastDownload = downloadType => {
+    //this is not async because we don't want to slow things down
+    if(!downloadType){
+      throw new Error('a downloadType is required to update the dataset')
+    }
+    let update = {
+      lastDownload: {
+        downloadDate: Date.now(),
+        downloadBy: user.formattedName,
+        downloadType
+      }
+    }
+    Firestore.collection('datasets').doc(dataset.datasetID).update(update)
   }
 
   const getRecordGroups = async _ => {
@@ -431,8 +500,6 @@
           }
         }
       }
-
-      console.log(Object.keys(georefIDs).join(';'))
 
       return {
         georefIDs,
@@ -560,6 +627,14 @@
 
     })
   }
+
+  const showUTFFilehint = _ => {
+    let message = `Special characters in UTF-8 files get scrambled if the file is opened directly in Excel. 
+    You need to import the file from the data tab in Excel and set the encoding to UTF-8 during the import process. 
+    Alternatively the file can be opened in a text editor like Notepad, or imported directly into Google Sheets, R, or OpenRefine, without problems.`
+    
+    alert(message)
+  }
 </script>
 
 <!-- ############################################## -->
@@ -569,13 +644,17 @@
     {#if downloading}
     <div class="vertical">
       {downloadProgessMessage}
-      <div>
+      <div class="loaderflex">
         <Loader/>
       </div>
     </div>
     {:else if showDownloadComplete}
     <div class="vertical">
-      <p style="margin-bottom:20px">The download has completed. Please remember to open the file in a UTF-8 friendly way...</p>
+      <p style="margin-bottom:20px">The download has completed. Please remember to <span on:click={showUTFFilehint}>open the file in a UTF-8 friendly way...</span></p>
+      {#if downloadProblems.length}
+        <p style="font-weight:bold;">There were problems with associating georeferences for the following {downloadProblems.length} record/s: </p>
+        <p>{downloadProblems.join('; ')}</p>
+      {/if}
       <button on:click="{_ => showDownloadComplete = false}">Okay</button>
     </div>
     {:else}
@@ -638,7 +717,7 @@
           <span>{dataset.lastGeoreferenceBy? dataset.lastGeoreferenceBy : 'NA'}</span>
         </div>
       </div>
-      {#if dataset.createdByID == userID && profilesIndex}
+      {#if dataset.createdByID == user.uid && profilesIndex}
         <div>
           <div>
             <label>Invited</label>
@@ -675,7 +754,7 @@
       <div class="button-container">
         <button on:click={handleStartGeoreferencing}>Start georeferencing</button>
         <button on:click={handleBackToDatasets}>Back to datasets</button>
-        {#if dataset.createdByID == userID}
+        {#if dataset.createdByID == user.uid}
           <button on:click = {clearLockedRecordGroups}>Clear locked record groups</button> <!--TODO add only for admins-->
           <button on:click={handleDownloadDataset}>Download dataset with georeferences</button>
           <button on:click={handleDownloadGeorefs}>Download georeferences only</button>
@@ -721,6 +800,12 @@ h2 {
   justify-content: center;
   align-items: center;
   height:100%;
+}
+
+.loaderflex {
+  height: 300px;
+  display:flex;
+  align-items:center;
 }
 
 .content > div {

@@ -29,6 +29,7 @@ export let dataset
 export let profile
 
 let datasetRef 
+let bookMarksRef
 
 $: if(Firestore) {
   datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
@@ -114,7 +115,6 @@ onMount(async _ => {
   try {
     let lastRecordGroupIDSnap = await Firebase.ref(`userDatasetLastRecordGroup/${profile.uid}/${dataset.datasetID}`).once('value')
     if (lastRecordGroupIDSnap.exists()){
-      console.log('found a last recorded worked on')
       let recordGroupID = lastRecordGroupIDSnap.val()
       let fsSnap = await Firestore.collection('recordGroups').doc(recordGroupID).get()
       if(fsSnap.exists){
@@ -126,8 +126,6 @@ onMount(async _ => {
     alert('there was an error getting last recordgroup for this user: ' + err.message)
     return
   }
-
-  console.log('last user snap is:', typeof userLastSnap)
 
   try {
     fetchNextRecordGroup(userLastSnap)
@@ -184,7 +182,6 @@ const fetchNextRecordGroup = async lastSnap => {
     .orderBy('groupID')
     
     if(lastSnap) {
-      console.log('adding last user snap to query')
       query = query[snapStart](lastSnap)
     }
 
@@ -642,21 +639,159 @@ const handleStartOver = _ => { //just clear out any georefIDs
   }
 }
 
-const handleNoGeoref = _ => {
-  //piggy backing on setGeoref
-  if(selectedLocGeorefRemarks && selectedLocGeorefRemarks.trim()){
-    let fakeEv = {
-      detail : {
-          georef: ambiguous,
-          saveGeoref: false
-        }
-      }
-    handleSetGeoref(fakeEv)
+const handleBookmarkRecordGroup = async ev => {
+  let recordGroupID = $dataStore.recordGroupSnap.id
+  ev.currentTarget.disabled = true;
+
+  console.log('bookmarking record group', recordGroupID)
+  if(bookMarksRef) {
+
+    try {
+      await bookMarksRef.update({
+        recordGroupIDs: FieldValue.arrayUnion(recordGroupID)
+      })
+
+      await $dataStore.recordGroupSnap.ref.update({
+        bookmarked: true,
+        bookmarkedBy: profile.formattedName,
+        bookmarkedDate: Date.now()
+      })
+    }
+    catch(err) {
+      console.log(err)
+      alert('error bookmarking record group: ' + err.message )
+      return
+    }
   }
   else {
-    alert('A value is record for remarks under Locality Strings in order to apply no georef')
+    try {
+      let queryResults = await Firestore.collection('userDatasetBookmarks')
+      .where('uid', '==', profile.uid)
+      .where('datasetID', '==', dataset.datasetID)
+      .get()
+
+      if(queryResults.empty) {
+        let doc = {
+          uid: profile.uid, 
+          datasetID: dataset.datasetID,
+          recordGroupIDs: [recordGroupID]
+        }
+        //don't await
+        let docRef =  await Firestore.collection('userDatasetBookmarks').add(doc)
+        bookMarksRef = docRef
+        
+        await $dataStore.recordGroupSnap.ref.update({
+          bookmarked: true,
+          bookmarkedBy: profile.formattedName,
+          bookmarkedDate: Date.now()
+        })
+      }
+      else {
+        bookMarksRef = queryResults.docs[0].ref //there should only be one!
+
+        await bookMarksRef.update({
+          recordGroupIDs: FieldValue.arrayUnion(recordGroupID)
+        })
+
+        await $dataStore.recordGroupSnap.ref.update({
+          bookmarked: true,
+          bookmarkedBy: profile.formattedName,
+          bookmarkedDate: Date.now()
+        })
+      }
+    }
+    catch(err) {
+      console.log(err)
+      alert('error bookmarking record group: ' + err.message )
+      return
+    }
   }
-  
+
+  //we're all good
+  $dataStore.recordGroup.bookmarked = true
+  if(window.pushToast){
+    window.pushToast('locality group bookmarked')
+  }
+}
+
+//this is just the opposite of above
+const handleUnbookmarkRecordGroup = async ev => {
+  let recordGroupID = $dataStore.recordGroupSnap.id
+  ev.currentTarget.disabled = true;
+
+  console.log('unbookmarking record group', recordGroupID)
+  if(bookMarksRef) { //it might not be if we just loaded this
+
+    try{
+      await bookMarksRef.update({
+        recordGroupIDs: FieldValue.arrayRemove(recordGroupID)
+      })
+
+      await $dataStore.recordGroupSnap.ref.update({
+        bookmarked: false,
+        bookmarkedBy: null,
+        bookmarkedDate: null
+      })
+    }
+    catch(err) {
+      console.log(err)
+      alert('error bookmarking record group: ' + err.message )
+      return
+    }
+  }
+  else {
+    try {
+      let queryResults = await Firestore.collection('userDatasetBookmarks')
+      .where('uid', '==', profile.uid)
+      .where('datasetID', '==', dataset.datasetID)
+      .get()
+
+      bookMarksRef = queryResults.docs[0].ref //there should one and only one!
+
+      await bookMarksRef.update({
+        recordGroupIDs: FieldValue.arrayRemove(recordGroupID)
+      })
+
+      await $dataStore.recordGroupSnap.ref.update({
+        bookmarked: false,
+        bookmarkedBy: null,
+        bookmarkedDate: null
+      })
+    }
+    catch(err) {
+      console.log(err)
+      alert('error unbookmarking record group: ' + err.message )
+      return
+    }
+  }
+
+  //we're all good
+  $dataStore.recordGroup.bookmarked = false
+  if(window.pushToast){
+    window.pushToast('locality group unbookmarked')
+  }
+}
+
+const handleNoGeoref = _ => {
+  let selectedLocs = $dataStore.recordGroup.groupLocalities.filter(x => x.selected)
+  if(selectedLocs.length){
+    //piggy backing on setGeoref
+    if(selectedLocGeorefRemarks && selectedLocGeorefRemarks.trim()){
+      let fakeEv = {
+        detail : {
+            georef: ambiguous,
+            saveGeoref: false
+          }
+        }
+      handleSetGeoref(fakeEv)
+    }
+    else {
+      alert('Please add remarks (e.g. ambiguous or imprecise) under Locality Strings in order to assert no georef')
+    }
+  }
+  else {
+    alert('No locality strings selected')
+  }
 }
 
 const handleLocalityCopied = async => {
@@ -681,12 +816,29 @@ const handleUnload = ev => {
     </div>
     <div class="grid-container">
       <div class="recordgroup-container">
-        <h4 title={locStringsTitle}>Locality strings</h4>
+        <h4 title={locStringsTitle}>Locality group</h4>
         <div>
-          <button style="float:right;margin-left:5px;" on:click={handleBackToDatasets}>Done</button>
-          <button style="float:right;margin-left:5px;" on:click={handleStartOver}>Reset</button>
-          <button style="float:right;margin-left:5px;" disabled={!$dataStore.georefIndex} on:click={handleSkipRecordGroup}>Skip</button>
-          <button style="float:right;margin-left:5px;" on:click={handleNoGeoref}>No georef</button>
+          <button class="recordgroup-tool" title="back to datasets" on:click={handleBackToDatasets}>
+            <span class="material-icons">list</span>
+          </button>
+          <button class="recordgroup-tool" title="clear georefs added to this group" on:click={handleStartOver}>
+            <span class="material-icons">replay</span>
+          </button>
+          <button class="recordgroup-tool" title="skip this group" disabled={!$dataStore.georefIndex} on:click={handleSkipRecordGroup}>
+            <span class="material-icons">skip_next</span>
+          </button>
+          {#if !$dataStore.recordGroup || !$dataStore.recordGroup.bookmarked}
+            <button class="recordgroup-tool" title="bookmark this group" disabled={!$dataStore.georefIndex} on:click={handleBookmarkRecordGroup}>
+              <span class="material-icons">bookmark_border</span>
+            </button>
+          {:else}
+            <button class="recordgroup-tool" title="group is bookmarked" disabled={!$dataStore.georefIndex} on:click={handleUnbookmarkRecordGroup}>
+              <span class="material-icons">bookmark_added</span>
+            </button>
+          {/if}
+          <button class="recordgroup-tool" title="state selected localities cannot be georeferenced" on:click={handleNoGeoref}>
+            <span class="material-icons">location_off</span>
+          </button>
         </div>
         {#if $dataStore.recordGroup}
           <div style="text-align:right;">
@@ -802,6 +954,12 @@ h4 {
   overflow:auto;
   border:1px solid #bcd0ec;
   padding:2px;
+}
+
+.recordgroup-tool {
+  float:right;
+  margin-left:5px;
+  padding-bottom:0;
 }
 
 .recordgroup-remarks {

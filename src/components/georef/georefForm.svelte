@@ -46,6 +46,7 @@ export let georefSources = [
   'Google Earth',
   'Google Satellite',
   'Google Terrain',
+  'Google Search',
   '1:250k topomap',
   '1:50k topomap',
   'SANBI gazetteer',

@@ -36,7 +36,6 @@ const getLocalDateTime = timestamp => {
 
   let dt = new Date(timestamp)
   let dtAdjusted = new Date(dt.getTime() - dt.getTimezoneOffset() * 60 * 1000)
-  console.log(dtAdjusted)
   let dtParts = dtAdjusted.toISOString().split(/[T\.]/g)
   dtParts.pop() //chuck it!
   return dtParts.join(' ')
@@ -54,7 +53,6 @@ const getDatasets = async _ => {
 
   //get the IDs
   if(!datasetIDs) {
-    console.log('fetching datasetIDs for', profile.uid, 'from', collection)
     let userDatasetsSnap = await Firestore.collection(collection).doc(profile.uid).get()
       if(userDatasetsSnap.exists){
         let searchDatasets = userDatasetsSnap.data().datasets
@@ -65,7 +63,6 @@ const getDatasets = async _ => {
           return
         } 
         else {
-          console.log('returned', searchDatasets.length, 'datasetIDs')
           datasetIDs = searchDatasets.map(x=>x.trim())
         }
       }
@@ -81,8 +78,6 @@ const getDatasets = async _ => {
   let lastInd = firstInd + 10 //we can only call ten at a time remember end not included in slice
   let queryDatasetIDs = datasetIDs.slice(firstInd, lastInd)
   firstInd += 10 //for the next time
-  
-  console.log('fetching datasets for IDs', queryDatasetIDs.join(', '))
 
   //we can't sort because the IDs are random
   let snap = await Firestore.collection('datasets').where('datasetID', 'in', queryDatasetIDs).get()
@@ -92,7 +87,6 @@ const getDatasets = async _ => {
     snap.forEach(doc =>{
       temp.push(doc.data())
     })
-    console.log('got', temp.length, 'datasets')
     datasets = temp
   }
   else { //no datasets returned, this should not happen
@@ -237,7 +231,6 @@ const removeDataset = async datasetID => {
 }
 
 const emitDataset = dataset => {
-  console.log('emitting dataset', dataset.datasetID)
   dispatch('dataset-selected', dataset)
 }
 </script>

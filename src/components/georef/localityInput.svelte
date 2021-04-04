@@ -86,6 +86,10 @@ function getSelectedText() {
 <!-- ############################################## -->
 <style>
 
+textarea {
+  resize: vertical;
+}
+
 .icon-input-container {
   display: inline-block;
   position:relative;

@@ -104,6 +104,12 @@ const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, u
     //perDataset
     `stats/perDataset/${datasetID}/georefsAdded`,
     `stats/perDataset/${datasetID}/recordsGeoreferenced`,
+    `stats/perDataset/${datasetID}/daily/${today}/georefsAdded`,
+    `stats/perDataset/${datasetID}/daily/${today}/recordsGeoreferenced`,
+    `stats/perDataset/${datasetID}/weekly/${yearweek}/georefsAdded`,
+    `stats/perDataset/${datasetID}/weekly/${yearweek}/recordsGeoreferenced`,
+    `stats/perDataset/${datasetID}/monthly/${yearmonth}/georefsAdded`,
+    `stats/perDataset/${datasetID}/monthly/${yearmonth}/recordsGeoreferenced`,
     `stats/perDataset/${datasetID}/perUser/${userID}/georefsAdded`,
     `stats/perDataset/${datasetID}/perUser/${userID}/recordsGeoreferenced`,
     `stats/perDataset/${datasetID}/perUser/${userID}/daily/${today}/georefsAdded`,
@@ -202,15 +208,12 @@ return `${y} ${m.toString().padStart(2, '0')}`
 const updateDatasetStats = (Firestore, datasetRef, recordsGeoreferenced, formattedName, groupComplete) => {
   return Firestore.runTransaction(async transaction => {
     // This code may get re-run multiple times if there are conflicts.
-    console.log(recordsGeoreferenced + ' records have been georeferenced')
-    console.log('updating stats for dataset ID', datasetRef.id)
     let datasetSnap = await transaction.get(datasetRef)
     if (!datasetSnap.exists) {
       throw "Document does not exist!"; //this should not happen!!!
     }
 
     let dataset = datasetSnap.data()
-    console.log('original records completed:', dataset.recordsCompleted)
 
     let originalRecordsCompleted = dataset.recordsCompleted
     dataset.recordsCompleted += recordsGeoreferenced
@@ -225,8 +228,6 @@ const updateDatasetStats = (Firestore, datasetRef, recordsGeoreferenced, formatt
       //console.log('Value of dataset.groupsComplete:', data.groupsComplete)
       datasetUpdate.groupsComplete = ++dataset.groupsComplete
     }
-
-    console.log('updating dataset recordsCompleted from', originalRecordsCompleted, 'to', dataset.recordsCompleted)
 
     await transaction.update(datasetRef, datasetUpdate);
     return

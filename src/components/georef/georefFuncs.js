@@ -36,12 +36,16 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
             
             let georef = Object.assign(new Georef, elasticGeoref._source)
             if(georef.selected) { //just in case any of these sneak through
-              delete georef.selected
+              georef.selected = false
             }
 
             if(!georef.decimalCoordinatesOkay){
               //console.log('error with coordinates for georef', elasticGeoref._id)
               continue
+            }
+
+            if (georef.flagged) { //we don't want to see flagged georefs
+              continue;
             }
 
             if(!georefIndex[georef.georefID]){

@@ -38,6 +38,7 @@ $: if(Firestore) {
 let dispatch = createEventDispatcher()
 
 //the georef prop to send to the form
+//can be a georef object, null or a blank object. Null and blank object can be used to reset the georef form
 let selectedGeoref
 
 let connected = true //we assume this, but it could cause an issue
@@ -170,8 +171,12 @@ const fetchNextRecordGroup = async lastSnap => {
     $dataStore.recordGroupSnap = null
     $dataStore.georefIndex = null
     $dataStore.locGeorefIndex = null
-    selectedGeoref = null
 
+    if(selectedGeoref) {
+      selectedGeoref.selected = false
+      selectedGeoref = null
+    }
+    
     newGeorefsUsed = [] //start over
     datasetGeorefsUsed = [] //start over
     
@@ -224,7 +229,18 @@ const fetchNextRecordGroup = async lastSnap => {
           
           customSearchString = null //just to clear
           try {
-            let candidateGeorefs = await fetchCandidateGeorefs($dataStore.recordGroup.groupLocalities, elasticindex)
+            
+            let georefsPerLocString = Math.round(100/$dataStore.recordGroup.groupLocalities.length)
+            if (georefsPerLocString > 20) {
+              georefsPerLocString = 20
+            }
+            if (georefsPerLocString < 5) {
+              georefsPerLocString = 5
+            }
+
+            let candidateGeorefs = await fetchCandidateGeorefs($dataStore.recordGroup.groupLocalities, elasticindex, georefsPerLocString)
+
+            georefIndexOnHold = null //just in case custom search is still active
             if(Object.keys(candidateGeorefs.georefIndex).length) {
               $dataStore.georefIndex = candidateGeorefs.georefIndex
               $dataStore.locGeorefIndex =  candidateGeorefs.locGeorefIndex
@@ -253,8 +269,14 @@ const fetchNextRecordGroup = async lastSnap => {
       $dataStore.recordGroupSnap = null
       $dataStore.recordGroup = null
       $dataStore.candidateGeorefs = null
-      selectedGeoref = null
+
+      if(selectedGeoref) {
+        selectedGeoref.selected = false
+        selectedGeoref = null
+      }
+
       datasetComplete = true
+
     }
   }
   
@@ -381,12 +403,13 @@ const handleClearGeoref = _ => {
   if($dataStore.selectedGeorefID) {
     resetTableAndMap($dataStore.selectedGeorefID)
   }
-  selectedGeoref = null
 }
 
 const handleFlagGeoref = ev => {
   let georefID = ev.detail
-  $dataStore.georefIndex[georefID].flagged = true
+  delete $dataStore.georefIndex[georefID]
+  $dataStore.georefIndex = $dataStore.georefIndex //svelte
+
   let url = `https://us-central1-georef-745b9.cloudfunctions.net/flaggeoref?georefID=${georefID}&index=${elasticindex}`
   fetch(url)
 }
@@ -404,9 +427,8 @@ const handleGeorefSelected = ev => {
   if(ev && ev.detail){
     let georefID = ev.detail
     
-    selectedGeoref = $dataStore.georefIndex[georefID].copy()
-    
-    $dataStore.georefIndex[georefID].selected = true
+    selectedGeoref = $dataStore.georefIndex[georefID]
+    selectedGeoref.selected = true
 
     let selectedMarker = $dataStore.markers[georefID]
     if(selectedMarker) {
@@ -423,6 +445,7 @@ const handleGeorefSelected = ev => {
     }
     
     $dataStore.selectedGeorefID = georefID
+    $dataStore.georefIndex = $dataStore.georefIndex //svelte
   }
 }
 
@@ -444,9 +467,11 @@ const resetTableAndMap = georefID => {
     $dataStore.georefIndex[georefID].selected = false
   }
   $dataStore.selectedGeorefID = null
-  selectedGeoref = null
 
-  $dataStore.georefIndex = $dataStore.georefIndex //svelte
+  if(selectedGeoref) {
+    selectedGeoref.selected = false
+    selectedGeoref = null
+  }
 }
 
 //this is the heavy lifting
@@ -579,8 +604,13 @@ const handleSetGeoref = async ev => {
     if($dataStore.selectedGeorefID) {
       resetTableAndMap($dataStore.selectedGeorefID)
     } 
-
-    selectedGeoref = null //just to clear
+    
+    //we need to clear the georef
+    //remember it is cleared by the form itself if it needs to be saved
+    if(selectedGeoref && !saveGeoref) {
+      selectedGeoref.selected = false
+      selectedGeoref = null
+    }
 
     georefsAdded += selectedLocs.length
     console.log(`${georefsAdded} georefs added`)
@@ -610,7 +640,11 @@ const handleBackToDatasets =  async _ => {
   
   $dataStore.recordGroupSnap = null
   $dataStore.recordGroup = null
-  selectedGeoref = null
+  if(selectedGeoref){
+    selectedGeoref.selected = false
+    selectedGeoref = null
+  }
+  
   $dataStore.georefIndex = null
 
   dispatch('back-to-datasets')

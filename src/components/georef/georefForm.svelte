@@ -105,7 +105,7 @@ const checkValidations = _ => {
 */
 
 const setLocalGeoref = _ => {
-  if(georef) {
+  if(georef && georef.constructor && georef.constructor.name == 'Georef') {
     localGeoref = georef.copy()
   }
   else  {
@@ -288,8 +288,15 @@ const checkAndDispatchGeoref = _ => {
       localGeoref.verifiedByRole = null
       saveGeoref = true
     }
-    georef = localGeoref.copy() //so we don't get duplicates of new ones
     dispatch('set-georef', {georef: localGeoref, saveGeoref})
+
+    //the form has to clear itself if georef is null and we are dispatching a local georef
+    //because we can't update from the parent in this case
+    //this should also take care of making sure we don't duplicate new georefs
+    if(saveGeoref) {
+      georef = null
+      setLocalGeoref() 
+    }
   }
   catch(err) {
     alert('error checking georefs are equal: ' + err.message)

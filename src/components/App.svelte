@@ -100,7 +100,6 @@ onMount(_ => {
 							let res = await fetch(fetchURL)
 							let fetchData = await res.json()
 							if (fetchData){
-								console.log('setting profile')
 								profile = fetchData
 								userID = user.uid
 								firstAuth = true

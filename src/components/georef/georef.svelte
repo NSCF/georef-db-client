@@ -86,6 +86,12 @@ let statsRefStrings = [
   `stats/perDataset/${dataset.datasetID}/perUser/${profile.uid}/weekly/yearweek/recordsGeoreferenced`,
   `stats/perDataset/${dataset.datasetID}/perUser/${profile.uid}/monthly/yearmonth/georefsAdded`,
   `stats/perDataset/${dataset.datasetID}/perUser/${profile.uid}/monthly/yearmonth/recordsGeoreferenced`,
+  `stats/perDataset/${dataset.datasetID}/daily/today/georefsAdded`,
+  `stats/perDataset/${dataset.datasetID}/daily/today/recordsGeoreferenced`,
+  `stats/perDataset/${dataset.datasetID}/weekly/yearweek/georefsAdded`,
+  `stats/perDataset/${dataset.datasetID}/weekly/yearweek/recordsGeoreferenced`,
+  `stats/perDataset/${dataset.datasetID}/monthly/yearmonth/georefsAdded`,
+  `stats/perDataset/${dataset.datasetID}/monthly/yearmonth/recordsGeoreferenced`,
   `stats/perDataset/${dataset.datasetID}/georefsAdded`,
   `stats/perDataset/${dataset.datasetID}/recordsGeoreferenced`,
   `stats/perDataset/${dataset.datasetID}/lastGeorefAdded`,
@@ -101,6 +107,12 @@ let statsLabels = [
   'My records this week', 
   'My georefs this month', 
   'My records this month', 
+  'All georefs today',
+  'All records today',
+  'All georefs this week', 
+  'All records this week', 
+  'All georefs this month', 
+  'All records this month',
   'Total georefs',
   'Total records', 
   'Last georef', 
@@ -494,7 +506,6 @@ const handleSetGeoref = async ev => {
       
       //save it to elastic via our API
       //this is async so we don't slow down
-      console.log('saving to georef database')
       let url = 'https://us-central1-georef-745b9.cloudfunctions.net/addgeoref'
       fetch(url, {
         method: 'POST', 
@@ -534,9 +545,6 @@ const handleSetGeoref = async ev => {
               alert(message)
             }
           })
-        }
-        else {
-          console.log('new georef saved')
         }
 
         if(window.pushToast) {
@@ -613,7 +621,6 @@ const handleSetGeoref = async ev => {
     }
 
     georefsAdded += selectedLocs.length
-    console.log(`${georefsAdded} georefs added`)
   
     //if these were the last ones
     let withGeorefs = $dataStore.recordGroup.groupLocalities.filter(x => x.georefID).length

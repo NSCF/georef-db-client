@@ -99,8 +99,6 @@ const setPoints = _ => {
       //check if any georefs have been added
       for (let [georefID, georef] of Object.entries($dataStore.georefIndex)){
         if(!$dataStore.markers.hasOwnProperty(georefID)){
-          console.log('missing marker georefID:', georefID)
-          console.log('marker IDs:', Object.keys($dataStore.markers).join(';'))
           //add it to the map
           let marker = createMarker(georef, map, circlesOn)
           if(!$dataStore.markers){
@@ -126,7 +124,6 @@ const setPoints = _ => {
     //else
 
     //set bounds and add marker
-    console.log('drawing markers')
     let bounds = new google.maps.LatLngBounds()
     for (let georefID of Object.keys($dataStore.georefIndex)){
       let georef = $dataStore.georefIndex[georefID]
@@ -153,7 +150,6 @@ const setPoints = _ => {
       google.maps.event.addListener(coordsPin, 'dragend', function(evt){
         let coords = evt.latLng.toUrlValue()
         navigator.clipboard.writeText(coords).then(_ => {
-          console.log('coords copied')
           if(window.pushToast) {
             window.pushToast('coordinates copied')
           }
@@ -164,7 +160,7 @@ const setPoints = _ => {
         var positionDoubleclick = e.latLng;
         coordsPin.setPosition(positionDoubleclick);
         let coords = positionDoubleclick.toUrlValue()
-        navigator.clipboard.writeText(coords).then(_ => console.log('coords copied'))
+        navigator.clipboard.writeText(coords)
         map.panTo(positionDoubleclick);
         if(window.pushToast) {
           window.pushToast('coordinates copied')

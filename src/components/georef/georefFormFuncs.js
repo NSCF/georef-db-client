@@ -48,8 +48,6 @@ const georefsEqual = (georef1, georef2) => {
 
           //they both have a value
           if(obj1[key] != obj2[key]) {
-            console.log(key, 'has changed')
-            console.log(key, 'has changed. Old = ', obj1[key], ', new =', obj2[key])
             return false
           }
 

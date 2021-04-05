@@ -684,7 +684,6 @@ const handleBookmarkRecordGroup = async ev => {
   let recordGroupID = $dataStore.recordGroupSnap.id
   ev.currentTarget.disabled = true;
 
-  console.log('bookmarking record group', recordGroupID)
   if(bookMarksRef) {
 
     try {
@@ -760,7 +759,6 @@ const handleUnbookmarkRecordGroup = async ev => {
   let recordGroupID = $dataStore.recordGroupSnap.id
   ev.currentTarget.disabled = true;
 
-  console.log('unbookmarking record group', recordGroupID)
   if(bookMarksRef) { //it might not be if we just loaded this
 
     try{

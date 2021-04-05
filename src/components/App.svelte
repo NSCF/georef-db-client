@@ -28,6 +28,7 @@ import { Circle } from 'svelte-loading-spinners'
 
 //just for now
 let profile
+let fbUser //the firebase user object
 let userID
 let firstAuth = false
 
@@ -87,7 +88,9 @@ onMount(_ => {
 	//hopefully this is triggered when we open the page again and sign in is persisted
 	Auth.onAuthStateChanged(async user => {
 		//TODO wait to get it from the registration dispatch
+		fbUser = user
 		if(user){
+
 			if(window.location.href.includes('/auth/userMgmt')) {
 				window.location = window.location.href.split('/auth/userMgmt')[0]
 			} 
@@ -233,6 +236,34 @@ function handleBackToDatasets() {
 	currentPage = 'datasetList'
 }
 
+const testAuth = _ => {
+	if (fbUser) {
+		fbUser.getIdToken().then(token => {
+			console.log('id token is', token)
+			fetch('http://localhost:5001/georef-745b9/us-central1/hello', {
+				headers: {
+					Authorization: 'Bearer ' + token
+				}
+			}).then(res => {
+				if (res.ok){
+					res.json().then(data => {
+						console.log(data)
+						alert('Success!! See console for response data')
+					})
+				}
+				else {
+					alert('unsuccessfull with body: ' + res.body)
+				}
+			}).catch(err => {
+				alert('fetch failed with message: ' + err.message)
+			})
+		})
+	}
+	else {
+		alert('there is no user yet')
+	}
+}
+
 </script>
 
 <main>
@@ -269,6 +300,7 @@ function handleBackToDatasets() {
 			{#if userID && currentPage != 'Georeferencer'}
 					<GeorefStats {Firebase} {statsRefStrings}  {statsLabels} descriptor={'Georef stats:'}/>
 			{/if}
+			<button on:click={testAuth}>Click to test auth api call</button>
 			<div class="content">
 				
 				{#if currentPage == 'Register'}

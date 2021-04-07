@@ -101,17 +101,9 @@ const refresh = _ => {
 }
 
 const acceptInvitedDataset = async datasetID => {
+  //update the database
   let removeRef = Firestore.collection('userPendingDatasets').doc(profile.uid)
-  let removeForUser = Firestore.runTransaction(transaction => {
-    return transaction.get(removeRef).then(snap => {
-      if(snap.exists){
-        return transaction.update(removeRef, {datasets: FieldValue.arrayRemove(datasetID)})
-      }
-      else {
-        return
-      }
-    })
-  })
+  let removeForUser = removeRef.update({datasets: FieldValue.arrayRemove(datasetID)})
 
   let addRef = Firestore.collection('userDatasets').doc(profile.uid)
   let addForUser = Firestore.runTransaction(transaction => {
@@ -126,7 +118,7 @@ const acceptInvitedDataset = async datasetID => {
   })
 
   let updateDatasetRef = Firestore.collection('datasets').doc(datasetID)
-  let updateForDataset = Firestore.runTransaction(transaction => {
+  let updateForDataset = await Firestore.runTransaction(transaction => {
     return transaction.get(updateDatasetRef).then(snap => {
       if(snap.exists){ //it should
         return transaction.update(updateDatasetRef, {
@@ -140,22 +132,16 @@ const acceptInvitedDataset = async datasetID => {
     })
   })
 
-  let hold
-  try {
-    hold = datasets
-    datasets = null
-    await Promise.all([removeForUser, addForUser, updateForDataset])
-    let index = hold.findIndex(x => x.datasetID == datasetID)
-    if(index >= 0) { //it should be
-      hold.splice(index, 1)
-      datasets = hold
-    }
+  datasets = null
+  try{
+    await Promise.all(addForUser, removeForUser, updateForDataset)
   }
   catch(err) {
-    alert('there was an error updating invited datasets:' + err.message)
-    datasets = hold
-    return
+    alert('there was an error updating dataset invitations') //hopefully we won't have this
   }
+  
+  //to update the UI this should work
+  firstTab = true;
 }
 
 const removeDataset = async datasetID => {
@@ -205,33 +191,31 @@ const removeDataset = async datasetID => {
       return transaction.get(datasetRef).then(snap => {
         if(snap.exists){ //it should
           transaction.update(datasetRef, {
-            georeferencers: FieldValue.arrayRemove(profile.uid)          })
+            georeferencers: FieldValue.arrayRemove(profile.uid)})
         }
       })
     })
     proms.push(leave)
   }
 
-  let hold
   try {
-    hold = datasets
     datasets = null
     await Promise.all(proms)
-    let index = hold.findIndex(x => x.datasetID == datasetID)
-    if(index >= 0) { //it should be
-      hold.splice(index, 1)
-    }
-    datasets = hold
+    reset()
   }
   catch(err) {
     alert('error updating datasets on remove: ' + err.message)
-    datasets = hold
     return
   }
 }
 
 const emitDataset = dataset => {
-  dispatch('dataset-selected', dataset)
+  if(firstTab) {
+    dispatch('dataset-selected', dataset)
+  }
+  else {
+    alert('please accept invitation to this dataset to start georeferencing')
+  }
 }
 </script>
 

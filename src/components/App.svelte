@@ -349,7 +349,7 @@ const testAuth = _ => {
 					<DatasetList {profile} on:dataset-selected={handleDatasetSelected}/>
 				{/if}
 				{#if currentPage == 'datasetDetail'}
-					<DatasetDetail user={profile} dataset={selectedDataset} on:to-datasets={handleToDatasets} on:start-georeferencing={handleStartGeoreferencing}/>
+					<DatasetDetail {profile} dataset={selectedDataset} on:to-datasets={handleToDatasets} on:start-georeferencing={handleStartGeoreferencing}/>
 				{/if}
 				{#if currentPage == 'Georeferencer'}
 					<Georeferencer {Firestore} {Firebase} {FieldValue} {profile} dataset={selectedDataset} on:back-to-datasets='{_=> currentPage = 'datasetList'}'/>

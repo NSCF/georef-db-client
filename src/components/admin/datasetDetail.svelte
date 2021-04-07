@@ -8,7 +8,7 @@
   const dispatch = createEventDispatcher()
 
   export let dataset
-  export let user //we dont' need the rest
+  export let profile //this is the profile, we dont' need the rest
 
   let profilesIndex = null
 
@@ -21,7 +21,7 @@
   onMount(async _ => {
 
     //only the person who created the dataset can see the georeferencers
-    if(dataset.createdByID == user.uid){
+    if(dataset.createdByID == profile.uid){
       //we have georeferencers, invited and newInvitees
       let uids = [...dataset.georeferencers, ...dataset.invitees].filter(x => x && x.trim()).map(x => x.trim()) //filter just in case
       let res = await fetch('https://us-central1-georef-745b9.cloudfunctions.net/getprofilesforidlist', {
@@ -88,7 +88,7 @@
     }
     else { //it must be a profile
       
-      let updRef = Firestore.collection('userPendingDatasets').doc(user.uid)
+      let updRef = Firestore.collection('userPendingDatasets').doc(profile.uid)
       let updSnap = await updRef.get()
       let updUpdate
       if(updSnap.exists){
@@ -457,7 +457,7 @@
     let update = {
       lastDownload: {
         downloadDate: Date.now(),
-        downloadBy: user.formattedName,
+        downloadBy: profile.formattedName,
         downloadType
       }
     }
@@ -587,45 +587,40 @@
   }
 
   const removeNewInvitee = email => {
-    Firestore.collection('invitedUserPendingDatasets').where('email', '==', email.toLowerCase())
-    .get().then(snap => {
-      
-      let invitedUPDRef
-      if(snap.exists) {
-        invitedUPDRef = snap.ref
-      }
-
-      let datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
-
-      let proms = []
-      return Firestore.runTransaction(async transaction => {
-        let update1 = transaction.update(datasetRef, {
-          newInvitees: FieldValue.arrayRemove(email)
-        })
-
-        proms.push(update1)
-
-        if(invitedUPDRef) {
-          let update2 = transaction.update(invitedUPDRef, {
-            datasets: FieldValue.arrayRemove(dataset.datasetID)
-          })
-          proms.push(update2)
-        }
+    if(email && email.trim()) {
+      Firestore.collection('invitedUserPendingDatasets').where('email', '==', email.toLowerCase())
+      .get().then(UPDSnap => {
         
+        if(UPDSnap.exists) { //it really should!
+          let datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
 
-        await Promise.all(proms).then(_ => {
-          let index = dataset.newInvitees.indexOf(x => x == email)
-          if(index >= 0) {
-            dataset.newInvitees.splice(index, 1)
-            dataset.newInvitees = dataset.newInvitees //svelte
-          }
-          return
-        }).catch(err => {
-          console.log('error updating invitees list:', err.message)
-        })
+          let proms = []
+          return Firestore.runTransaction(async transaction => {
+            let update1 = transaction.update(datasetRef, {
+              newInvitees: FieldValue.arrayRemove(email)
+            })
+
+            proms.push(update1)
+
+            let update2 = transaction.update(UPDSnap.ref, {
+              datasets: FieldValue.arrayRemove(dataset.datasetID)
+            })
+            proms.push(update2)
+
+            await Promise.all(proms)
+            
+            let index = dataset.newInvitees.indexOf(email)
+            if(index >= 0) {
+              dataset.newInvitees.splice(index, 1)
+              dataset.newInvitees = dataset.newInvitees //svelte
+            }
+          })
+        }
       })
-
-    })
+    }
+    else {
+      alert('oops, that didn\'t work!')
+    }
   }
 
   const showUTFFilehint = _ => {
@@ -717,7 +712,7 @@
           <span>{dataset.lastGeoreferenceBy? dataset.lastGeoreferenceBy : 'NA'}</span>
         </div>
       </div>
-      {#if dataset.createdByID == user.uid && profilesIndex}
+      {#if dataset.createdByID == profile.uid && profilesIndex}
         <div>
           <div>
             <label>Invited</label>
@@ -754,7 +749,7 @@
       <div class="button-container">
         <button on:click={handleStartGeoreferencing}>Start georeferencing</button>
         <button on:click={handleBackToDatasets}>Back to datasets</button>
-        {#if dataset.createdByID == user.uid}
+        {#if dataset.createdByID == profile.uid}
           <button on:click = {clearLockedRecordGroups}>Clear locked record groups</button> <!--TODO add only for admins-->
           <button on:click={handleDownloadDataset}>Download dataset with georeferences</button>
           <button on:click={handleDownloadGeorefs}>Download georeferences only</button>

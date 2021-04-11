@@ -129,7 +129,7 @@
         })
 
         try{
-          await Promise.all([postProfile, moveInvitedDatasets()])
+          await Promise.all([postProfile, moveInvitedDatasets(email, user)])
         }
         catch(err) {
           alert('creating profile failed: ' + err.message)
@@ -182,14 +182,16 @@
     }
 
     if(!querysnap.empty){
-      let docsnap = snap.docs[0] //should only be one!
-      let datasets = data().datasets
+      let docsnap = querysnap.docs[0] //should only be one!
+      let datasets = docsnap.data().datasets
 
       //need to update each dataset
       try{
+        let proms = []
         for (let dataset of datasets) {
-          await updateDatasetInvitees(dataset, email, user.uid) //this is a transaction in case others are updating
+          proms.push(updateDatasetInvitees(dataset, email, user.uid)) //this is a transaction in case others are updating
         }
+        await Promise.all(proms)
       }
       catch(err) {
         throw new Error('failed to update dataset objects -- ' + err.message)
@@ -222,7 +224,7 @@
     let datasetRef =  Firestore.collection('datasets').doc(datasetID)
     await Firestore.runTransaction(async transaction => {
       await transaction.update(datasetRef, {
-        newInvitees: FieldValue.arrayRemove(email), 
+        newInvitees: FieldValue.arrayRemove(email.toLowerCase().trim()), 
         invitees: FieldValue.arrayUnion(profileID)
       })
     })

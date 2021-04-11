@@ -125,19 +125,33 @@ onMount(async _ => {
 
   let userLastSnap = null
 
+  let lastRecordGroupIDSnap
   try {
-    let lastRecordGroupIDSnap = await Firebase.ref(`userDatasetLastRecordGroup/${profile.uid}/${dataset.datasetID}`).once('value')
-    if (lastRecordGroupIDSnap.exists()){
-      let recordGroupID = lastRecordGroupIDSnap.val()
-      let fsSnap = await Firestore.collection('recordGroups').doc(recordGroupID).get()
-      if(fsSnap.exists){
-        userLastSnap = fsSnap
-      }
-    }
+    lastRecordGroupIDSnap = await Firebase.ref(`userDatasetLastRecordGroup/${profile.uid}/${dataset.datasetID}`).once('value')
   }
   catch(err){
-    alert('there was an error getting last recordgroup for this user: ' + err.message)
+    alert('there was an error getting last recordgroup SNAP for this user: ' + err.message)
+    console.log(err)
     return
+  }
+
+  if (lastRecordGroupIDSnap.exists()){
+    let recordGroupID = lastRecordGroupIDSnap.val()
+    
+    //we need the Firestore snapshot to use for the query
+    let fsSnap
+    try{
+      fsSnap = await Firestore.collection('recordGroups').doc(recordGroupID).get()
+    }
+    catch(err){
+      alert('there was an error getting last recordgroup for this user: ' + err.message)
+      console.log(err)
+      return
+    }
+
+    if(fsSnap.exists){
+      userLastSnap = fsSnap
+    }
   }
 
   try {
@@ -161,7 +175,12 @@ onMount(async _ => {
   fetch(`https://us-central1-georef-745b9.cloudfunctions.net/getambiguous?index=${elasticindex}`)
   .then(res => res.json())
   .then(data => {
-    ambiguous = data._source //just an object with an ID, not a Georef instance...
+    if(data._source) {
+      ambiguous = data._source //just an object with an ID, not a Georef instance...
+    }
+    else {
+      ambiguous = data
+    } 
     ambiguous.remarks = null //because we now use this for no georef
   })
   .catch(err => {
@@ -296,7 +315,12 @@ const fetchNextRecordGroup = async lastSnap => {
 
 const releaseRecordGroup = async _ => {
   if($dataStore.recordGroupSnap){
-    await $dataStore.recordGroupSnap.ref.update({groupLocked: false})
+    try{
+      await $dataStore.recordGroupSnap.ref.update({groupLocked: false})
+    }
+    catch(err) {
+      alert('error releasing the locality group:' + err.message)
+    }
   }
 }
 

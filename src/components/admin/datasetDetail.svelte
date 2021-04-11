@@ -34,11 +34,16 @@
         body: JSON.stringify({ uids }) // body data type must match "Content-Type" header
       })
 
-      let profiles = await res.json()
+      if(res.ok) {
+        let profiles = await res.json()
       
-      profilesIndex = {}
-      for (let profile of profiles) {
-        profilesIndex[profile.uid] = profile
+        profilesIndex = {}
+        for (let profile of profiles) {
+          profilesIndex[profile.uid] = profile
+        }
+      }
+      else {
+        alert('there was a problem fetching the user profiles for georeferencers and invitees')
       }
     }
   })
@@ -95,7 +100,12 @@
         updUpdate = updRef.update({datasets: FieldValue.arrayUnion(dataset.datasetID)})
       }
 
-      let datasetUpdate = Firestore.collection('datasets').doc(dataset.datasetID).update({invitees: FieldValue.arrayUnion(item.uid)})
+      let datasetUpdate = Firestore.collection('datasets')
+        .doc(dataset.datasetID)
+        .update({
+          invitees: FieldValue.arrayUnion(item.uid),
+          pastGeoreferencers: FieldValue.arrayUnion(item.uid) //this is in case we are reinviting someone who left
+        })
 
       Promise.all([updUpdate, datasetUpdate]).then(_ => {
         profilesIndex[item.uid] = item
@@ -105,6 +115,26 @@
       .catch(err => {
         alert('there was an error adding', item.firstName, 'to the invitee list')
       })
+    }
+  }
+
+  const removeGeoreferencer = async uid => {
+    let conf = confirm('Are you sure you want to remove this active georeferencer?')
+    if(conf){
+      let ref = Firestore.collection('datasets').doc(dataset.datasetID)
+      try {
+        await ref.update({georeferencers: FieldValue.arrayRemove(uid)})
+      }
+      catch(err) {
+        alert('there was an error removing this georeferencer from this dataset, see console')
+        console.error('error removing georeferencer')
+        console.log(err)
+        return
+      }
+      
+      let index = dataset.georeferencers.indexOf(uid)
+      dataset.georeferencers.splice(index, 1)
+      dataset.georeferencers = dataset.georeferencers //svelte
     }
   }
 
@@ -574,7 +604,7 @@
       })
 
       await Promise.all([update1, update2]).then(_ => {
-        let index = dataset.invitees.indexOf(x => x == uid)
+        let index = dataset.invitees.indexOf(uid)
         if(index >= 0) {
           dataset.invitees.splice(index, 1)
           dataset.invitees = dataset.invitees //svelte
@@ -739,7 +769,12 @@
             <div class="inviteelist">
               {#each dataset.georeferencers as uid}
                 <div class="inviteecontainer">
-                  <div>{profilesIndex[uid].formattedName + " (" + profilesIndex[uid].email + ")"}</div>
+                  {#if profilesIndex[uid]} <!--this is just in users and their details have been deleted elsewhere-->
+                    <div>{profilesIndex[uid].formattedName + " (" + profilesIndex[uid].email + ")"}</div>
+                  {/if}
+                  {#if uid != profile.uid} <!--this is so the creator can't remove themselves from the georeferencer list, remember we query datasets based on who's in the georeferencer list-->
+                    <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeGeoreferencer(uid)}'>clear</div>
+                  {/if}
                 </div>
               {/each}
             </div>

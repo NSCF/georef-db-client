@@ -300,7 +300,7 @@ const testAuth = _ => {
 			{#if userID && currentPage != 'Georeferencer'}
 					<GeorefStats {Firebase} {statsRefStrings}  {statsLabels} descriptor={'Georef stats:'}/>
 			{/if}
-			<button on:click={testAuth}>Click to test auth api call</button>
+			<button style="display:none" on:click={testAuth}>Click to test auth api call</button>
 			<div class="content">
 				
 				{#if currentPage == 'Register'}

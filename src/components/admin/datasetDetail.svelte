@@ -1,9 +1,10 @@
 <script>
-  import { Firestore, FieldValue, Storage } from '../../firebase.js'
+  import { Firestore, Realtime, FieldValue, Storage } from '../../firebase.js'
   import Papa from 'papaparse'
   import {onMount, createEventDispatcher} from 'svelte'
   import ProfileSelect from '../profileSelect.svelte'
   import Loader from '../loader.svelte'
+  import StatsChart from './datasetStatsChart.svelte'
 
   const dispatch = createEventDispatcher()
 
@@ -741,6 +742,10 @@
           <label>Last georeference by</label>
           <span>{dataset.lastGeoreferenceBy? dataset.lastGeoreferenceBy : 'NA'}</span>
         </div>
+      </div>
+      <div>
+        <StatsChart datasetID={dataset.datasetID} type={'weekly'} />
+        <StatsChart datasetID={dataset.datasetID} type={'monthly'} />
       </div>
       {#if dataset.createdByID == profile.uid && profilesIndex}
         <div>

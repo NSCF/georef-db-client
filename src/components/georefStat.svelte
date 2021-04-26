@@ -5,46 +5,52 @@ export let labelText
 export let stat
 export let isGeoref //for recording whether this is georefs or records
 
-let greens = ['#c3c388', '#77b300']
-let browns = ['#ff944d', '#cc5200']
+let greens = ['#c3c388', '#77b300'] //for records
+let browns = ['#ff944d', '#cc5200'] //for georefs
 
 let el 
-let cols
 
 $: stat, flash()
 
 onMount(_ => {
-
+  el.classList.remove('ping')
   if(isGeoref){
-    cols = browns
+    el.style.backgroundColor = browns[0]
+    el.style.color = browns[0] //for box shadow
   }
   else {
-    cols = greens
+    el.style.backgroundColor = greens[0]
+    el.style.color = greens[0] //for box shadow
   }
-
-  el.style.backgroundColor = cols[0]
-  el.style.boxShadow = '0 0 2px 2px' + cols[0]
-
 })
 
 function flash() {
   if(stat != null && stat != undefined && el) {
-    //first stop it in case it is still transitioning
-    el.style.transitionProperty = 'none'
-    el.style.backgroundColor = getComputedStyle(el).backgroundColor //yes it's needed
-    el.style.boxShadow = getComputedStyle(el).boxShadow //yes its needed
-    
-    //and start over
-    el.style.transition = "all 0.01s"
-    el.style.backgroundColor = cols[1]
-    el.style.boxShadow = '0 0 2px 2px' + cols[1]
+    el.classList.add('ping')
+    if(isGeoref) {
+      el.style.backgroundColor = browns[1]
+      el.style.color = browns[1] //for box shadow
+    }
+    else {
+      el.style.backgroundColor = greens[1]
+      el.style.color = greens[1] //for box shadow
+    }
   }
 }
 
 const handleTransitionend = _ => {
-  el.style.transition = "all 0.5s ease-out"
-  el.style.backgroundColor = cols[0]
-  el.style.boxShadow = '0 0 2px 2px' + cols[0]
+  if(el.classList.contains('ping')){
+    el.classList.remove('ping') 
+  }
+
+  if(isGeoref){
+    el.style.backgroundColor = browns[0]
+    el.style.color = browns[0] //for box shadow
+  }
+  else {
+    el.style.backgroundColor = greens[0]
+    el.style.color = greens[0] //for box shadow
+  }
 }
 
 const getDateFromTimestamp = timestamp => {
@@ -57,22 +63,34 @@ const getDateFromTimestamp = timestamp => {
 
 <!-- ############################################## -->
 <!-- HTML -->
-<span class="container" on:transitionend={handleTransitionend} bind:this={el}>
+<span class="base ping" on:transitionend={handleTransitionend} bind:this={el}>
   <!--assume that any stats that are very large integers are timestamps-->
-  <span class="label">{labelText}:</span><span class="stat">{isNaN(stat) || stat < 1000000000 ? stat : getDateFromTimestamp(stat)}</span>
+  <span class="label">{labelText}:</span><span>{isNaN(stat) || stat < 1000000000 ? stat : getDateFromTimestamp(stat)}</span>
 </span>
 
 <!-- ############################################## -->
 <style>
-.container {
+.base {
+  will-change: background-color, box-shadow;
   border-radius: 2px;
   padding: 3px;
-  margin:5px
+  margin:5px;
+  transition: background-color 500ms ease-out, box-shadow 500ms ease-out;
+  box-shadow: 0 0 2px 2px;
 }
+
+.ping {
+  transition: background-color 5ms;
+  box-shadow: 0 0 2px 2px;
+}
+
+span {
+  color:black; /*because we have to tackle the box shadow of the other element itself*/
+}
+
 .label {
+  font-weight: bolder;
   margin-right:5px;
 }
-.stat {
-  font-weight: bolder;
-}
+
 </style>

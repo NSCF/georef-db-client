@@ -5,6 +5,7 @@
   import ProfileSelect from '../profileSelect.svelte'
   import Loader from '../loader.svelte'
   import StatsChart from './datasetStatsChart.svelte'
+  import UsersChart from './datasetUserStatsChart.svelte'
 
   const dispatch = createEventDispatcher()
 
@@ -743,8 +744,18 @@
           <span>{dataset.lastGeoreferenceBy? dataset.lastGeoreferenceBy : 'NA'}</span>
         </div>
       </div>
-      <div>
+      <div class='charts'>
+        {#if dataset.createdByID == profile.uid}
+          {#if profilesIndex}
+            <div class="chart-title">Stats per georeferencer</div>
+            <UsersChart datasetID={dataset.datasetID} {profilesIndex} />
+          {:else}
+            <Loader />
+          {/if}
+        {/if}
+        <div class="chart-title">Dataset stats for last six weeks</div>
         <StatsChart datasetID={dataset.datasetID} type={'weekly'} />
+        <div class="chart-title">Dataset stats for last six months</div>
         <StatsChart datasetID={dataset.datasetID} type={'monthly'} />
       </div>
       {#if dataset.createdByID == profile.uid && profilesIndex}
@@ -912,5 +923,16 @@ button:hover {
   border: 1px solid rgb(70, 69, 69);
   padding: 4px;
   margin: 2px;
+}
+
+.charts {
+  margin-top:20px;
+  margin-bottom:20px;
+}
+
+.chart-title {
+  font-weight:bolder;
+  text-align: center;
+  text-decoration:underline;
 }
 </style>

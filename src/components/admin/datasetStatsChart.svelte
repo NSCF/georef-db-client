@@ -2,9 +2,11 @@
   import {onMount} from 'svelte'
   import { Realtime } from '../../firebase.js'
   import BarChart from '../BarChart.svelte'
+  import Loader from '../loader.svelte'
 
   export let datasetID
   export let type //weekly or monthly
+  export let size = 6 //the number of columns in the graph
 
   //stats
   let chartData
@@ -17,16 +19,15 @@
     Realtime.ref('stats/perDataset/' + datasetID + '/' + type).once('value').then(snap => {
       if(snap.exists){
         console.log(snap.val())
-        chartData = makeChartStats(snap.val(), type)
+        chartData = makeChartStats(snap.val(), type, size)
       }
     })
   })
   
   //converts results from a call to Firebase to the structure needed for barchart
   //this is for dataset stats. See different function call for georeferencer stats
-  const makeChartStats = (firebaseData, type) => {
+  const makeChartStats = (firebaseData, type, size) => {
 
-    console.log('type is', type)
     let labels = []
     let georefs = []
     let records = []
@@ -49,6 +50,31 @@
       records.push(val.recordsGeoreferenced)
     }
 
+    //add the additional records up to the required number of entries for the graph
+    while (labels.length < size) {
+      if(type == 'weekly') {
+        let earliest =  labels[0]
+        let parts = earliest.split('-')
+        let d = new Date(parts[0], parts[1] - 1, parts[2])
+        d.setDate(d.getDate() - 7 ) //one week earlier
+        let iso = d.toISOString().split('T')[0] //just the date part
+        labels.unshift(iso)
+      }
+      else if (type == 'monthly') {
+        //here we have to use the first key because we discarded the year above
+        let earliest =  labels[0]
+        let index = monthNames.findIndex(x => x == earliest)
+        if(index == 0) {
+          index = 11
+        }
+        labels.unshift(monthNames[--index])
+      }
+      georefs.unshift(0)
+      records.unshift(0)
+    }
+
+    console.log('labels is:', labels.join(';'))
+
     let data = {
       labels, 
       datasets: [
@@ -66,7 +92,6 @@
         }
       ]
     }
-
     return data
   }
 
@@ -94,7 +119,14 @@
 <!-- HTML -->
 {#if chartData}
   <BarChart {chartData}/>
+{:else}
+  <div>
+    <Loader />
+  </div>
 {/if}
 <!-- ############################################## -->
 <style>
+  div {
+    height: 200px;
+  }
 </style>

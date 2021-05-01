@@ -63,6 +63,9 @@
 			clearTimeout(timer);
 			timer = setTimeout(searchProfiles, 500, v);
 		}
+		else {
+			items = []
+		}
 	}
 	
 	const dispatchItem = item => {
@@ -73,14 +76,14 @@
 </script>
 
 <div class="dropcontainer">
-	<input style="width:400px;" bind:value={inputVal} /> 
+	<input style="width:400px;" placeholder="Type an email address to invite someone" bind:value={inputVal} /> 
 	<div class="optionscontainer">
 		{#each items as item}
 			{#if typeof item == 'string'}
 				{#if item.includes('invite')}
 					<div class="selectableitem" on:click='{_ => dispatchItem(item)}'>{item}</div>
 				{:else}
-					<div>{item}</div>
+					<div class="selectableitem">{item}</div>
 				{/if}
 			{:else}
 				<div class="selectableitem" on:click='{_ => dispatchItem(item)}'>{item.formattedName}</div>
@@ -100,10 +103,13 @@
 		top: 40px;
 		left: 0px;
 	}
+
+
 	
 	.selectableitem {
 		padding: 5px;
 		width:100%;
+		background-color: white;
 	}
 	
 	.selectableitem:nth-child(odd) {

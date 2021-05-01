@@ -1,4 +1,6 @@
 <script>
+  //this is a component that kept getting bigger and bigger....
+
   import { Firestore, Realtime, FieldValue, Storage } from '../../firebase.js'
   import Papa from 'papaparse'
   import {onMount, createEventDispatcher} from 'svelte'
@@ -137,6 +139,22 @@
       let index = dataset.georeferencers.indexOf(uid)
       dataset.georeferencers.splice(index, 1)
       dataset.georeferencers = dataset.georeferencers //svelte
+    }
+  }
+
+  const makeAdmin = uid => {
+    let conf = confirm(`Are you sure you want to make ${profilesIndex[uid].firstName} an admin? This cannot be undone...`)
+    if(conf) {
+      if(dataset.admins) {
+        dataset.admins.push(uid)
+        dataset.admins = dataset.admins //svelte
+        //lets just do this in the backround
+        Firestore.collection('datasets').doc(dataset.datasetID).update({admins: FieldValue.arrayUnion(uid)})
+      }
+      else {
+        dataset.admins = [uid]
+        Firestore.collection('datasets').doc(dataset.datasetID).update({admins: [uid]})
+      }
     }
   }
 
@@ -745,12 +763,14 @@
         </div>
       </div>
       <div class='charts'>
-        {#if dataset.createdByID == profile.uid}
+        {#if dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid))}
           {#if profilesIndex}
             <div class="chart-title">Stats per georeferencer</div>
             <UsersChart datasetID={dataset.datasetID} {profilesIndex} />
           {:else}
-            <Loader />
+            <div class="chart-loader">
+              <Loader />
+            </div>
           {/if}
         {/if}
         <div class="chart-title">Dataset stats for last six weeks</div>
@@ -758,7 +778,7 @@
         <div class="chart-title">Dataset stats for last six months</div>
         <StatsChart datasetID={dataset.datasetID} type={'monthly'} />
       </div>
-      {#if dataset.createdByID == profile.uid && profilesIndex}
+      {#if profilesIndex && (dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid)))  }
         <div>
           <div>
             <label>Invited</label>
@@ -787,9 +807,12 @@
                 <div class="inviteecontainer">
                   {#if profilesIndex[uid]} <!--this is just in users and their details have been deleted elsewhere-->
                     <div>{profilesIndex[uid].formattedName + " (" + profilesIndex[uid].email + ")"}</div>
-                  {/if}
-                  {#if uid != profile.uid} <!--this is so the creator can't remove themselves from the georeferencer list, remember we query datasets based on who's in the georeferencer list-->
-                    <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeGeoreferencer(uid)}'>clear</div>
+                    {#if dataset.admins && dataset.admins.includes(uid)}
+                      <div class="material-icons" title="is admin">person</div>
+                    {:else if dataset.createdByID != uid}
+                      <div class="material-icons icon-input-icon" title="make admin" on:click='{_ => makeAdmin(uid)}'>person_add_alt</div>
+                      <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeGeoreferencer(uid)}'>clear</div>
+                    {/if}
                   {/if}
                 </div>
               {/each}
@@ -800,7 +823,7 @@
       <div class="button-container">
         <button on:click={handleStartGeoreferencing}>Start georeferencing</button>
         <button on:click={handleBackToDatasets}>Back to datasets</button>
-        {#if dataset.createdByID == profile.uid}
+        {#if dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid))}
           <button on:click = {clearLockedRecordGroups}>Clear locked record groups</button> <!--TODO add only for admins-->
           <button on:click={handleDownloadDataset}>Download dataset with georeferences</button>
           <button on:click={handleDownloadGeorefs}>Download georeferences only</button>
@@ -934,5 +957,9 @@ button:hover {
   font-weight:bolder;
   text-align: center;
   text-decoration:underline;
+}
+
+.chart-loader {
+  height:200px;
 }
 </style>

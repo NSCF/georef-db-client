@@ -2,18 +2,19 @@
 
   import {
     Chart,
-    BarElement,
-    BarController,
-    CategoryScale,
+    LineElement,
+    PointElement,
+    LineController,
     LinearScale,
     Legend,
     Title,
     Tooltip
   } from 'chart.js';
 
-  Chart.register(BarElement,
-    BarController,
-    CategoryScale,
+  Chart.register(
+    LineElement,
+    PointElement,
+    LineController,
     LinearScale,
     Legend,
     Title,
@@ -22,18 +23,23 @@
   export let chartData 
 
   let ctx
-
   let chart
 
   $: if(chartData && ctx) {
     if(!chart) {
       chart = new Chart(ctx, {
-        type: 'bar',
+        type: 'line',
         data: chartData,
         options: {
           legend: { display: false },
           title: {
             display: false
+          }, 
+          scales: {
+            y: {
+              min:0,
+              max:100
+            }
           }
         }
       })

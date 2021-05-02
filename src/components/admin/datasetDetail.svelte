@@ -8,6 +8,7 @@
   import Loader from '../loader.svelte'
   import StatsChart from './datasetStatsChart.svelte'
   import UsersChart from './datasetUserStatsChart.svelte'
+  import ProgressChart from './datasetProgressChart.svelte'
 
   const dispatch = createEventDispatcher()
 
@@ -763,8 +764,10 @@
         </div>
       </div>
       <div class='charts'>
+        <ProgressChart {dataset} />
         {#if dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid))}
           {#if profilesIndex}
+            <div class="chart-spacer"></div>
             <div class="chart-title">Stats per georeferencer</div>
             <UsersChart datasetID={dataset.datasetID} {profilesIndex} />
           {:else}
@@ -773,13 +776,29 @@
             </div>
           {/if}
         {/if}
-        <div class="chart-title">Dataset stats for last six weeks</div>
-        <StatsChart datasetID={dataset.datasetID} type={'weekly'} />
-        <div class="chart-title">Dataset stats for last six months</div>
-        <StatsChart datasetID={dataset.datasetID} type={'monthly'} />
+        <div class="chart-spacer"></div>
+        <StatsChart {dataset} {profilesIndex} userID={profile.uid} />
       </div>
       {#if profilesIndex && (dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid)))  }
         <div>
+          <div>
+            <label>Georeferencers</label>
+            <div class="inviteelist">
+              {#each dataset.georeferencers as uid}
+                <div class="inviteecontainer">
+                  {#if profilesIndex[uid]} <!--this is just in users and their details have been deleted elsewhere-->
+                    <div>{profilesIndex[uid].formattedName + " (" + profilesIndex[uid].email + ")"}</div>
+                    {#if dataset.admins && dataset.admins.includes(uid)}
+                      <div class="material-icons" title="is admin">person</div>
+                    {:else if dataset.createdByID != uid}
+                      <div class="material-icons icon-input-icon" title="make admin" on:click='{_ => makeAdmin(uid)}'>person_add_alt</div>
+                      <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeGeoreferencer(uid)}'>clear</div>
+                    {/if}
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          </div>
           <div>
             <label>Invited</label>
             <div class="inviteelist">
@@ -798,24 +817,6 @@
             </div>
             <div>
               <ProfileSelect on:profile-selected={handleProfileSelected} />
-            </div>
-          </div>
-          <div>
-            <label>Georeferencers</label>
-            <div class="inviteelist">
-              {#each dataset.georeferencers as uid}
-                <div class="inviteecontainer">
-                  {#if profilesIndex[uid]} <!--this is just in users and their details have been deleted elsewhere-->
-                    <div>{profilesIndex[uid].formattedName + " (" + profilesIndex[uid].email + ")"}</div>
-                    {#if dataset.admins && dataset.admins.includes(uid)}
-                      <div class="material-icons" title="is admin">person</div>
-                    {:else if dataset.createdByID != uid}
-                      <div class="material-icons icon-input-icon" title="make admin" on:click='{_ => makeAdmin(uid)}'>person_add_alt</div>
-                      <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeGeoreferencer(uid)}'>clear</div>
-                    {/if}
-                  {/if}
-                </div>
-              {/each}
             </div>
           </div>
         </div>
@@ -961,5 +962,9 @@ button:hover {
 
 .chart-loader {
   height:200px;
+}
+
+.chart-spacer {
+  margin-top: 20px;
 }
 </style>

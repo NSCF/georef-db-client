@@ -86,7 +86,7 @@ const fetchGeorefsForLoc = async (locString, index, limit) => {
   return data
 }
 
-const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, userID, userName, datasetID) => {
+const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, userID, userName, datasetID, groupComplete) => {
   let yearmonth = getYearMonth(new Date())
   let yearweek = getYearWeek(new Date())
   let now = new Date()
@@ -139,6 +139,28 @@ const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, u
     }
     let ref = Firebase.ref(rs)
     proms.push(updateStat(ref, val))
+  }
+
+  if(groupComplete) {
+
+    let paths = [
+      'stats/perDataset/' + datasetID +'/daily/' + today + '/groupsCompleted',
+      'stats/perDataset/' + datasetID +'/weekly/' + yearweek + '/groupsCompleted',
+      'stats/perDataset/' + datasetID +'/monthly/' + yearmonth + '/groupsCompleted'
+    ]
+
+    for (let p of paths) {
+      let increment = Firebase.ref(p).transaction(current => {
+        if(current) {
+          current++
+        }
+        else {
+          current = 1
+        }
+        return current;
+      })
+      proms.push(increment)
+    }
   }
 
   let updateLastGeorefsAdded = Firebase.ref('stats/lastGeorefAdded').transaction(current => {

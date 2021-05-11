@@ -26,7 +26,7 @@
   onMount(async _ => {
 
     //only the person who created the dataset can see the georeferencers
-    if(dataset.createdByID == profile.uid){
+    if(dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid))){
       //we have georeferencers, invited and newInvitees
       let uids = [...dataset.georeferencers, ...dataset.invitees].filter(x => x && x.trim()).map(x => x.trim()) //filter just in case
       let res = await fetch('https://us-central1-georef-745b9.cloudfunctions.net/getprofilesforidlist', {

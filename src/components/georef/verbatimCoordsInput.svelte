@@ -1,7 +1,7 @@
 <script>
 import convert from 'geo-coordinates-parser'
 import {createEventDispatcher} from 'svelte'
-export let value
+export let value = null
 export let hasError = false
 
 let dispatch = createEventDispatcher()

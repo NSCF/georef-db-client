@@ -1,7 +1,7 @@
 <script>
 import { createEventDispatcher } from 'svelte';
 import validateCSVContent from '../CSVUtilities/validateCSVContent.js'
-import validateCountries from '../dwcUtilities/validateCountries.js'
+import Loader from './loader.svelte'
 
 const dispatch = createEventDispatcher();
 
@@ -38,10 +38,7 @@ function toggleShowDuplicatesRecordIDs() {
 }
 
 function handleNextClick(){
-  dispatch('data-confirmed', 
-    {
-      localityRecordIDMap: fileSummary.localityRecordIDMap
-    }
+  dispatch('data-confirmed', fileSummary
   )
 }
 
@@ -54,7 +51,7 @@ function handleStartOver(){
 <!-- ############################################################# -->
 <!-- HTML -->
 {#if !fileSummary}
-  Another spinner here
+  <Loader />
 {:else}
   <h2>Please check your file summary before proceeding:</h2>
   <h4>This file contains {fileSummary.totalRows} records</h4>

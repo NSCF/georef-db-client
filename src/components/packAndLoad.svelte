@@ -2,13 +2,15 @@
 import { createEventDispatcher } from 'svelte';
 import Loader from './loader.svelte'
 import {Firestore, FieldValue, Storage } from '../firebase.js'
+import arrayUnion from 'array-union'
 import groupLocalities from '../CSVUtilities/groupLocalities.js'
 
 const dispatch = createEventDispatcher();
 
 export let fileForGeoref
 export let localityRecordIDMap
-export let datasetDetails
+export let invalidCountries
+export let dataset
 export let userID
 
 let localityGroups = undefined
@@ -26,8 +28,8 @@ const getLocGroups = async () => {
   if(localityRecordIDMap){
     //first test database permissions, get one group
     try {
-      console.log('testing Firestore permissions')
-      let res = await Firestore.collection('recordGroups').doc('00aBJzjYjGvXJnZhb67H').get()
+      messageString = 'testing Firestore permissions'
+      let res = await Firestore.collection('recordGroups').doc('00aBJzjYjGvXJnZhb67H').get() //this throws if there is a problem
     }
     catch(err) {
       console.log(err.message)
@@ -36,9 +38,29 @@ const getLocGroups = async () => {
       return
     }
 
+    messageString = 'grouping localities, this may take a few minutes...'
+    let proms = [] //this is a temp variable so that we can assign localityGroups at the end and trigger lockAndLoad
+
+    for (let [country, obj] of Object.entries(localityRecordIDMap)) {
+      
+      //skip any invalid countries for the region
+      if(invalidCountries.includes(country.toLowerCase())) {
+        continue
+      }
+
+      if(dataset.hasStateProvince) {
+        for (let [stateProvince, val] of Object.entries(obj)) {
+          proms.push(groupLocalities(val, dataset.datasetID, country, stateProvince))
+        }
+      }
+      else {
+        proms.push(groupLocalities(obj, dataset.datasetID, country, null))
+      }
+    }
+
     try {
-      localityGroups = await groupLocalities(localityRecordIDMap, datasetDetails.datasetID)
-      messageString = 'localitygroups updated'
+      let groupArrays = await Promise.all(proms)
+      localityGroups = arrayUnion(...groupArrays)
     }
     catch(err) {
       console.log(err.message)
@@ -48,25 +70,25 @@ const getLocGroups = async () => {
 }
 
 const lockAndLoad = async () => {
-  messageString = 'firing lock and load'
+  messageString = 'grouping completed, firing lock and load'
   if(localityGroups) {
     let totalRecordCount = localityGroups.reduce((total, localityGroup) => total + localityGroup.groupRecordCount, 0)
     messageString = 'prepping for data upload'
-    datasetDetails.datasetURL = '' //to be updated shortly
-    datasetDetails.recordCount = totalRecordCount 
-    datasetDetails.recordsCompleted = 0
-    datasetDetails.groupCount = localityGroups.length
-    datasetDetails.groupsComplete = 0
-    datasetDetails.dateCreated = Date.now()
-    datasetDetails.lastGeoreference = ''
-    datasetDetails.completed = false
-    datasetDetails.dateCompleted = null
+    dataset.datasetURL = '' //to be updated shortly
+    dataset.recordCount = totalRecordCount 
+    dataset.recordsCompleted = 0
+    dataset.groupCount = localityGroups.length
+    dataset.groupsComplete = 0
+    dataset.dateCreated = Date.now()
+    dataset.lastGeoreference = ''
+    dataset.completed = false
+    dataset.dateCompleted = null
 
     let dataLoaders = []
-    datasetRef = Firestore.collection('datasets').doc(datasetDetails.datasetID)
-    dataLoaders.push(datasetRef.set(datasetDetails))
+    let datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
+    dataLoaders.push(datasetRef.set(dataset))
 
-    let fileUploadRef = Storage.ref().child(`${datasetDetails.datasetID}.csv`)
+    let fileUploadRef = Storage.ref().child(`${dataset.datasetID}.csv`)
     dataLoaders.push(fileUploadRef.put(fileForGeoref))
 
     //add the dataset for the current user
@@ -75,35 +97,35 @@ const lockAndLoad = async () => {
       return transaction.get(ref).then(snap => {
         if(!snap.exists){
           ref.set({
-            datasets: [datasetDetails.datasetID]
+            datasets: [dataset.datasetID]
           })
         }
         else {
-          transaction.update(ref, {datasets: FieldValue.arrayUnion(datasetDetails.datasetID)})
+          transaction.update(ref, {datasets: FieldValue.arrayUnion(dataset.datasetID)})
         }
       })
     })
     dataLoaders.push(trans)
     
     //add the dataset for each userID
-    for (let profile of datasetDetails.invitees){
-      let ref = Firestore.collection('userPendingDatasets').doc(profile.uid)
+    for (let uid of dataset.invitees){
+      let ref = Firestore.collection('userPendingDatasets').doc(uid)
       let trans = Firestore.runTransaction(transaction => {
         return transaction.get(ref).then(snap => {
           if(!snap.exists){
             ref.set({
-              datasets: [datasetDetails.datasetID]
+              datasets: [dataset.datasetID]
             })
           }
           else {
-            transaction.update(ref, {datasets: FieldValue.arrayUnion(datasetDetails.datasetID)})
+            transaction.update(ref, {datasets: FieldValue.arrayUnion(dataset.datasetID)})
           }
         })
       })
       dataLoaders.push(trans)
     }
 
-    for (let email of datasetDetails.newInvitees) {
+    for (let email of dataset.newInvitees) {
       let collRef = Firestore.collection('invitedUserPendingDatasets')
       let op = collRef.where('email', '==', email) //it's already lowercase
       .get()
@@ -112,7 +134,7 @@ const lockAndLoad = async () => {
           return collRef.add(
             {
               email,
-              datasets: [datasetDetails.datasetID]
+              datasets: [dataset.datasetID]
             }
           )
         }
@@ -123,7 +145,7 @@ const lockAndLoad = async () => {
             return transaction.get(docRef).then(docSnap => {
               //it has to exist
               transaction.update(docRef, {
-                datasets: FieldValue.arrayUnion(datasetDetails.datasetID)
+                datasets: FieldValue.arrayUnion(dataset.datasetID)
               })
             })
           })
@@ -180,7 +202,9 @@ const lockAndLoad = async () => {
     <p>{uploadErrorMessage}</p>
   {:else}
     <h2>Processing localities, this may take a few minutes...</h2>
-    <Loader />
+    <div style="height:300px">
+      <Loader />
+    </div>
     <div style="text-align:center">{messageString}</div>
   {/if}
 </div>

@@ -65,23 +65,10 @@ let pwdResetCode
 //locals
 let fileForGeoref
 let requiredFields
-let georefInputs
+let datasetSummary
 let datasetDetails
 let selectedDataset
-
-//WATCHERS
-$: georefInputs, copyGeorefInputsToClipBoard()
-
-function copyGeorefInputsToClipBoard(){
-	if(georefInputs){
-		var text = JSON.stringify(georefInputs, undefined, 2)
-		navigator.clipboard.writeText(text).then(function() {
-			console.log('Async: Copying to clipboard was successful!');
-		}, function(err) {
-			console.error('Async: Could not copy text: ', err);
-		});
-	}
-}
+let invalidCountries
 
 //LIFECYCLE
 onMount(_ => {
@@ -202,13 +189,13 @@ function handleConfirmCanceled() {
 }
 
 function handleFileContentsConfirmed(ev) {
-		georefInputs = ev.detail
-		console.log(georefInputs)
+		datasetSummary = ev.detail
 		currentPage = 'RegisterDataset'
 }
 
 function handleRegisterDataset(ev) {
-	datasetDetails = ev.detail
+	datasetDetails = ev.detail.datasetDetails
+	invalidCountries = ev.detail.invalidCountries
 	datasetDetails.recordIDField = requiredFields.recordIDField //very important!!
 	currentPage = 'UploadData'
 }
@@ -331,12 +318,13 @@ const testAuth = _ => {
 					<ConfirmData file={fileForGeoref} requiredFields={requiredFields} on:data-confirmed={handleFileContentsConfirmed} on:data-confirm-cancelled={handleConfirmCanceled}/>
 				{/if}
 				{#if currentPage == 'RegisterDataset'}
-					<RegisterDataset userProfile={profile} on:register-dataset={handleRegisterDataset}/>
+					<RegisterDataset userProfile={profile} hasStateProvince={datasetSummary.hasStateProvince} datasetCountries={Object.keys(datasetSummary.localityRecordIDMap)} on:register-dataset={handleRegisterDataset}/>
 				{/if}
 				{#if currentPage == 'UploadData'}
 					<PackAndLoad 
-						localityRecordIDMap={georefInputs.localityRecordIDMap} 
-						{datasetDetails}
+						localityRecordIDMap={datasetSummary.localityRecordIDMap} 
+						{invalidCountries}
+						dataset={datasetDetails}
 						{fileForGeoref}
 						{userID}
 						on:upload-complete={handleUploadComplete}

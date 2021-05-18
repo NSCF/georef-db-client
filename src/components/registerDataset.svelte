@@ -6,9 +6,13 @@ import ProfileSelect from './profileSelect.svelte'
 import {Realtime} from '../firebase.js'
 import { onMount, createEventDispatcher } from 'svelte';
 
+import {validateCountries, getCountries} from '../dwcUtilities/validateCountries.js'
+
 const dispatch = createEventDispatcher();
 
+export let hasStateProvince
 export let userProfile
+export let datasetCountries
 
 const domainOptions = [
   {value: 'TER', label:'terrestrial'},
@@ -17,6 +21,8 @@ const domainOptions = [
 ]
 
 let regionOptions
+let regionInvalidCountries = []
+let restCountries
 
 let regionsSelectOptions = []
 
@@ -26,7 +32,7 @@ let datasetName
 let collectionCode
 let region = undefined
 let domain = undefined //terrestrial, freshwater, marine
-let remarks
+let remarks = null
 
 let datasetID = nanoid()
 
@@ -37,11 +43,19 @@ $: userProfile, addNameAndEmail()
 $: regionOptions, addRegionSelectOptions()
 $: completed = contactName && email && datasetName && collectionCode && region && domain
 
+$: if(region && domain && regionOptions && restCountries) {
+  regionInvalidCountries = validateCountries(datasetCountries, restCountries, regionOptions[region.value])
+}
+else {
+  regionInvalidCountries = []
+}
+
 onMount(async _ => {
   console.log('fetch georef regions')
   let snap = await Realtime.ref('settings/georefRegions').once('value')
   regionOptions = snap.val() //its an object where keys are regions and values are countries in those regions
   console.log('georef regions fetched')
+  restCountries = await getCountries()
 })
 
 const addNameAndEmail = _ => {
@@ -92,19 +106,23 @@ const removeNewInvitee = email => {
 
 const handleSubmit = _ => {
   dispatch('register-dataset', {
-      datasetID,
-      contactName,
-      email,
-      createdByID: userProfile.uid,
-      datasetName,
-      collectionCode,
-      region: region.value,
-      domain: domain.value,
-      georeferencers: [userProfile.uid], //the creator is automatically a georeferencer
-      invitees: invitees.map(x=>x.uid), //we only want to store the uid, we don't need the whole profile
-      newInvitees: newInvitees.map(x => x.toLowerCase()), //to simplify search later
-      declinedInvitees: [],
-      remarks
+      datasetDetails: {
+        datasetID,
+        contactName,
+        email,
+        createdByID: userProfile.uid,
+        datasetName,
+        collectionCode,
+        region: region.value,
+        domain: domain.value,
+        hasStateProvince,
+        georeferencers: [userProfile.uid], //the creator is automatically a georeferencer
+        invitees: invitees.map(x=>x.uid), //we only want to store the uid, we don't need the whole profile
+        newInvitees: newInvitees.map(x => x.toLowerCase()), //to simplify search later
+        declinedInvitees: [],
+        remarks
+      }, 
+      invalidCountries: regionInvalidCountries.map(x => x.country.toLowerCase()) //lowercase just to be safe
   })
 }
 
@@ -131,6 +149,11 @@ const handleSubmit = _ => {
   <div style="margin-bottom:0.5em">
     <Select items={domainOptions} bind:selectedValue={domain}/>
   </div>
+  {#if regionInvalidCountries.length}
+  <p>The following countries in the dataset are not valid for this region and the records will be removed:
+    <span>{regionInvalidCountries.map(x => x.ambiguous? `${x.country} (ambiguous)` : x.country).join(';')}</span>
+  </p>
+  {/if}
   <label>Invite georeferencers</label>
   <div>
     <ProfileSelect on:profile-selected={handleProfileSelected} />

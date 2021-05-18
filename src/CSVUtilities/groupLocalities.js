@@ -1,38 +1,17 @@
 import { nanoid } from "nanoid/nanoid.js"
 
-const groupLocalities = async (localityRecordIDMap, datasetID) => {
-  if(localityRecordIDMap && typeof localityRecordIDMap == 'object' && Object.keys(localityRecordIDMap).length > 0){
+/**
+ * 
+ * @param {object} groupingSource - an object with keys as locality strings and values as arrays of recordIDs
+ * @param {string} datasetID 
+ * @returns {object} Array of locality groups
+ */
+const groupLocalities = async (groupingSource, datasetID, country, stateProvince) => {
+  if(groupingSource && typeof groupingSource == 'object' && Object.keys(groupingSource).length > 0){
     
-    //if it's less that a certain number just return all as a group, no point grouping. These better georeferenced individually
-    //this is a first catch, I've left in the response 400 below just in case...
-    if(Object.keys(localityRecordIDMap).length <= 20) { //
-      let groupLocalities = []
-      let groupRecordCount = 0
-      for (let key of Object.keys(localityRecordIDMap)){
-        groupLocalities.push({
-          loc: key,
-          recordIDs: localityRecordIDMap[key]
-        })
-        groupRecordCount += localityRecordIDMap[key].length
-      }
-
-      let group = {
-        datasetID,
-        groupID: nanoid(),
-        groupKey: 'All localities',
-        groupLocked: false,
-        groupLocalities,
-        groupRecordCount, 
-        completed: false
-      }
-
-      return [group]
-    }
-    
-    //else
     let textPackURL = 'https://us-central1-georefmaps.cloudfunctions.net/grouplocalities '
     
-    console.log('grouping localities')
+    console.log(`grouping localities for ${country}${stateProvince? ':' + stateProvince : ''}`)
     let response = await fetch(textPackURL, {
       method: 'POST', 
       mode: 'cors',
@@ -40,7 +19,7 @@ const groupLocalities = async (localityRecordIDMap, datasetID) => {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      body: JSON.stringify({localityCollector: Object.keys(localityRecordIDMap)}) 
+      body: JSON.stringify({localityCollector: Object.keys(groupingSource)}) 
     })
 
     if(response.status == 200) {
@@ -52,7 +31,7 @@ const groupLocalities = async (localityRecordIDMap, datasetID) => {
         let groupLocalities = []
         let groupRecordCount = 0
         for(let loc of group){
-          let recordIDs = localityRecordIDMap[loc]
+          let recordIDs = groupingSource[loc]
           if(recordIDs){
             groupRecordCount += recordIDs.length
           }
@@ -67,6 +46,8 @@ const groupLocalities = async (localityRecordIDMap, datasetID) => {
         let result = {
           datasetID,
           groupID: nanoid(),
+          country, 
+          stateProvince,
           groupKey,
           groupLocked: false,
           groupLocalities,
@@ -90,18 +71,20 @@ const groupLocalities = async (localityRecordIDMap, datasetID) => {
         //then the whole lot is a group
         let groupLocalities = []
         let groupRecordCount = 0
-        for (let key of Object.keys(localityRecordIDMap)){
+        for (let key of Object.keys(groupingSource)){
           groupLocalities.push({
             loc: key,
-            recordIDs: localityRecordIDMap[key]
+            recordIDs: groupingSource[key]
           })
-          groupRecordCount += localityRecordIDMap[key].length
+          groupRecordCount += groupingSource[key].length
         }
 
         let result = {
           datasetID,
           groupID: nanoid(),
           groupKey: 'All localities',
+          country, 
+          stateProvince,
           groupLocked: false,
           groupLocalities,
           groupRecordCount, 

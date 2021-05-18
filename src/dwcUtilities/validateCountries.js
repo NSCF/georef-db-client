@@ -1,42 +1,75 @@
 
 //uses REST Countries (https://restcountries.eu) as the standard for country names, just because it's accessible and relatively good
-// makes a few changes, eg where country name has brackets
+//makes a few changes, eg where country name has brackets
 
-const validateCountries = async (countriesArray) => {
+/**
+ * 
+ * @param {*} datasetCountries - the list of countries from the dataset to validate
+ * @param {*} restCountries - the results of a call to getCountries
+ * @param {*} regionCountries - the list of countries for a particular region
+ * @returns list of invalid countries which will be removed from the dataset before grouping
+ */
+const validateCountries = (datasetCountries, restCountries, regionCountries) => {
+  console.log('datasetcountries is', datasetCountries)
+  console.log('region countries is', regionCountries)
+  regionCountries = regionCountries.split(',').filter(x=>x).map(x=>x.trim()).filter(x=>x)
   //assumes a uniqe list of country names, but just in case not...
-  countriesArray = countriesArray.filter(onlyUnique)
+  datasetCountries = datasetCountries.filter(onlyUnique)
 
   let invalid = []
-  let countryCodes = {}
-
-  let restCountries = await getCountries()
-  console.log('restcountries fetched with', restCountries.length, 'entries')
+  let datasetCountryWithCodes = []
+  let regionCountryCodes = new Set()
 
   let searchResults
-  for (let country of countriesArray) {
+  for (let country of datasetCountries) {
     searchResults = findMatchingCountries(country, restCountries)
     if(searchResults.length){
       if(searchResults.length > 1){
         invalid.push({
-          searchName: country,
-          message: 'Ambiguous country name'
+          country,
+          ambiguous: true
         })
       }
       else {
-        countryCodes[country] = searchResults[0].alpha3Code
+        datasetCountryWithCodes.push({country, countryCode: searchResults[0].alpha3Code})
       }
     }
     else {
       invalid.push({
-        searchName: country,
-        message: 'No matching names found'
+        country,
+        ambiguous: false
       })
     }
   }
-  console.log('returning country check results here')
-  console.log('invalid: ', invalid.length)
-  console.log('valid:', Object.keys(countryCodes).length)
-  return {invalid, countryCodes}
+
+  for (let regionCountry of regionCountries){
+    searchResults = findMatchingCountries(regionCountry, restCountries)
+    if(searchResults.length){
+      if(searchResults.length > 1){
+        alert('there is a problem with the list of region countries:', regionCountry, 'is ambiguous! Any records for this country will be removed from the dataset')
+      }
+      else {
+        regionCountryCodes.add(searchResults[0].alpha3Code)
+      }
+    }
+    else {
+      alert('there is a problem with the list of region countries:', regionCountry, 'could not be verified! Any records for this country will be removed from the dataset')
+    }
+  }
+
+
+  //now check if any more are problematic
+  for (let countryWithCode of datasetCountryWithCodes){
+    if(!regionCountryCodes.has(countryWithCode.countryCode)) {
+      invalid.push({
+        country: countryWithCode.country, 
+        ambiguous: false
+      })
+    }
+  }
+
+  return invalid
+
 }
 
 const getCountries = async () => {
@@ -146,4 +179,4 @@ const onlyUnique = (value, index, self) => {
   return self.indexOf(value) === index;
 }
 
-export default validateCountries
+export {validateCountries, getCountries}

@@ -31,23 +31,24 @@ let validateCSVContent = (targetFile, requiredFields) => {
     //otherwise let's get going....
 
     let recordIDs = new Map() //for checking duplicates
-    let uniqueLocalityCollector = new Map()
 
+    let hasStateProvince = false
     let totalRows = 0
     let uniqueLocalityCollectorCount = 0
     let recordsToGeoreference = 0
     let recordIDsMissing = false
     let duplicatedRecordIDs = new Map()
     let duplicateRecordCount = 0
+    let recordsMissingCountryAlsoMissingID = false
     let recordsMissingLocalityAlsoMissingID = false
+    let rowsWithoutCountry = []
     let rowsWithoutLocality = []
     let localityRecordIDMap = {} //a dictionary to map georeferences back to records - to send to textpack
 
-    let recordID, locality
+    let recordID, country, stateProvince, locality
     let records = []
     Papa.parse(targetFile, { header: true,
       step: function(row) {
-        let record = {}
         totalRows++
         
         recordID = row.data[requiredFields.recordIDField]
@@ -65,6 +66,38 @@ let validateCSVContent = (targetFile, requiredFields) => {
           recordIDsMissing = true
         }
 
+        country = row.data[requiredFields.countryField]
+        if(country && country.trim()) {
+          country = country.trim().replace(/\s+/g, ' ').replace(/[\.,;-\s]+$/, '').replace(/^[\.,;-\s]+/, '')
+          if(!country){
+            if(recordID){
+              rowsWithoutCountry.push(recordID)
+            }
+            else {
+              recordsMissingCountryAlsoMissingID = true
+            }
+          }
+        }
+        else {
+          country = null
+          if(recordID){
+            rowsWithoutCountry.push(recordID)
+          }
+          else {
+            recordsMissingCountryAlsoMissingID = true
+          }
+        }
+
+        if(requiredFields.stateProvinceField){
+          stateProvince = row.data[requiredFields.stateProvinceField]
+          if(stateProvince && stateProvince.trim()){
+            stateProvince = stateProvince.trim().replace(/\s+/g, ' ').replace(/[\.,;-\s]+$/, '').replace(/^[\.,;-\s]+/, '')
+            if(stateProvince && !hasStateProvince){
+              hasStateProvince = true
+            }
+          }
+        }
+
         locality = row.data[requiredFields.localityField]
         if(locality && locality.trim()) {
           locality = locality.trim().replace(/\s+/g, ' ').replace(/[\.,;-\s]+$/, '').replace(/^[\.,;-\s]+/, '')
@@ -77,8 +110,17 @@ let validateCSVContent = (targetFile, requiredFields) => {
             }
           }
         }
+        else {
+          locality = null
+          if(recordID){
+            rowsWithoutLocality.push(recordID)
+          }
+          else {
+            recordsMissingLocalityAlsoMissingID = true
+          }
+        }
         
-        if(recordID && locality){
+        if(recordID && country && locality){
           let localityCollector = locality
 
           if(requiredFields.collectorField && row.data[requiredFields.collectorField] && row.data[requiredFields.collectorField].trim()) {
@@ -86,39 +128,70 @@ let validateCSVContent = (targetFile, requiredFields) => {
             localityCollector += ' -- ' + collector
           }
 
-          records.push({recordID, localityCollector})
+          records.push({recordID, country, stateProvince, localityCollector})
         }
 
-        recordID = locality = null
+        recordID = country = stateProvince = locality = null
         
       },
       complete: function() {
         console.log("All done parsing file!");
 
-        //TODO, this is where to build the duplicate counts and the locality records map
-        for (let {recordID, localityCollector} of records) {
+        //this is where to build the duplicate counts and the locality records map
+        for (let {recordID, country, stateProvince, localityCollector} of records) {
           if(!duplicatedRecordIDs.has(recordID)){
-            if(localityRecordIDMap[localityCollector]){
-              localityRecordIDMap[localityCollector].push(recordID)
+
+            if(!localityRecordIDMap[country]){
+              localityRecordIDMap[country] = {}
+            }
+
+            if(hasStateProvince){
+              
+              if(!stateProvince) {
+                stateProvince = 'none'
+              }
+
+              if(localityRecordIDMap[country][stateProvince]){
+                if(localityRecordIDMap[country][stateProvince][localityCollector]){
+                  localityRecordIDMap[country][stateProvince][localityCollector].push(recordID)
+                }
+                else {
+                  localityRecordIDMap[country][stateProvince][localityCollector] = [recordID]
+                  uniqueLocalityCollectorCount++
+                }
+              }
+              else {
+                localityRecordIDMap[country][stateProvince] = {}
+                localityRecordIDMap[country][stateProvince][localityCollector] = [recordID]
+                uniqueLocalityCollectorCount++
+              }
+
             }
             else {
-              localityRecordIDMap[localityCollector] = [recordID]
+              if(localityRecordIDMap[country][localityCollector]){
+                localityRecordIDMap[country][localityCollector].push(recordID)
+              }
+              else {
+                localityRecordIDMap[country][localityCollector] = [recordID]
+                uniqueLocalityCollectorCount++
+              }
             }
             recordsToGeoreference++
           }
         }
         
-        uniqueLocalityCollectorCount = Object.keys(localityRecordIDMap).length
         duplicatedRecordIDs = [ ...duplicatedRecordIDs.keys() ] //just converting from Map to an array
         duplicateRecordCount += duplicatedRecordIDs.length // because we haven't counted these yet above
 
         let result = {
+          hasStateProvince,
           totalRows,
           uniqueLocalityCollectorCount,
           recordsToGeoreference,
           recordIDsMissing,
           duplicatedRecordIDs,
           duplicateRecordCount,
+          recordsMissingCountryAlsoMissingID,
           recordsMissingLocalityAlsoMissingID,
           rowsWithoutLocality,
           localityRecordIDMap,

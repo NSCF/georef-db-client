@@ -12,34 +12,19 @@ export let fileMIMETypes
 //LOCALS
 let hiddenInput
 let hovering = false
+let box
 
 //COMPUTED
 
 //WATCHERS
 
 //METHODS
-function handleMouseOver(evt){
-  evt.stopPropagation(); // Do not allow the dragover event to bubble.
-  evt.preventDefault(); // Prevent default dragover event behavior.
-  hovering = true
+function darkBox() {
+  box.style.borderColor = 'gray'
 }
 
-function handleMouseout(evt){
-  evt.stopPropagation(); // Do not allow the dragover event to bubble.
-  evt.preventDefault(); // Prevent default dragover event behavior.
-  hovering = false
-}
-
-function handleDragEnter(evt){
-  evt.stopPropagation(); // Do not allow the dragover event to bubble.
-  evt.preventDefault(); // Prevent default dragover event behavior.
-  hovering = true
-}
-
-function handleDragLeave(evt){
-  evt.stopPropagation(); // Do not allow the dragover event to bubble.
-  evt.preventDefault(); // Prevent default dragover event behavior.
-  hovering = false
+function lightBox() {
+  box.style.borderColor ='lightgray'
 }
 
 function handleBoxClick(evt){
@@ -104,17 +89,14 @@ function toEmitOrNotToEmit(file){
     <div 
       id="fileDropBox"
       class="fileDropBox"
-      class:active={hovering}
-      class:inactive={!hovering}
-      on:mouseenter={handleMouseOver}
-      on:mouseleave={handleMouseout}
-      on:dragenter={handleDragEnter} 
-      on:dragleave={handleDragLeave}  
+      bind:this={box}
+      on:dragenter={darkBox}
+      on:dragleave={lightBox}
       on:drop={handleDragDrop} 
       on:click={handleBoxClick}
       ondragover="return false"
     >
-      <p>Drag and drop a Darwin Core CSV file here or click to select</p>
+      <p class="boxtext">Drag and drop a Darwin Core CSV file here or click to select</p>
     </div>
     <div class='warning'><strong>Please note that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine datasets</strong></div>
     
@@ -150,6 +132,11 @@ function toEmitOrNotToEmit(file){
     text-align: center;
     color: gray;
     border-radius: 7px;
+    border: 10px dashed lightgray;
+  }
+
+  .fileDropBox:hover {
+    border: 10px dashed grey;
   }
 
   p {
@@ -157,15 +144,9 @@ function toEmitOrNotToEmit(file){
     margin-bottom: 5em;
     margin-left: 2em;
     margin-right: 2em;
+    pointer-events: none;
   }
 
-  .inactive {
-    border: 10px dashed lightgray;
-  }
-
-  .active {
-    border: 10px dashed grey;
-  }
   .datasets-button {
     width: 300px;
     height: 50px;
@@ -188,10 +169,4 @@ function toEmitOrNotToEmit(file){
     border: 4px solid #c98f18;
   }
 
-  .footer-img {
-    position:absolute;
-    left:0;
-    bottom:0;
-    width:100%;
-  }
 </style>

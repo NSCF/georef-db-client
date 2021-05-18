@@ -1,6 +1,7 @@
 <script>
 import { createEventDispatcher } from 'svelte';
 import Select from 'svelte-select';
+import Loader from './loader.svelte'
 import validateCSVHeaders from '../CSVUtilities/validateCSVHeaders.js'
 
 const dispatch = createEventDispatcher();
@@ -10,18 +11,19 @@ export let file
 let validationResult
 
 //computed properties
-let darwinCoreFields
-let notDarwinCore
-let malformedDarwinCore
-let otherFields
-let possibleIdentifierFields
+let darwinCoreFields = []
+let notDarwinCore = []
+let malformedDarwinCore = []
+let otherFields = []
+let possibleIdentifierFields = []
 
 //use namespaces for required fields
 // ||s indicate options in order of preference, one is required 
 //not ideal that this is hard coded here but thats what it is for now. 
 let requiredFieldsList = [
   {key: 'recordIDField', targetfields: 'dwc:occurrenceID', required: true},
-  {key: 'countryField', targetfields: 'dwc:country', required: false},
+  {key: 'countryField', targetfields: 'dwc:country', required: true},
+  {key: 'stateProvinceField', targetfields: 'dwc:stateProvince', required: false},
   {key: 'localityField', targetfields: 'dwc:verbatimLocality || dwc:locality', required: true},
   {key: 'collectorsField', targetfields: 'dwc:recordedBy', required: false},
 ]
@@ -69,8 +71,11 @@ function updateVars() {
 
     for (let requiredFieldsItem of requiredFieldsList) {
       let requiredFieldOptions = requiredFieldsItem.targetfields.trim().split(/\s*\|\|\s*/g)
-      for(let requiredFieldOption of requiredFieldOptions) {
-        let foundField = darwinCoreFields.find(dwcField => dwcField == requiredFieldOption || dwcField == requiredFieldOption.split(':')[1] || dwcField.split(':')[1] == requiredFieldOption)
+      for(let requiredFieldOption of requiredFieldOptions) {  
+        let foundField = null
+        if(darwinCoreFields) {
+          foundField = darwinCoreFields.find(dwcField => dwcField == requiredFieldOption || dwcField == requiredFieldOption.split(':')[1] || dwcField.split(':')[1] == requiredFieldOption)
+        } 
         if(foundField){
           requiredFields[requiredFieldsItem.key] = foundField
           break
@@ -84,7 +89,10 @@ function updateVars() {
     checkRequiredFields()
 
     if(!requiredFields['recordIDField']) {
-      let catNumField = darwinCoreFields.find(dwc => dwc == 'catalogNumber' || dwc.split(':')[1] == 'catalogNumber')
+      let catNumField = null
+      if(darwinCoreFields) {
+        catNumField = darwinCoreFields.find(dwc => dwc == 'catalogNumber' || dwc.split(':')[1] == 'catalogNumber')
+      }
       if(otherFields && otherFields.length){
         let optionFields = [catNumField, ...otherFields].filter(field => field && field.trim())
         possibleIdentifierFields = optionFields.map(f => ({value: f, label: f }))
@@ -146,8 +154,7 @@ function handleStartOver(){
 <!-- ############################################################# -->
 <!-- HTML -->
 {#if !validationResult} 
- <!-- TODO what if no internet connection -->
-  spinner goes here
+  <Loader />
 {:else}
   <h2>Please confirm the fields in your dataset</h2>
   {#if darwinCoreFields && darwinCoreFields.length}
@@ -201,9 +208,10 @@ function handleStartOver(){
       {/if}
     {/each}
   {/if}
-  <button disabled={!requiredFields.recordIDField} style="width:200px;float:right;" on:click={handleNextClick}>Next...</button>
   {#if requiredFieldsMissing}
     <button  style="width:200px;float:right;margin-right:20px;" on:click={handleStartOver}>I'll start over</button>
+  {:else}
+    <button style="width:200px;float:right;" on:click={handleNextClick}>Next...</button>
   {/if}
   <div style="clear:both;"/>
 {/if}

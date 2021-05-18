@@ -753,15 +753,17 @@ const handleBookmarkRecordGroup = async ev => {
       else {
         bookMarksRef = queryResults.docs[0].ref //there should only be one!
 
-        await bookMarksRef.update({
+        let bookmarkupdate = bookMarksRef.update({
           recordGroupIDs: FieldValue.arrayUnion(recordGroupID)
         })
 
-        await $dataStore.recordGroupSnap.ref.update({
+        let datasetupdate = $dataStore.recordGroupSnap.ref.update({
           bookmarked: true,
           bookmarkedBy: profile.formattedName,
           bookmarkedDate: Date.now()
         })
+
+        await Promise.all([bookmarkupdate, datasetupdate])
       }
     }
     catch(err) {
@@ -865,7 +867,12 @@ const handleLocalityCopied = async => {
 
 //just to unlock a locked record group if the user closes or refreshes
 const handleUnload = ev => {
-  navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updaterecordgrouplock?groupid=${$dataStore.recordGroupSnap.id}`, '')
+  if(georefsAdded) {
+    ev.preventDefault()
+    ev.returnValue = 'georefs have not been saved, go back to datsets before closing';
+    return 'georefs have not been saved, go back to datsets before closing'
+  }
+  //navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updaterecordgrouplock?groupid=${$dataStore.recordGroupSnap.id}`, '')
 }
 
 </script>

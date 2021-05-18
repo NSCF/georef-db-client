@@ -63,7 +63,7 @@ on:click={handleRowClick}>
     {/if}
   </td>
   <td class='indicator'>
-    {#if $dataStore.georefIndex[georefKey].protocol}
+    {#if $dataStore.georefIndex[georefKey].protocol && $dataStore.georefIndex[georefKey].protocol.toLowerCase().trim() != 'unspecified'}
       <span class="material-icons">task_alt</span>
     {/if}
   </td>

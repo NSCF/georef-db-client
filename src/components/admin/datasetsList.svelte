@@ -10,8 +10,9 @@ let dispatch = createEventDispatcher()
 
 let firstTab = true
 
-let datasets = null
-let datasetIDs
+let datasetsFetched = false
+let datasets = []
+let datasetIDs = []
 let firstInd = 0
 
 $: firstTab, reset()
@@ -43,7 +44,7 @@ const getLocalDateTime = timestamp => {
 }
 
 const getDatasets = async _ => {
-  
+  datasetsFetched = false //this is a reset
   let collection
   if(firstTab){
     collection = 'userDatasets'
@@ -53,64 +54,68 @@ const getDatasets = async _ => {
   }
 
   //get the IDs
-  if(!datasetIDs) {
-    let userDatasetsSnap = await Firestore.collection(collection).doc(profile.uid).get()
-      if(userDatasetsSnap.exists){
-        let searchDatasets = userDatasetsSnap.data().datasets
-        if (!searchDatasets || !searchDatasets.length){
-          console.log('no datasetIDs returned')
-          datasetIDs = []
-          datasets = []
-          return
-        } 
-        else {
-          datasetIDs = searchDatasets.map(x=>x.trim())
-        }
-      }
-      else {
-        console.log('no datasets document exists for this user') //will happen on first registration if they have no datasets
-        datasetIDs = []
-        datasets = []
-        return
-      }
-  }
-
-  //we have datasetIDs
-  let lastInd = firstInd + 10 //we can only call ten at a time remember end not included in slice
-  let queryDatasetIDs = datasetIDs.slice(firstInd, lastInd)
-  firstInd += 10 //for the next time
-
-  console.log('queryDatasetIDs has', queryDatasetIDs.length, 'datasetIDs')
-
-  //we can't sort yet because the datasetIDs are random
-
-  let searchField
-  if(firstTab){
-    searchField = 'georeferencers'
+  let userDatasetsSnap = await Firestore.collection(collection).doc(profile.uid).get()
+  if(userDatasetsSnap.exists){
+    let searchDatasets = userDatasetsSnap.data().datasets
+    if (!searchDatasets || !searchDatasets.length){
+      console.log('no datasetIDs returned')
+      datasetIDs = []
+      datasets = []
+      datasetsFetched = true
+      return
+    } 
+    else {
+      datasetIDs = searchDatasets.map(x=>x.trim())
+    }
   }
   else {
-    searchField = 'invitees'
-  }
-
-  let georeferencerDatasetSnaps
-  try {
-    georeferencerDatasetSnaps = await Firestore.collection('datasets')
-    .where(searchField, 'array-contains', profile.uid) //the security rule
-    .where('datasetID', 'in', queryDatasetIDs)
-    .get()
-  }
-  catch(err) {
-    alert('error fetching datasets: ' + err.message)
+    console.log('no datasets document exists for this user') //will happen on first registration if they have no datasets
+    datasetsFetched = true
+    datasetIDs = []
+    datasets = []
     return
   }
 
   
-  if(!georeferencerDatasetSnaps.empty) {
-    datasets = georeferencerDatasetSnaps.docs.map(x => x.data())
-  }
-  else { //no datasets returned, this should not happen
-    console.log('got no datasets')
-    datasets = []
+  if (datasetIDs.length) {
+    let lastInd = firstInd + 10 //we can only call ten at a time remember end not included in slice
+    let queryDatasetIDs = datasetIDs.slice(firstInd, lastInd)
+    firstInd += 10 //for the next time
+
+    console.log('queryDatasetIDs has', queryDatasetIDs.length, 'datasetIDs')
+
+    //we can't sort yet because the datasetIDs are random
+
+    let searchField
+    if(firstTab){
+      searchField = 'georeferencers'
+    }
+    else {
+      searchField = 'invitees'
+    }
+
+    let georeferencerDatasetSnaps
+    try {
+      georeferencerDatasetSnaps = await Firestore.collection('datasets')
+      .where(searchField, 'array-contains', profile.uid) //the security rule
+      .where('datasetID', 'in', queryDatasetIDs)
+      .get()
+    }
+    catch(err) {
+      alert('error fetching datasets: ' + err.message)
+      datasetsFetched = true
+      return
+    }
+    
+    if(georeferencerDatasetSnaps.empty) {//no datasets returned, this should not happen
+      console.log('got no datasets')
+      datasets = []
+      datasetsFetched = true
+    }
+    else { 
+      datasets = georeferencerDatasetSnaps.docs.map(x => x.data())
+      datasetsFetched = true
+    }
   }
 }
 
@@ -265,7 +270,7 @@ const emitDataset = dataset => {
 		Invited datasets
 	</div>
 </div>
-{#if datasets}
+{#if datasetsFetched}
   {#if datasets.length}
   <div></div><!-- This is needed otherwise the table doesnt show  -->
   <table>
@@ -309,8 +314,7 @@ const emitDataset = dataset => {
   {:else}
   <div class="nodatasets">
     No datasets to show
-  </div>
-    
+  </div>  
   {/if}
   <div>
     <button on:click={refresh} >Start over</button>

@@ -185,6 +185,17 @@
       let docsnap = querysnap.docs[0] //should only be one!
       let datasets = docsnap.data().datasets
 
+      //move to pendingDatasets
+      //this needs to happen first because we need it to verify that the user can update the dataset lower down
+      try {
+        await Firestore.collection('userPendingDatasets')
+        .doc(user.uid)
+        .set({datasets})
+      }
+      catch(err) {
+        throw new Error('failed to create user pending datasets -- ' + err.message)
+      }
+
       //need to update each dataset
       try{
         let proms = []
@@ -195,15 +206,6 @@
       }
       catch(err) {
         throw new Error('failed to update dataset objects -- ' + err.message)
-      }
-      
-      try {
-        await Firestore.collection('userPendingDatasets')
-        .doc(user.uid)
-        .set({datasets})
-      }
-      catch(err) {
-        throw new Error('failed to create user pending datasets -- ' + err.message)
       }
 
       try {

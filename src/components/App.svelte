@@ -7,6 +7,7 @@ import Register from './signUp.svelte'
 import SignIn from './signIn.svelte'
 import ForgotPwd from './signInForgotPwd.svelte'
 import PwdReset from './signInPwdReset.svelte'
+import About from './About.svelte'
 import ChooseFile from './chooseFile.svelte'
 import ConfirmFields from './confirmCSVFields.svelte'
 import ConfirmData from './confirmCSVData.svelte'
@@ -55,7 +56,7 @@ let statsLabels = [
 
 //for 'page navigation'
 // do we need a router??????
-let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeferencer' ]
+let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'About', 'ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeferencer' ]
 let datasetPages = ['datsetList', 'datasetDetail']
 let georeferencePage = 'Georeferencer' //just the one
 
@@ -264,7 +265,7 @@ const testAuth = _ => {
 				<div class="header-right">
 					<div class="menu">
 						<span class="menuitem" on:click={handleHomeClick}>Home</span>
-						<span class="menuitem" on:click='{_ => alert('About is still to come')}'>About</span>
+						<span class="menuitem" on:click='{_ => currentPage = 'About'}'>About</span>
 					</div>
 					{#if !firstAuth}
 						<Circle size="1.5" color="#1d4a9c" unit="em" />
@@ -303,6 +304,9 @@ const testAuth = _ => {
 				{/if}
 				{#if currentPage == 'ResetPwd'}
 					<PwdReset {Auth} code={pwdResetCode} on:to-sign-in='{_ => currentPage = 'SignIn'}'/>	
+				{/if}
+				{#if currentPage == 'About'}
+					<About/>
 				{/if}
 				{#if currentPage == 'ChooseFile'}
 				<ChooseFile 

@@ -103,6 +103,21 @@ function toEmitOrNotToEmit(file){
   </div>
   
   <input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
+
+  <div class="madewith">
+    <span>made with</span>
+    <a href="https://svelte.dev" target="_blank">
+      <img src="images/svelte-android-chrome-512.png" title="Svelte" alt="Svelte" class="madewithimg"/>
+    </a>
+    <span>+</span>
+    <a href="https://firebase.google.com" target="_blank">
+      <img src="images/firebase.png" title="Firebase" alt="Firebase" class="madewithimg"/>
+    </a>
+    <span>+</span>
+    <a href="https://www.elastic.co/" target="_blank">
+      <img src="images/elasticsearch.png" title="ElasticSearch" alt="ElasticSearch" class="madewithimg"/>
+    </a>
+  </div>
   
 </div>
 <!--##############################################-->
@@ -167,6 +182,18 @@ function toEmitOrNotToEmit(file){
     border-radius: 2px;
     border-width: 20px;
     border: 4px solid #c98f18;
+  }
+
+  .madewith {
+    display:flex;
+    align-items: center;
+    position: fixed;
+    bottom: 10px;
+    right:30px;
+  }
+  .madewithimg {
+    max-height:20px;
+    max-width:20px;
   }
 
 </style>

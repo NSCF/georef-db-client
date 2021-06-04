@@ -49,7 +49,8 @@
       been completed. An additional validation step is to check for geographic or environmental outliers.
     </p>
     <p>Finally the dataset is downloaded again with all georeference data included for incorporation back 
-      into the institution database.
+      into the institution database. It is recommended to review the downloaded dataset with a tool such as 
+      <a href="https://openrefine.org/" target="blank">OpenRefine</a> before updating the main database.
     </p>
     <p>A training video demonstrating use of the tool is available at this link (to come)</p>
     <h4>Data policy</h4>

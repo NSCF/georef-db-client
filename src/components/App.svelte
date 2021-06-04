@@ -198,6 +198,7 @@ function handleRegisterDataset(ev) {
 	datasetDetails = ev.detail.datasetDetails
 	invalidCountries = ev.detail.invalidCountries
 	datasetDetails.recordIDField = requiredFields.recordIDField //very important!!
+	datasetDetails.localityField = requiredFields.localityField
 	currentPage = 'UploadData'
 }
 
@@ -226,11 +227,11 @@ function handleBackToDatasets() {
 
 const testAuth = _ => {
 	if (fbUser) {
-		fbUser.getIdToken().then(token => {
+		fbUser.getIdToken(true).then(token => {
 			console.log('id token is', token)
-			fetch('http://localhost:5001/georef-745b9/us-central1/hello', {
+			fetch('https://us-central1-georef-745b9.cloudfunctions.net/hello', {
 				headers: {
-					Authorization: 'Bearer ' + token
+					Authorization: token
 				}
 			}).then(res => {
 				if (res.ok){

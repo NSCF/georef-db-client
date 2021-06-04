@@ -1,8 +1,9 @@
 <script>
   //this is a component that kept getting bigger and bigger....
 
-  import { Firestore, Realtime, FieldValue, Storage } from '../../firebase.js'
+  import { Firestore, Auth, FieldValue, Storage } from '../../firebase.js'
   import Papa from 'papaparse'
+  import stringSimilarity from 'string-similarity'
   import {onMount, createEventDispatcher} from 'svelte'
   import ProfileSelect from '../profileSelect.svelte'
   import Loader from '../loader.svelte'
@@ -29,6 +30,8 @@
     if(dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid))){
       //we have georeferencers, invited and newInvitees
       let uids = [...dataset.georeferencers, ...dataset.invitees].filter(x => x && x.trim()).map(x => x.trim()) //filter just in case
+      console.log('fetching profiles for: ' + uids.join(';'))
+      
       let res = await fetch('https://us-central1-georef-745b9.cloudfunctions.net/getprofilesforidlist', {
         method: 'POST', 
         mode: 'cors', 
@@ -251,16 +254,77 @@
 
     let d = new Date(georefDetails.georefDate) //its a timestamp
     let local = new Date(d.getTime() - d.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
-    record['dwc:georeferencedDate'] = local
-
-    record.originalGeoreferencedBy = georef.by
-    record.originalGeoreferenceByID = georef.byORCID
-    record.originalGeoreferenceDate = georef.date //this is not a timestamp
+    record['dwc:georeferencedDate'] = local    
     record['dwc:georeferenceSources'] = georef.sources
-    record.originalGeorefSource = georef.originalGeorefSource 
     record['dwc:georeferenceProtocol'] = georef.protocol 
-    record['dwc:georeferenceRemarks'] = georefDetails.georefRemarks
-    record.originalGeoreferenceRemarks = georef.remarks
+
+    //this is important because we have to add the original georef details if different from the above
+    let remarks = []
+    if(georefDetails.georefRemarks && georefDetails.georefRemarks.trim()){
+      remarks.push(georefDetails.georefRemarks.trim())
+    }
+
+    //compare localities, but we need to make this backwards compatible
+    let localitySimilarity
+    if(dataset.localityField && record[dataset.localityField] && georef.locality) {
+      localitySimilarity = stringSimilarity.compareTwoStrings(record[dataset.localityField], georef.locality)
+    }
+    else {
+      let candidates = [record.locality, record['dwc:locality'], record.verbatimLocality, record['dwc:verbatimLocality']].filter(x=>x).map(x => x.trim()).filter(x=>x)
+      if(candidates.length){
+        let loc = candidates.pop()//prefer verbatim over non-verbatim if it's there
+        localitySimilarity = stringSimilarity.compareTwoStrings(loc, georef.locality)
+      }
+    }
+
+    let origGeorefVals = []
+    if(!localitySimilarity || localitySimilarity < 0.9) {
+      let str = georef.locality
+      origGeorefVals.push(str)
+      origGeorefVals.push(localitySimilarity)
+    }
+
+    if(georefDetails.georefBy != georef.by){
+      let str = 'by: ' + georef.by
+      if(georef.byORCID && georef.byORCID.trim()){
+        str += ` (${georef.byORCID})`
+      }
+      origGeorefVals.push(str)
+    }
+
+    if(local != georef.date) {
+      let str = 'date: ' + georef.date
+      origGeorefVals.push(str)
+    }
+
+    if(origGeorefVals.length) { //this is an existing georef applied to locality string later
+      
+      //we need the verification here for the original georef
+      if(georef.verified){
+        origGeorefVals.push('verified')
+      }
+      else {
+        origGeorefVals.push('unverified')
+      }
+      
+      if(georef.remarks && georef.remarks.trim()){
+        let str = 'remarks: ' + georef.remarks.trim()
+        origGeorefVals.push(str)
+      }
+
+      let origGeoref = '::ORIG GEOREF: ' + origGeorefVals.join(', ') //note that :: is the separator for join later
+      remarks.push(origGeoref)
+    }
+    else { //its the original georef but it may still have remarks
+      if(georef.remarks && georef.remarks.trim()){
+        remarks.push(georef.remarks.trim()) //note here again we have as separator
+      }
+    }
+
+    let allRemarks = remarks.join('; ').trim() //trim just in case
+    allRemarks = allRemarks.replace(/^\:\:/, '').replace(/;\s+\:\:/, ' ::') //just cleaning up the separators in case not needed
+
+    record['dwc:georeferenceRemarks'] = allRemarks
 
     if(georefDetails.georefVerified){
       if(georefDetails.georefVerifiedByRole) {
@@ -275,20 +339,30 @@
     }
 
     record.georeferenceVerifiedBy = georefDetails.georefVerifiedBy
-    record.georeferenceVerifiedDate = georefDetails.georefVerifiedDate
+    record.georeferenceVerifiedDate = georefDetails.georefVerifiedDate //TODO check this is a date and not timestamp
 
+    record.originalGeorefJSON = JSON.stringify(georef)
+
+    record.originalGeoreferencedBy = georef.by
+    record.originalGeoreferenceByID = georef.byORCID
+    record.originalGeoreferenceDate = georef.date //this is not a timestamp
+    record.originalGeoreferenceRemarks = georef.remarks
+
+    let originalVerified
     if(georef.verified){
       if(georef.verifiedByRole) {
-        record.originalGeoreferenceVerificationStatus = 'verified by ' + georef.verifiedByRole
+        originalVerified = 'verified by ' + georef.verifiedByRole
       }
       else {
-        record.originalGeoreferenceVerificationStatus = 'verified (no role indicated)'
+        originalVerified = 'verified (no role indicated)'
       }
     }
     else {
-      record.originalGeoreferenceVerificationStatus = 'requires verification'
+      originalVerified = 'requires verification'
     }
 
+    record.originalGeoreferenceVerificationStatus = originalVerified
+  
     record.originalGeoreferenceVerifiedBy = georef.verifiedBy 
     record.originalGeoreferenceVerifiedDate = georef.verifiedDate
 
@@ -561,25 +635,38 @@
 
   const getGeorefs = async (georefKeys, elasticIndex) => {
     if(Array.isArray(georefKeys) && georefKeys.length) {
+      
       let search = {
         index: elasticIndex,
         georefIDs: georefKeys
       }
+
       let url = 'https://us-central1-georef-745b9.cloudfunctions.net/getgeorefsbyid'
+      let token = await Auth.currentUser.getIdToken(true);
+
+      let res
       try {
-        let res = await fetch(url, {
+        res = await fetch(url, {
           method: 'POST', 
           headers: {
+            'Authorization': token,
             'Content-Type': 'application/json'
           },
-          body: (JSON.stringify(search))
+          body: JSON.stringify(search)
         })
+      }
+      catch(err) {
+        throw new Error('georefs could not be fetched: ' + err.message)
+      }
+
+      if(res.ok) {
         let georefs = await res.json()
         georefs =  georefs.map(x=>x._source)
         return georefs;
       }
-      catch(err) {
-        throw new Error('georefs could not be fetch with message ' + err.message)
+      else {
+        let body = await res.text()
+        throw new Error('error fetching georefs: ' + body)
       }
     }
     else {
@@ -688,21 +775,21 @@
 <div class="outer">
   <div class="container">
     {#if downloading}
-    <div class="vertical">
-      {downloadProgessMessage}
-      <div class="loaderflex">
-        <Loader/>
+      <div class="vertical">
+        {downloadProgessMessage}
+        <div class="loaderflex">
+          <Loader/>
+        </div>
       </div>
-    </div>
     {:else if showDownloadComplete}
-    <div class="vertical">
-      <p style="margin-bottom:20px">The download has completed. Please remember to <span on:click={showUTFFilehint}>open the file in a UTF-8 friendly way...</span></p>
-      {#if downloadProblems.length}
-        <p style="font-weight:bold;">There were problems with associating georeferences for the following {downloadProblems.length} record/s: </p>
-        <p>{downloadProblems.join('; ')}</p>
-      {/if}
-      <button on:click="{_ => showDownloadComplete = false}">Okay</button>
-    </div>
+      <div class="vertical">
+        <p style="margin-bottom:20px">The download has completed. Please remember to <span on:click={showUTFFilehint}>open the file in a UTF-8 friendly way...</span></p>
+        {#if downloadProblems.length}
+          <p style="font-weight:bold;">There were problems with associating georeferences for the following {downloadProblems.length} record/s: </p>
+          <p>{downloadProblems.join('; ')}</p>
+        {/if}
+        <button on:click="{_ => showDownloadComplete = false}">Okay</button>
+      </div>
     {:else}
       <h2>{dataset.collectionCode}: {dataset.datasetName}</h2>
       <div class="content">
@@ -769,7 +856,7 @@
           {#if profilesIndex}
             <div class="chart-spacer"></div>
             <div class="chart-title">Stats per georeferencer</div>
-            <UsersChart datasetID={dataset.datasetID} {profilesIndex} />
+            <UsersChart {dataset} {profilesIndex} />
           {:else}
             <div class="chart-loader">
               <Loader />
@@ -870,6 +957,7 @@ h2 {
   justify-content: center;
   align-items: center;
   height:100%;
+  overflow-y:auto;
 }
 
 .loaderflex {

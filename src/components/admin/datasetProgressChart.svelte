@@ -8,6 +8,7 @@
 
   //stats
   let chartData
+  let dailyChartData
   let weeklyChartData
   let monthlyChartData
 
@@ -18,16 +19,38 @@
     ];
 
   onMount(async _ => {
-    weeklyChartData = await getChartData('weekly')
-    chartData = weeklyChartData
+    
+    //work out if we must show days or weeks to start
+    let now = Date.now()
+    let diff = now - dataset.dateCreated
+    let daysdiff = diff / (1000*60*60*24)
+    console.log('days diff is', daysdiff)
+    if (daysdiff < 21) {
+      selectedType = 'daily'
+      dailyChartData = await getChartData(selectedType)
+      chartData = dailyChartData
+    }
+    else {
+      selectedType = 'weekly'
+      weeklyChartData = await getChartData(selectedType)
+      chartData = weeklyChartData
+    }
   })
 
-  $: if (selectedType) selectChartData(selectedType)
+  //$: if (selectedType) selectChartData(selectedType)
 
   const selectChartData = async type => {
+    
+    if (type == 'daily') {
+      if(!dailyChartData) {
+        dailyChartData = await getChartData('daily')
+      }
+      chartData = dailyChartData
+    }
+    
     if (type == 'weekly') {
       if(!weeklyChartData) {
-        weeklyChartData = await getChartData(type)
+        weeklyChartData = await getChartData('daily')
       }
       chartData = weeklyChartData
     }
@@ -40,23 +63,29 @@
     }
   }
 
-
   //converts results from a call to Firebase to the structure needed for linechart
   const getChartData = async type => {
 
+    console.log('fetching data for', type)
     let snap = await Realtime.ref('stats/perDataset/' + dataset.datasetID + '/' + type).once('value')
     if(snap.exists) {
+      console.log('fetched data')
       let data = snap.val()
       let labels = []
-      let recordsPerPeriod = [] //week or month
+      let recordsPerPeriod = [] //day week or month
 
       let indexPeriod
       let startPeriod
-      if(type == 'weekly') {
+      if(type == 'daily') {
+        let d = new Date()
+        indexPeriod = d.toISOString().split('T')[0]
+        startPeriod = startPeriod = Object.keys(data).reduce((a,b) => a < b ? a : b, indexPeriod) //we're going to step backwards from current/index to start
+      }
+      else if(type == 'weekly') {
         indexPeriod = getYearWeek(new Date())
         startPeriod = Object.keys(data).reduce((a,b) => a < b ? a : b, indexPeriod) //we're going to step backwards from current/index to start
       }
-      else {
+      else { //monthly
         let today = getToday()
         let parts = today.split('-')
         parts.pop()
@@ -65,7 +94,10 @@
       }
 
       while (indexPeriod >= startPeriod) {
-        if(type == 'weekly') {
+        if(type == 'daily') {
+          labels.push(indexPeriod)
+        }
+        else if(type == 'weekly') {
           let parts = indexPeriod.split(' ')
           labels.push(getDateOfISOWeek(parts[1], parts[0]))
         }
@@ -83,7 +115,10 @@
           recordsPerPeriod.push(0)
         }
 
-        if(type == 'weekly'){
+        if (type =='daily') {
+          indexPeriod = decrementDate(indexPeriod)
+        }
+        else if(type == 'weekly'){
           indexPeriod = decrementYearWeek(indexPeriod)
         }
         else {
@@ -114,7 +149,11 @@
           }
         ]
       }
+      console.log(chartData)
       return chartData
+    }
+    else {
+      return null
     }
   }
 
@@ -150,6 +189,14 @@
     var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
     // Return array of year and week number
     return `${d.getUTCFullYear()} ${weekNo.toString().padStart(2, '0')}`
+  }
+
+  const decrementDate = d => {
+    let today = new Date(d)
+    //https://stackoverflow.com/a/24774070/3210158
+    let yesterday = new Date(today.getTime() - (24 * 60 * 60 * 1000)); //(hours * minutes * seconds * milliseconds)
+    yesterday = yesterday.toISOString().split('T')[0]
+    return yesterday
   }
 
   const decrementYearWeek = yw => {
@@ -189,8 +236,9 @@
 {#if chartData}
   <div class="chart-title">Dataset completion progress</div>
   <div class="chart-div">
-    <select class='chart-select' bind:value={selectedType}>
-      <option value="weekly" selected>Weekly</option>
+    <select class='chart-select' bind:value={selectedType} on:change="{_ => selectChartData(selectedType)}">
+      <option value="daily">Daily</option>
+      <option value="weekly">Weekly</option>
       <option value="monthly">Monthly</option>
     </select>
     <LineChart {chartData}/>

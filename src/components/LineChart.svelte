@@ -6,6 +6,7 @@
     PointElement,
     LineController,
     LinearScale,
+    CategoryScale,
     Legend,
     Title,
     Tooltip
@@ -16,6 +17,7 @@
     PointElement,
     LineController,
     LinearScale,
+    CategoryScale,
     Legend,
     Title,
     Tooltip)

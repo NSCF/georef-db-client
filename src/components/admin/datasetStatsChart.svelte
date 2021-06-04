@@ -335,7 +335,7 @@
     {#if profilesIndex && (dataset.createdByID == userID  || (dataset.admins && dataset.admins.includes(userID)))}
       <select class='profile-select' bind:value={selectedUID}>
         <option value="" selected>All</option>
-        {#each Object.keys(profilesIndex) as uid}
+        {#each dataset.georeferencers.sort((a, b) => profilesIndex[a].firstName.toLowerCase().localeCompare(profilesIndex[b].firstName.toLowerCase())) as uid}
           <option value={uid}>{profilesIndex[uid].firstName}</option>
         {/each}
       </select>

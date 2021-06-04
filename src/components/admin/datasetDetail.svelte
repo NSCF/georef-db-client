@@ -29,29 +29,41 @@
     //only the person who created the dataset can see the georeferencers
     if(dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid))){
       //we have georeferencers, invited and newInvitees
-      let uids = [...dataset.georeferencers, ...dataset.invitees].filter(x => x && x.trim()).map(x => x.trim()) //filter just in case
-      console.log('fetching profiles for: ' + uids.join(';'))
+      let uids = []
       
-      let res = await fetch('https://us-central1-georef-745b9.cloudfunctions.net/getprofilesforidlist', {
-        method: 'POST', 
-        mode: 'cors', 
-        cache: 'no-cache',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ uids }) // body data type must match "Content-Type" header
-      })
-
-      if(res.ok) {
-        let profiles = await res.json()
-      
-        profilesIndex = {}
-        for (let profile of profiles) {
-          profilesIndex[profile.uid] = profile
-        }
+      if (dataset.georeferencers && dataset.georeferencers.length) {
+        uids = [...uids, ...dataset.georeferencers]
       }
-      else {
-        alert('there was a problem fetching the user profiles for georeferencers and invitees')
+
+      if (dataset.invitees && dataset.invitees.length) {
+        uids = [...uids, ...dataset.invitees]
+      }
+
+      if (dataset.declinedInvitees && dataset.declinedInvitees.length) {
+        uids = [...uids, ...dataset.declinedInvitees]
+      }
+      
+      if(uids.length) {
+        let res = await fetch('https://us-central1-georef-745b9.cloudfunctions.net/getprofilesforidlist', {
+          method: 'POST', 
+          mode: 'cors', 
+          cache: 'no-cache',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ uids }) // body data type must match "Content-Type" header
+        })
+
+        if(res.ok) {
+          let profiles = await res.json()
+          profilesIndex = {}
+          for (let profile of profiles) {
+            profilesIndex[profile.uid] = profile
+          }
+        }
+        else {
+          alert('there was a problem fetching the user profiles for georeferencers and invitees')
+        }
       }
     }
   })
@@ -761,6 +773,14 @@
     }
   }
 
+  const reInvite = async uid => {
+    await Firestore.collection('userPendingDatasets').doc(uid).update({datasets: FieldValue.arrayUnion(dataset.datasetID)})
+    await Firestore.collection('datasets').doc(dataset.datasetID).update({declinedInvitees: FieldValue.arrayRemove(uid), invitees: FieldValue.arrayUnion(uid)})
+    dataset.invitees = [...dataset.invitees, uid]
+    let ind = dataset.declinedInvitees.findIndex(uid)
+    dataset.declinedInvitees = dataset.declinedInvitees.splice(ind, 1)
+  }
+
   const showUTFFilehint = _ => {
     let message = `Special characters in UTF-8 files get scrambled if the file is opened directly in Excel. 
     You need to import the file from the data tab in Excel and set the encoding to UTF-8 during the import process. 
@@ -768,6 +788,7 @@
     
     alert(message)
   }
+
 </script>
 
 <!-- ############################################## -->
@@ -791,6 +812,7 @@
         <button on:click="{_ => showDownloadComplete = false}">Okay</button>
       </div>
     {:else}
+      <p on:click={handleBackToDatasets}>&lt;&lt;Back to datasets</p>
       <h2>{dataset.collectionCode}: {dataset.datasetName}</h2>
       <div class="content">
         <div>
@@ -863,48 +885,67 @@
             </div>
           {/if}
         {/if}
-        <div class="chart-spacer"></div>
-        <StatsChart {dataset} {profilesIndex} userID={profile.uid} />
+        {#if profilesIndex}
+          <div class="chart-spacer"></div>
+          <StatsChart {dataset} {profilesIndex} userID={profile.uid} />
+        {/if}
       </div>
       {#if profilesIndex && (dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid)))  }
         <div>
-          <div>
-            <label>Georeferencers</label>
-            <div class="inviteelist">
-              {#each dataset.georeferencers as uid}
-                <div class="inviteecontainer">
-                  {#if profilesIndex[uid]} <!--this is just in users and their details have been deleted elsewhere-->
-                    <div>{profilesIndex[uid].formattedName + " (" + profilesIndex[uid].email + ")"}</div>
-                    {#if dataset.admins && dataset.admins.includes(uid)}
-                      <div class="material-icons" title="is admin">person</div>
-                    {:else if dataset.createdByID != uid}
-                      <div class="material-icons icon-input-icon" title="make admin" on:click='{_ => makeAdmin(uid)}'>person_add_alt</div>
-                      <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeGeoreferencer(uid)}'>clear</div>
-                    {/if}
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          </div>
-          <div>
-            <label>Invited</label>
-            <div class="inviteelist">
-              {#each dataset.invitees as uid}
-                <div class="inviteecontainer">
-                  <div>{profilesIndex[uid].formattedName + " (" + profilesIndex[uid].email + ")"}</div>
-                  <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeInvitee(uid)}'>clear</div>
-                </div>
-              {/each}
-              {#each dataset.newInvitees as email}
-                <div class="inviteecontainer">
-                  <div>{email}</div>
-                  <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeNewInvitee(email)}'>clear</div>
-                </div>
-              {/each}
-            </div>
+          {#if dataset.georeferencers.length}
             <div>
-              <ProfileSelect on:profile-selected={handleProfileSelected} />
+              <label>Georeferencers</label>
+              <div class="inviteelist">
+                {#each dataset.georeferencers as uid}
+                  <div class="inviteecontainer">
+                    {#if profilesIndex[uid]} <!--this is just in users and their details have been deleted elsewhere-->
+                      <div style="padding-right:5px">{profilesIndex[uid].formattedName}</div>
+                      {#if dataset.admins && dataset.admins.includes(uid)}
+                        <div class="material-icons" title="is admin">person</div>
+                      {:else if dataset.createdByID != uid}
+                        <div class="material-icons icon-input-icon" title="make admin" on:click='{_ => makeAdmin(uid)}'>person_add_alt</div>
+                        <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeGeoreferencer(uid)}'>clear</div>
+                      {/if}
+                    {/if}
+                  </div>
+                {/each}
+              </div>
             </div>
+          {/if}
+          {#if dataset.invitees.length}
+            <div>
+              <label>Invited</label>
+              <div class="inviteelist">
+                {#each dataset.invitees as uid}
+                  <div class="inviteecontainer">
+                    <div style="padding-right:5px">{profilesIndex[uid].formattedName}</div>
+                    <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeInvitee(uid)}'>clear</div>
+                  </div>
+                {/each}
+                {#each dataset.newInvitees as email}
+                  <div class="inviteecontainer">
+                    <div style="padding-right:5px">{email}</div>
+                    <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeNewInvitee(email)}'>clear</div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+          {#if dataset.declinedInvitees.length}
+            <div>
+              <label>Declined</label>
+              <div class="inviteelist">
+                {#each dataset.declinedInvitees as uid}
+                  <div class="inviteecontainer">
+                    <div style="padding-right:5px">{profilesIndex[uid].formattedName}</div>
+                    <div class="material-icons icon-input-icon" title="re-invite" on:click='{_ => reInvite(uid)}'>mail_outline</div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+          <div>
+            <ProfileSelect on:profile-selected={handleProfileSelected} />
           </div>
         </div>
       {/if}  

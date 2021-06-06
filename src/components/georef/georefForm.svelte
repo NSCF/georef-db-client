@@ -21,10 +21,12 @@ export let defaultGeorefByORCID = null
 let localGeoref = new Georef() //this is the local copy we work with
 
 //settings
+export let editable = true
 export let showButtons = true
+export let showSubmitButton = true
 export let showWKT = false
 export let showVerification = false
-export let submitButtonText
+export let submitButtonText = ""
 
 export let requiredFields = ['datum', 'date'] //for on form validation
 
@@ -57,19 +59,19 @@ export let georefSources = [
 
 //validations
 let validationVars = ['localityhasError', 'coordsHasError', 'uncertaintyHasError', 'uncertaintyUnitHasError', 'datumHasError', 'georefByHasError', 'georefDateHasError', 'protocolHasError', 'sourcesHasError', 'verifiedByHasError', 'verifiedDateHasError', 'verifierRoleHasError'] //must match below
-$: hasLocalityAndCoords = Boolean(localGeoref.locality && localGeoref.locality.trim() && localGeoref.decimalCoordinates)
-$: localityhasError = Boolean(localGeoref.decimalCoordinates && (!localGeoref.locality || !localGeoref.locality.trim()))
-$: coordsHasError = Boolean(localGeoref.locality && localGeoref.locality.trim() && (!localGeoref.decimalCoordinates || !localGeoref.decimalCoordinatesOkay || localGeoref.decimalCoordinatesWarning))
-$: uncertaintyHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('uncertainty') && !localGeoref.uncertainty)
-$: uncertaintyUnitHasError = Boolean(localGeoref.uncertainty && !localGeoref.uncertaintyUnit)
-$: datumHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('datum') && (!localGeoref.datum || !localGeoref.datum.trim()))
-$: georefByHasError =  Boolean(hasLocalityAndCoords && requiredFields.includes('by') && (!localGeoref.by || !localGeoref.by.trim()))
-$: georefDateHasError = Boolean(hasLocalityAndCoords && (localGeoref.by && localGeoref.by.trim() || requiredFields.includes('date')) && (!localGeoref.date || !localGeoref.date.trim())) //see the component for more validation
-$: protocolHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('protocol') && (!localGeoref.protocolObject || !localGeoref.protocolObject.value))
-$: sourcesHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('sources') && (!localGeoref.sourcesArray || !localGeoref.sourcesArray.length))
-$: verifiedByHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('verifiedBy') && (!localGeoref.verifiedBy || !localGeoref.verifiedBy.trim()))
-$: verifiedDateHasError = Boolean(hasLocalityAndCoords && (localGeoref.verifiedBy && localGeoref.verifiedBy.trim() || requiredFields.includes('verifiedDate')) && (!localGeoref.verifiedDate || !localGeoref.verifiedDate.trim())) //see the component for more validation
-$: verifierRoleHasError = Boolean(hasLocalityAndCoords && requiredFields.includes('verifierrole') && (!localGeoref.verifierRole || !localGeoref.verifierRole.trim()))
+$: hasLocalityAndCoords = editable && Boolean(localGeoref.locality && localGeoref.locality.trim() && localGeoref.decimalCoordinates)
+$: localityhasError = editable && Boolean(localGeoref.decimalCoordinates && (!localGeoref.locality || !localGeoref.locality.trim()))
+$: coordsHasError = editable && Boolean(localGeoref.locality && localGeoref.locality.trim() && (!localGeoref.decimalCoordinates || !localGeoref.decimalCoordinatesOkay || localGeoref.decimalCoordinatesWarning))
+$: uncertaintyHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('uncertainty') && !localGeoref.uncertainty)
+$: uncertaintyUnitHasError = editable && Boolean(localGeoref.uncertainty && !localGeoref.uncertaintyUnit)
+$: datumHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('datum') && (!localGeoref.datum || !localGeoref.datum.trim()))
+$: georefByHasError =  editable && Boolean(hasLocalityAndCoords && requiredFields.includes('by') && (!localGeoref.by || !localGeoref.by.trim()))
+$: georefDateHasError = editable && Boolean(hasLocalityAndCoords && (localGeoref.by && localGeoref.by.trim() || requiredFields.includes('date')) && (!localGeoref.date || !localGeoref.date.trim())) //see the component for more validation
+$: protocolHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('protocol') && (!localGeoref.protocolObject || !localGeoref.protocolObject.value))
+$: sourcesHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('sources') && (!localGeoref.sourcesArray || !localGeoref.sourcesArray.length))
+$: verifiedByHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('verifiedBy') && (!localGeoref.verifiedBy || !localGeoref.verifiedBy.trim()))
+$: verifiedDateHasError = editable && Boolean(hasLocalityAndCoords && (localGeoref.verifiedBy && localGeoref.verifiedBy.trim() || requiredFields.includes('verifiedDate')) && (!localGeoref.verifiedDate || !localGeoref.verifiedDate.trim())) //see the component for more validation
+$: verifierRoleHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('verifierrole') && (!localGeoref.verifierRole || !localGeoref.verifierRole.trim()))
 
 //watchers
 $: georef, setLocalGeoref()
@@ -313,116 +315,135 @@ const checkAndDispatchGeoref = _ => {
   {#if showButtons}
     <div style="text-align:right">
       <span class="material-icons iconbutton" title="Clear all" on:click={handleClearClick}>restore_page</span>
-      <span class="material-icons iconbutton" title="Flag this georef" class:md-inactive={localGeoref.flagged} on:click={flagGeoref}>report</span>
+      <span class="material-icons iconbutton" title="Flag this georef" class:utility-button-inactive={localGeoref.flagged} on:click={flagGeoref}>report</span>
       <button class="json-button" title="Copy georef JSON"  on:click={copyGeorefJSON}>JSON</button>
       <span class="material-icons iconbutton" title="Copy tab delimited" on:click={copyTabDelimited}>clear_all</span>
     </div>
   {/if}
-  <div>
-    <label for="loc" style="width:100%;text-align:right">locality</label><br/>
-    <LocalityInput hasError={localityhasError} bind:value={localGeoref.locality} />
-  </div>
-  <div class="oneliner">
-    <label  for="verbatimcoords">verbatim coords</label>
-    <VerbatimCoordsInput on:coords-from-verbatim={handleCoordsFromVerbatim} on:coords-from-paste={handleCoordsFromPaste} bind:value={localGeoref.verbatimCoordinates}/>
-  </div>
-  <div class="oneliner">
-    <label  for="coords">decimal coords</label>
-    <DecimalCoordsInput hasError={coordsHasError} on:coords-from-paste={handleCoordsFromPaste} bind:value={localGeoref.decimalCoordinates}/> <!--VERY IMPORTANT THAT COORDINATES BE VALID BEFORE THIS HAPPENS, OTHERWISE IT BREAKS-->
-  </div>
-  <div class="oneliner">
-    <label for="acc">uncertainty</label>
-    <div style="display:inline-block;width:50%">
-      <input type="number" id="acc" style="width:57%" min="0" step="0.1" class:hasError={uncertaintyHasError} on:blur={handleUncertaintyBlur}  bind:value={localGeoref.uncertainty}/>
-      <select class:hasError={uncertaintyUnitHasError} id='accunit' style="width:40%" bind:value={localGeoref.uncertaintyUnit} bind:this={uncertaintySelect}>
-        <option selected="selected"/>
-        {#each uncertaintyUnitsEnum as unit}
-          <option value={unit}>{unit}</option>
-        {/each}
-      </select>
-    </div>
-  </div>
-  {#if showWKT}
+  <fieldset disabled={!editable}>
     <div>
-      <label for="WKT" style="width:100%;text-align:right"><a href="https://dwc.tdwg.org/terms/#dwc:footprintWKT" target="_blank">georef WKT</a></label>
-      <textarea id="WKT" rows="3" bind:value={localGeoref.WKT}/>
+      <label for="loc" style="width:100%;text-align:right">locality</label><br/>
+      <LocalityInput hasError={localityhasError} {editable} bind:value={localGeoref.locality} />
     </div>
-  {/if}
-  <div class="oneliner">
-    <label for="datum">datum</label>
-    <input id="datum" class:hasError={datumHasError} list="datums" name="datum" style="width:50%"  bind:value={localGeoref.datum}>
-    <datalist id="datums">
-      <option value="WGS84">
-    </datalist>
-  </div>
-  <div class="oneliner">
-    <label for="georefBy">georef by</label>
-    {#if defaultGeorefBy}
-      <input class:hasError={georefByHasError} type="text" list="defaultGeorefBy" id="georefBy" style="width:50%" bind:value={localGeoref.by}/>
-      <datalist id="defaultGeorefBy">
-        <option value={defaultGeorefBy}>
-      </datalist>
-    {:else}
-      <input class:hasError={georefByHasError} type="text" id="georefBy" style="width:50%" bind:value={localGeoref.by}/>
+    <div class="oneliner">
+      <label  for="verbatimcoords">verbatim coords</label>
+      <VerbatimCoordsInput {editable} on:coords-from-verbatim={handleCoordsFromVerbatim} on:coords-from-paste={handleCoordsFromPaste} bind:value={localGeoref.verbatimCoordinates}/>
+    </div>
+    <div class="oneliner">
+      <label  for="coords">decimal coords</label>
+      <DecimalCoordsInput hasError={coordsHasError} {editable} on:coords-from-paste={handleCoordsFromPaste} bind:value={localGeoref.decimalCoordinates}/> <!--VERY IMPORTANT THAT COORDINATES BE VALID BEFORE THIS HAPPENS, OTHERWISE IT BREAKS-->
+    </div>
+    <div class="oneliner">
+      <label for="acc">uncertainty</label>
+      <div style="display:inline-block;width:50%">
+        <input type="number" id="acc" style="width:57%" min="0" step="0.1" class:hasError={uncertaintyHasError} on:blur={handleUncertaintyBlur}  bind:value={localGeoref.uncertainty}/>
+        <select class:hasError={uncertaintyUnitHasError} id='accunit' style="width:40%" bind:value={localGeoref.uncertaintyUnit} bind:this={uncertaintySelect}>
+          <option selected="selected"/>
+          {#each uncertaintyUnitsEnum as unit}
+            <option value={unit}>{unit}</option>
+          {/each}
+        </select>
+      </div>
+    </div>
+    {#if showWKT}
+      <div>
+        <label for="WKT" style="width:100%;text-align:right"><a href="https://dwc.tdwg.org/terms/#dwc:footprintWKT" target="_blank">georef WKT</a></label>
+        <textarea id="WKT" rows="3" bind:value={localGeoref.WKT}/>
+      </div>
     {/if}
-  </div>
-  <div class="oneliner">
-    <label for="georefByORCID">georef by ORCID</label>
-    <input type="text" id="georefByORCID" style="width:100%;max-width:300px" bind:value={localGeoref.byORCID}/>
-  </div>
-  <div class="oneliner">
-    <div class="fields">
-      <div class="flex">
-        <label for="georefDate" style="padding-right:10px">georef date</label>
-        <DateInput hasBy={localGeoref.by && localGeoref.by.trim()} hasError={georefDateHasError} bind:value={localGeoref.date} />
-      </div>
-    </div>
-  </div>
-  <div>
-    <label style="width:100%;text-align:right" for="protocol">protocol</label>
-    <div class="inline-select">
-      <Select items={georefProtocols.map(x=> ({value:x, label:x}))} isCreatable={true} placeholder={'Select a protocol...'} hasError={protocolHasError} bind:selectedValue={localGeoref.protocolObject} />
-    </div>
-  <div>
-    <label style="width:100%;text-align:right" for="sources">sources</label>
-    <div class="inline-select">
-      <Select items={georefSources.map(x => ({value:x, label:x}))} isCreatable={true} isMulti={true} placeholder={'Select source/s...'} hasError={sourcesHasError} bind:selectedValue={localGeoref.sourcesArray}/>
-    </div>
-  </div>
-  {#if showVerification}
     <div class="oneliner">
-      <label for="verifiedBy">verified by</label>
-      <input type="text" id="verifiedBy" style="width:50%" class:hasError={verifiedByHasError} bind:value={localGeoref.verifiedBy}/>
-    </div>
-    <div class="oneliner">
-      <label for="verifiedByORCID">verified by ORCID</label>
-      <input type="text" id="verifiedByORCID" style="width:100%;max-width:300px" bind:value={localGeoref.verifiedByORCID}/>
-    </div>
-    <div class="oneliner">
-      <label for="verifierRole">verifier role</label>
-      <input id="verifierRole" class:hasError={verifierRoleHasError} list="verifierRoles" name="verifierRole" style="width:50%" bind:value={localGeoref.verifierRole}>
-      <datalist id="verifierRoles">
-        <option value="QC">
-        <option value="curator">
-        <option value="collector">
+      <label for="datum">datum</label>
+      <input id="datum" class:hasError={datumHasError} list="datums" name="datum" style="width:50%"  bind:value={localGeoref.datum}>
+      <datalist id="datums">
+        <option value="WGS84">
       </datalist>
     </div>
     <div class="oneliner">
-    <div class="fields">
-      <div class="flex">
-        <label for="verifiedDate" style="padding-right:10px">georef date</label>
-        <DateInput hasBy={localGeoref.verifiedBy && localGeoref.verifiedBy.trim()} hasError={verifiedDateHasError} bind:value={localGeoref.verifiedDate} />
+      <label for="georefBy">georef by</label>
+      {#if defaultGeorefBy}
+        <input class:hasError={georefByHasError} type="text" list="defaultGeorefBy" id="georefBy" style="width:50%" bind:value={localGeoref.by}/>
+        <datalist id="defaultGeorefBy">
+          <option value={defaultGeorefBy}>
+        </datalist>
+      {:else}
+        <input class:hasError={georefByHasError} type="text" id="georefBy" style="width:50%" bind:value={localGeoref.by}/>
+      {/if}
+    </div>
+    <div class="oneliner">
+      <label for="georefByORCID">georef by ORCID</label>
+      <input type="text" id="georefByORCID" style="width:100%;max-width:300px" bind:value={localGeoref.byORCID}/>
+    </div>
+    <div class="oneliner">
+      <div class="fields">
+        <div class="flex">
+          <label for="georefDate" style="padding-right:10px">georef date</label>
+          <DateInput hasBy={localGeoref.by && localGeoref.by.trim()} {editable} hasError={georefDateHasError} bind:value={localGeoref.date} />
+        </div>
       </div>
     </div>
-  </div>
+    {#if editable}
+      <div>
+        <label style="width:100%;text-align:right" for="protocol">protocol</label>
+        <div class="inline-select">
+          <Select items={georefProtocols.map(x=> ({value:x, label:x}))} isCreatable={true} placeholder={'Select a protocol...'} hasError={protocolHasError} bind:selectedValue={localGeoref.protocolObject} />
+        </div>
+      </div>
+    {:else}
+      <div class="oneliner" >
+        <label for="protocol">protocol</label>
+        <input type="text" style="width:100%;max-width:300px" bind:value={localGeoref.protocol} />
+      </div>
+    {/if}
+    {#if editable}
+    <div>
+      <label style="width:100%;text-align:right" for="sources">sources</label>
+      <div class="inline-select">
+        <Select items={georefSources.map(x => ({value:x, label:x}))} isCreatable={true} isMulti={true} placeholder={'Select source/s...'} hasError={sourcesHasError} bind:selectedValue={localGeoref.sourcesArray}/>
+      </div>
+    </div>
+    {:else}
+      <div class="oneliner" >
+        <label for="sources">sources</label>
+        <input type="text" style="width:100%;max-width:300px" bind:value={localGeoref.sources} />
+      </div>
+    {/if}
+    {#if showVerification}
+      <div class="oneliner">
+        <label for="verifiedBy">verified by</label>
+        <input type="text" id="verifiedBy" style="width:50%" class:hasError={verifiedByHasError} bind:value={localGeoref.verifiedBy}/>
+      </div>
+      <div class="oneliner">
+        <label for="verifiedByORCID">verified by ORCID</label>
+        <input type="text" id="verifiedByORCID" style="width:100%;max-width:300px" bind:value={localGeoref.verifiedByORCID}/>
+      </div>
+      <div class="oneliner">
+        <label for="verifierRole">verifier role</label>
+        <input id="verifierRole" class:hasError={verifierRoleHasError} list="verifierRoles" name="verifierRole" style="width:50%" bind:value={localGeoref.verifierRole}>
+        <datalist id="verifierRoles">
+          <option value="QC">
+          <option value="curator">
+          <option value="collector">
+        </datalist>
+      </div>
+      <div class="oneliner">
+      <div class="fields">
+        <div class="flex">
+          <label for="verifiedDate" style="padding-right:10px">verified date</label>
+          <DateInput hasBy={localGeoref.verifiedBy && localGeoref.verifiedBy.trim()} {editable} hasError={verifiedDateHasError} bind:value={localGeoref.verifiedDate} />
+        </div>
+      </div>
+    </div>
+    {/if}
+    <div>
+      <label for="remarks" style="width:100%;text-align:right">remarks</label>
+      <textarea id="remarks" rows="3" bind:value={localGeoref.remarks}/>
+    </div>
+  </fieldset>
+  {#if showSubmitButton}
+    <div style="text-align:center">
+      <button class="georefbutton" disabled={!hasLocalityAndCoords}>{submitButtonText}</button> <!--this is the form submit-->
+    </div>
   {/if}
-  <div>
-    <label for="remarks" style="width:100%;text-align:right">remarks</label>
-    <textarea id="remarks" rows="3" bind:value={localGeoref.remarks}/>
-  </div>
-  <div style="text-align:center">
-    <button class="georefbutton" disabled={!hasLocalityAndCoords}>{submitButtonText}</button> <!--this is the form submit-->
-  </div>
 </form>
 
 <!-- ############################################## -->
@@ -432,6 +453,11 @@ form {
   height:100%;
   max-height:100%;
   box-sizing:border-box;
+}
+
+fieldset {
+  padding: 0;
+  border:none;
 }
 
 label {
@@ -449,6 +475,14 @@ label > a {
 textarea {
   resize: none;
   width: 100%;
+}
+
+input:disabled {
+  color:black;
+}
+
+textarea:disabled {
+  color: black;
 }
 
 .oneliner{
@@ -509,12 +543,20 @@ textarea {
   color:white;
 }
 
-.material-icons.md-inactive:hover {
+.utility-button-inactive:hover {
   cursor: auto;
   color:grey;
   background-color: lightgray;
   border: 1px solid grey;
   border-radius: 2px;
+}
+
+.material-icons.md-inactive {
+  color:rgb(202, 201, 201);
+}
+
+.material-icons.md-inactive:hover {
+  cursor: default;
 }
 
 .json-button {

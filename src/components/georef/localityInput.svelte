@@ -1,8 +1,8 @@
 <script>
 
-import {createEventDispatcher} from 'svelte'
 export let value
 export let hasError
+export let editable
 
 let thisel
 
@@ -38,19 +38,21 @@ const handleCopy = ev => {
 
 const handlePaste = _ => {
   if(navigator.clipboard.readText){
-    navigator.clipboard.readText().then(pasteVal => {
-      if(pasteVal && pasteVal.trim()){
-        value = pasteVal.trim()
-      }
-      else {
-        if(window.pushToast) {
-          window.pushToast('clipboard empty')
+    if(editable) {
+      navigator.clipboard.readText().then(pasteVal => {
+        if(pasteVal && pasteVal.trim()){
+          value = pasteVal.trim()
         }
         else {
-          alert('clipboard empty')
+          if(window.pushToast) {
+            window.pushToast('clipboard empty')
+          }
+          else {
+            alert('clipboard empty')
+          }
         }
-      }
-    })
+      })
+    }
   }
   else {
     alert('this browser does not support programmatic copy/paste')
@@ -80,7 +82,7 @@ function getSelectedText() {
 <div class="icon-input-container">
     <textarea class="icon-input" class:hasError type="text" id="loc" rows="2" bind:value bind:this={thisel}/>
     <span class="material-icons inline-icon icon-input-icon" style="right:30px" title="copy coords" on:click={handleCopy}>content_copy</span>
-    <span class="material-icons inline-icon icon-input-icon" style="right:5px" title="paste coords" on:click={handlePaste}>content_paste</span>
+    <span class="material-icons inline-icon icon-input-icon" style="right:5px" title="paste coords" disabled={!editable} class:md-inactive={!editable} on:click={handlePaste}>content_paste</span>
 </div>
 
 <!-- ############################################## -->
@@ -88,6 +90,10 @@ function getSelectedText() {
 
 textarea {
   resize: vertical;
+}
+
+textarea:disabled {
+  color: black;
 }
 
 .icon-input-container {
@@ -114,6 +120,14 @@ textarea {
 .icon-input-icon:hover {
   cursor: pointer;
   color: darkslategray;
+}
+
+.material-icons.md-inactive {
+  color:rgb(202, 201, 201);
+}
+
+.material-icons.md-inactive:hover {
+  cursor: default;
 }
 
 .hasError {

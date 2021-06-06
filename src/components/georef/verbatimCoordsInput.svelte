@@ -3,37 +3,42 @@ import convert from 'geo-coordinates-parser'
 import {createEventDispatcher} from 'svelte'
 export let value = null
 export let hasError = false
+export let editable
 
 let dispatch = createEventDispatcher()
 
 const pasteVerbatimCoords = _ => {
-  if(navigator.clipboard.readText) {
-    navigator.clipboard.readText().then(coordsString => {
-      try {
-        let decimalCoords = calcDecimalCoords(coordsString)
-        value = coordsString.trim()
-        dispatch('coords-from-verbatim', decimalCoords)
-      }
-      catch(err){
-        alert(err.message)
-      }
-    })
-  }
-  else {
-    alert('this browser does not support programmatic copy/paste')
+  if(editable) {
+    if(navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(coordsString => {
+        try {
+          let decimalCoords = calcDecimalCoords(coordsString)
+          value = coordsString.trim()
+          dispatch('coords-from-verbatim', decimalCoords)
+        }
+        catch(err){
+          alert(err.message)
+        }
+      })
+    }
+    else {
+      alert('this browser does not support programmatic copy/paste')
+    }
   }
 }
 
 const handleInputPasteCoords = ev => {
   ev.preventDefault()
-  let pasteData = ev.clipboardData.getData("text")
-  try {
-    let decimalCoords = calcDecimalCoords(pasteData)
-    value = pasteData.trim()
-    dispatch('coords-from-verbatim', decimalCoords)
-  }
-  catch(err){
-    alert(err.message)
+  if(editable) {
+    let pasteData = ev.clipboardData.getData("text")
+    try {
+      let decimalCoords = calcDecimalCoords(pasteData)
+      value = pasteData.trim()
+      dispatch('coords-from-verbatim', decimalCoords)
+    }
+    catch(err){
+      alert(err.message)
+    }
   }
 }
 
@@ -65,7 +70,7 @@ const calcDecimalCoords = coordsString => {
 <!-- HTML -->
 <div class="icon-input-container">
     <input type="text" class="icon-input" class:hasError readonly on:paste={handleInputPasteCoords} bind:value>
-    <span class="material-icons inline-icon icon-input-icon" style="right:5px" title="paste coords" on:click={pasteVerbatimCoords}>content_paste</span>
+    <span class="material-icons inline-icon icon-input-icon" style="right:5px" title="paste coords" class:md-inactive={!editable} on:click={pasteVerbatimCoords}>content_paste</span>
 </div>
 
 <!-- ############################################## -->
@@ -100,5 +105,17 @@ const calcDecimalCoords = coordsString => {
 .hasError {
   border: 1px solid rgb(133, 49, 34);
   background-color: rgb(255, 155, 155)
+}
+
+input:disabled {
+  color:black;
+}
+
+.material-icons.md-inactive {
+  color:rgb(202, 201, 201);
+}
+
+.material-icons.md-inactive:hover {
+  cursor: default;
 }
 </style>

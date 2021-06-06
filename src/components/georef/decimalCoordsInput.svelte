@@ -5,6 +5,7 @@ let dispatch = createEventDispatcher()
 
 export let value
 export let hasError
+export let editable
 
 const copyDecimalCoords = ev => {
   if(value && value.trim() && navigator.clipboard.writeText) {
@@ -30,14 +31,55 @@ const copyDecimalCoords = ev => {
 }
 
 const pasteDecimalCoords = _ => {
-  if(navigator.clipboard.readText) {
-    navigator.clipboard.readText().then(coordsString => {
+  if(editable) {
+    if(navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(coordsString => {
+        try {
+          let newCoords = validateCoordsString(coordsString)
+          if(value) {
+            if(newCoords.replace(/\s+/g,'') != value.replace(/\s+/g,'')) {
+              console.log('value is', value)
+              console.log('new coords is', newCoords)
+              value = newCoords
+              dispatch('coords-from-paste')
+            }
+          }
+          else {
+            value = newCoords
+            dispatch('coords-from-paste')
+          }
+        }
+        catch(err){
+          if(!coordsString || !coordsString.trim()){
+            alert('clipboard empty')
+          }
+          else {
+            coordsString = coordsString.trim()
+            if (coordsString.length > 30) {
+              coordsString = coordsString.slice(0,30) + '...'
+            }
+            coordsString = coordsString.replace(/\s+/g, ' ')
+            coordsString = '"' + coordsString + '"'
+            alert('invalid coordinates: ' + coordsString)
+          }
+        }
+      })
+    }
+    else {
+      alert('this browser does not support programmatic copy/paste')
+    }
+  }
+}
+
+const handleInputPasteCoords = ev => {
+  ev.preventDefault()
+  if(editable) {
+    let pasteData = ev.clipboardData.getData("text")
+    if(pasteData && pasteData.trim()){
       try {
-        let newCoords = validateCoordsString(coordsString)
+        let newCoords = validateCoordsString(pasteData)
         if(value) {
           if(newCoords.replace(/\s+/g,'') != value.replace(/\s+/g,'')) {
-            console.log('value is', value)
-            console.log('new coords is', newCoords)
             value = newCoords
             dispatch('coords-from-paste')
           }
@@ -48,55 +90,18 @@ const pasteDecimalCoords = _ => {
         }
       }
       catch(err){
-        if(!coordsString || !coordsString.trim()){
-          alert('clipboard empty')
+        pasteData = pasteData.trim()
+        if (pasteData.length > 30) {
+          pasteData = pasteData.slice(0,30) + '...'
         }
-        else {
-          coordsString = coordsString.trim()
-          if (coordsString.length > 30) {
-            coordsString = coordsString.slice(0,30) + '...'
-          }
-          coordsString = coordsString.replace(/\s+/g, ' ')
-          coordsString = '"' + coordsString + '"'
-          alert('invalid coordinates: ' + coordsString)
-        }
-      }
-    })
-  }
-  else {
-    alert('this browser does not support programmatic copy/paste')
-  }
-}
-
-const handleInputPasteCoords = ev => {
-  ev.preventDefault()
-  let pasteData = ev.clipboardData.getData("text")
-  if(pasteData && pasteData.trim()){
-    try {
-      let newCoords = validateCoordsString(pasteData)
-      if(value) {
-        if(newCoords.replace(/\s+/g,'') != value.replace(/\s+/g,'')) {
-          value = newCoords
-          dispatch('coords-from-paste')
-        }
-      }
-      else {
-        value = newCoords
-        dispatch('coords-from-paste')
+        pasteData = pasteData.replace(/\s+/g, ' ')
+        pasteData = '"' + pasteData + '"'
+        alert('invalid coordinates: ' + pasteData)
       }
     }
-    catch(err){
-      pasteData = pasteData.trim()
-      if (pasteData.length > 30) {
-        pasteData = pasteData.slice(0,30) + '...'
-      }
-      pasteData = pasteData.replace(/\s+/g, ' ')
-      pasteData = '"' + pasteData + '"'
-      alert('invalid coordinates: ' + pasteData)
+    else {
+      alert('clipboard empty')
     }
-  }
-  else {
-    alert('clipboard empty')
   }
 }
 
@@ -157,7 +162,7 @@ const validateCoordsString = coordsString => {
 <div class="icon-input-container">
     <input type="text" class="icon-input" class:hasError readonly on:paste={handleInputPasteCoords} bind:value>
     <span class="material-icons inline-icon icon-input-icon" style="right:30px" title="copy coords" on:click={copyDecimalCoords}>content_copy</span>
-    <span class="material-icons inline-icon icon-input-icon" style="right:5px" title="paste coords" on:click={pasteDecimalCoords}>content_paste</span>
+    <span class="material-icons inline-icon icon-input-icon" style="right:5px" title="paste coords" class:md-inactive={!editable} on:click={pasteDecimalCoords}>content_paste</span>
 </div>
 
 <!-- ############################################## -->
@@ -193,5 +198,17 @@ const validateCoordsString = coordsString => {
 .hasError {
   border: 1px solid rgb(133, 49, 34);
   background-color: rgb(255, 155, 155)
+}
+
+input:disabled {
+  color:black;
+}
+
+.material-icons.md-inactive {
+  color:rgb(202, 201, 201);
+}
+
+.material-icons.md-inactive:hover {
+  cursor: default;
 }
 </style>

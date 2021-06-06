@@ -3,8 +3,6 @@
 import { createEventDispatcher } from 'svelte'
 import { fetchCandidateGeorefs } from './georefFuncs.js'
 
-import Loader from '../loader.svelte'
-
 const dispatch = createEventDispatcher()
 
 export let customSearchString = null //prop so we can reset from outside
@@ -12,7 +10,7 @@ export let elasticindex
 let customSearchSearching = false
  
 const getGeorefs = async _ => {
-  if(customSearchString) {
+  if(customSearchString && elasticindex) {
     dispatch('custom-search-searching')
     customSearchSearching = true
     let obj = {loc:customSearchString}
@@ -24,6 +22,15 @@ const getGeorefs = async _ => {
     catch(err){
       alert('there was an error fetching georefs: ' + err.message)
       customSearchSearching = false
+    }
+  }
+  else {
+    if(!customSearchString) {
+      alert('Please add a suitable locality to search for')
+    }
+    else {
+      console.log('elastic indiex is', elasticindex)
+      alert('Please select a region and domain to search')
     }
   }
 }

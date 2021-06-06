@@ -2,32 +2,38 @@
 export let value
 export let hasError
 export let hasBy = false //for the rule about having an agent name first
+export let editable
 
 let re = /^(19|20)\d\d-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/ //for valid dates
 
 $: invalidFormat = Boolean(value && value.trim() && !re.test(value))
 
 const addDate = _ => {
-  if(hasBy){
-    let now = new Date()
-    value = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
-  }
-  else {
-    alert('\'georef by\' is required before a date can be added')
+  if(editable) {
+    if(hasBy){
+      let now = new Date()
+      value = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
+    }
+    else {
+      alert('\'georef by\' is required before a date can be added')
+    }
   }
 }
 
 const handleInputPasteDate = ev => {
-  ev.preventDefault()
-  let pasteData = ev.clipboardData.getData("text")
+  if(editable) {
+    ev.preventDefault()
+    let pasteData = ev.clipboardData.getData("text")
 
-  //for alternative regex that allows YYYY, YYY-MM or YYYY-MM-DD see https://stackoverflow.com/questions/53175624/javascript-regex-for-yyyy-mm-dd-with-an-optional-month-and-day
-  if(re.test(pasteData)) {
-    value = pasteData
+    //for alternative regex that allows YYYY, YYY-MM or YYYY-MM-DD see https://stackoverflow.com/questions/53175624/javascript-regex-for-yyyy-mm-dd-with-an-optional-month-and-day
+    if(re.test(pasteData)) {
+      value = pasteData
+    }
+    else {
+      alert('invalid date value: ' + pasteData)
+    }
   }
-  else {
-    alert('invalid date value: ' + pasteData)
-  }
+  
 }
 
 </script>
@@ -36,7 +42,7 @@ const handleInputPasteDate = ev => {
 <!-- HTML -->
 <div class="icon-input-container">
     <input type="text" class="icon-input" class:hasError={hasError || invalidFormat} on:paste={handleInputPasteDate} bind:value>
-    <span class="material-icons inline-icon icon-input-icon" style="right:5px" title="copy coords" on:click={addDate}>today</span>
+    <span class="material-icons inline-icon icon-input-icon" style="right:5px" title="copy coords" class:md-inactive={!editable} on:click={addDate}>today</span>
 </div>
 
 <!-- ############################################## -->
@@ -72,5 +78,17 @@ const handleInputPasteDate = ev => {
 .hasError {
   border: 1px solid rgb(133, 49, 34);
   background-color: rgb(255, 155, 155)
+}
+
+input:disabled {
+  color:black;
+}
+
+.material-icons.md-inactive {
+  color:rgb(202, 201, 201);
+}
+
+.material-icons.md-inactive:hover {
+  cursor: default;
 }
 </style>

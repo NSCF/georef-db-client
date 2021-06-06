@@ -8,7 +8,7 @@ import SignIn from './signIn.svelte'
 import ForgotPwd from './signInForgotPwd.svelte'
 import PwdReset from './signInPwdReset.svelte'
 import About from './About.svelte'
-import ChooseFile from './chooseFile.svelte'
+import Home from './home.svelte'
 import ConfirmFields from './confirmCSVFields.svelte'
 import ConfirmData from './confirmCSVData.svelte'
 import RegisterDataset from './registerDataset.svelte'
@@ -56,11 +56,11 @@ let statsLabels = [
 
 //for 'page navigation'
 // do we need a router??????
-let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'About', 'ChooseFile', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeferencer' ]
+let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'About', 'Home', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeferencer' ]
 let datasetPages = ['datsetList', 'datasetDetail']
 let georeferencePage = 'Georeferencer' //just the one
 
-let currentPage = 'ChooseFile'
+let currentPage = 'Home'
 let pwdResetCode
 
 //locals
@@ -95,7 +95,7 @@ onMount(_ => {
 								userID = user.uid
 								firstAuth = true
 								if(currentPage != 'workshop') {
-									currentPage = 'ChooseFile'// TODO this must go back to previous page the user was on
+									currentPage = 'Home'// TODO this must go back to previous page the user was on
 								}
 							}
 							else {
@@ -148,11 +148,11 @@ function handleHomeClick() {
 	if(currentPage == 'Georeferencer') {
 		alert('Please click \'Done\' above the locality group to return')
 	}
-	else if (currentPage == 'ChooseFile'){
+	else if (currentPage == 'Home'){
 		return //do nothing
 	}
 	else {
-		currentPage = "ChooseFile"
+		currentPage = "Home"
 	}
 }
 
@@ -166,7 +166,7 @@ function signOutClick () {
 	Auth.signOut().then(_ => {
 		profile = null
 		userID = null
-		currentPage = 'ChooseFile'
+		currentPage = 'Home'
 	})
 	.catch(err => {
 		alert('error signing out: ' + err.message)
@@ -186,7 +186,7 @@ function handleFieldsConfirmed(event){
 
 function handleConfirmCanceled() {
 	fileForGeoref = requiredFields = null
-	currentPage = 'ChooseFile'
+	currentPage = 'Home'
 }
 
 function handleFileContentsConfirmed(ev) {
@@ -308,8 +308,8 @@ const testAuth = _ => {
 				{#if currentPage == 'About'}
 					<About/>
 				{/if}
-				{#if currentPage == 'ChooseFile'}
-				<ChooseFile 
+				{#if currentPage == 'Home'}
+				<Home 
 					{profile}
 					on:file-selected={handleFileSelected} 
 					on:to-datasets={handleToDatasets}

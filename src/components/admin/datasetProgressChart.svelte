@@ -24,7 +24,6 @@
     let now = Date.now()
     let diff = now - dataset.dateCreated
     let daysdiff = diff / (1000*60*60*24)
-    console.log('days diff is', daysdiff)
     if (daysdiff < 21) {
       selectedType = 'daily'
       dailyChartData = await getChartData(selectedType)
@@ -65,11 +64,8 @@
 
   //converts results from a call to Firebase to the structure needed for linechart
   const getChartData = async type => {
-
-    console.log('fetching data for', type)
     let snap = await Realtime.ref('stats/perDataset/' + dataset.datasetID + '/' + type).once('value')
     if(snap.exists) {
-      console.log('fetched data')
       let data = snap.val()
       let labels = []
       let recordsPerPeriod = [] //day week or month
@@ -149,7 +145,6 @@
           }
         ]
       }
-      console.log(chartData)
       return chartData
     }
     else {

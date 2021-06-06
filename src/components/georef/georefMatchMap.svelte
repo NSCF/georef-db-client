@@ -80,6 +80,10 @@ onMount(async _ => {
 
   const measureTool = new MeasureTool(map, {showSegmentLength: false}); //don't remove this
   mapReady = true
+
+  if($dataStore.georefIndex) {
+    setPoints()
+  }
 })
 
 $: $dataStore.georefIndex, setPoints()

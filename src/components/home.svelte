@@ -1,5 +1,6 @@
 <script>
-import {getContext, createEventDispatcher } from 'svelte';
+import {createEventDispatcher } from 'svelte';
+import ManualGeoref from './georef/manualGeoref.svelte'
 import Alert from './Alert.svelte'
 
 const dispatch = createEventDispatcher();
@@ -13,6 +14,7 @@ export let fileMIMETypes
 let hiddenInput
 let hovering = false
 let box
+let searching = false
 
 //COMPUTED
 
@@ -82,43 +84,53 @@ function toEmitOrNotToEmit(file){
   based on https://codepen.io/MSEdgeDev/pen/KzzNaZ
 -->
 <div class="container">
-  <h1>Welcome to the NSCF Georeferencer</h1>
-  <button class="datasets-button" on:click={handleGoToDatasets}><strong>GO TO DATASETS</strong></button>
-  <h2 style="color:gray">OR</h2>
-  <div id="wrapper" class="wrapper">
-    <div 
-      id="fileDropBox"
-      class="fileDropBox"
-      bind:this={box}
-      on:dragenter={darkBox}
-      on:dragleave={lightBox}
-      on:drop={handleDragDrop} 
-      on:click={handleBoxClick}
-      ondragover="return false"
-    >
-      <p class="boxtext">Drag and drop a Darwin Core CSV file here or click to select</p>
+  {#if !searching}
+    <h1>Welcome to the NSCF Georeferencer</h1>
+  {:else}
+    <div style="margin-top:20px" />
+  {/if}
+  <ManualGeoref  on:custom-search-searching={_ => searching = true} on:custom-search-cleared={_ => searching = false} />
+  {#if !searching}  
+    {#if profile}
+      <h2 style="color:gray">OR</h2>
+      <button class="datasets-button" on:click={handleGoToDatasets}><strong>GO TO DATASETS</strong></button>
+    {/if}
+    <h2 style="color:gray">OR</h2>
+    <div id="wrapper" class="wrapper">
+      <div 
+        id="fileDropBox"
+        class="fileDropBox"
+        bind:this={box}
+        on:dragenter={darkBox}
+        on:dragleave={lightBox}
+        on:drop={handleDragDrop} 
+        on:click={handleBoxClick}
+        ondragover="return false"
+      >
+        <p class="boxtext">Drag and drop a Darwin Core CSV file for georeferencing here or click to select manually</p>
+      </div>
+      <div class='warning'><strong>Please note that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine datasets</strong></div>
+      
     </div>
-    <div class='warning'><strong>Please note that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine datasets</strong></div>
     
-  </div>
-  
-  <input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
+    <input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
 
-  <div class="madewith">
-    <span>made with</span>
-    <a href="https://svelte.dev" target="_blank">
-      <img src="images/svelte-android-chrome-512.png" title="Svelte" alt="Svelte" class="madewithimg"/>
-    </a>
-    <span>+</span>
-    <a href="https://firebase.google.com" target="_blank">
-      <img src="images/firebase.png" title="Firebase" alt="Firebase" class="madewithimg"/>
-    </a>
-    <span>+</span>
-    <a href="https://www.elastic.co/" target="_blank">
-      <img src="images/elasticsearch.png" title="ElasticSearch" alt="ElasticSearch" class="madewithimg"/>
-    </a>
-  </div>
-  
+    <div class="madewith">
+      <span>made with</span>
+      <a href="https://svelte.dev" target="_blank">
+        <img src="images/svelte-android-chrome-512.png" title="Svelte" alt="Svelte" class="madewithimg"/>
+      </a>
+      <span>+</span>
+      <a href="https://firebase.google.com" target="_blank">
+        <img src="images/firebase.png" title="Firebase" alt="Firebase" class="madewithimg"/>
+      </a>
+      <span>+</span>
+      <a href="https://www.elastic.co/" target="_blank">
+        <img src="images/elasticsearch.png" title="ElasticSearch" alt="ElasticSearch" class="madewithimg"/>
+      </a>
+    </div> 
+  {/if}
+    
 </div>
 <!--##############################################-->
 <style>

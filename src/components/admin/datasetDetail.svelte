@@ -426,7 +426,6 @@
       let index = `${dataset.region.replace(/\s+/g,'')}${dataset.domain.replace(/\s+/g,'')}`.toLowerCase()
 
       georefs = await getGeorefs(georefIDs, index)
-      console.log(georefs[0])
 
     }
     catch(err) {
@@ -533,7 +532,6 @@
       let index = `${dataset.region.replace(/\s+/g,'')}${dataset.domain.replace(/\s+/g,'')}`.toLowerCase()
 
       georefs = await getGeorefs(georefIDs, index)
-      console.log(georefs[0])
 
     }
     catch(err) {

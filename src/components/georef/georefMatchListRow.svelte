@@ -8,8 +8,11 @@ export let georefKey
 let rowindex = 0
 
 $: if(georefKey){
-  let keys = Object.keys($dataStore.georefIndex)
-  rowindex = keys.indexOf(georefKey)
+  if($dataStore.georefIndex) {
+    let keys = Object.keys($dataStore.georefIndex)
+    rowindex = keys.indexOf(georefKey)
+  }
+  
 }
 
 const qualityColor = _ => {
@@ -45,38 +48,40 @@ const handleRowClick = _ => {
 <!-- HTML -->
 
 <tr 
-class:active="{$dataStore.georefIndex[georefKey].selected}" 
-class:oddrow={rowindex % 2 && !$dataStore.georefIndex[georefKey].selected}
+class:active="{$dataStore.georefIndex && $dataStore.georefIndex[georefKey].selected}" 
+class:oddrow={$dataStore.georefIndex && rowindex % 2 && !$dataStore.georefIndex[georefKey].selected}
 on:click={handleRowClick}>
-  <td>
-    <span class="material-icons" style="color:{qualityColor()};">stop</span>
-  </td>
-  <td>{$dataStore.georefIndex[georefKey].locality}</td>
-  <td class='indicator'>
-    {#if $dataStore.georefIndex[georefKey].uncertainty}
-      <span class="material-icons">task_alt</span>
-    {/if}
-  </td>
-  <td class='indicator'>
-    {#if $dataStore.georefIndex[georefKey].sources}
-      <span class="material-icons">task_alt</span>
-    {/if}
-  </td>
-  <td class='indicator'>
-    {#if $dataStore.georefIndex[georefKey].protocol && $dataStore.georefIndex[georefKey].protocol.toLowerCase().trim() != 'unspecified'}
-      <span class="material-icons">task_alt</span>
-    {/if}
-  </td>
-  <td class='indicator'>
-    {#if $dataStore.georefIndex[georefKey].datum}
-      <span class="material-icons">task_alt</span>
-    {/if}  
-  </td>
-  <td class='indicator'>
-    {#if $dataStore.georefIndex[georefKey].verified}
-      <span class="material-icons">task_alt</span>
-    {/if}
-  </td>
+  {#if $dataStore.georefIndex}
+    <td>
+      <span class="material-icons" style="color:{qualityColor()};">stop</span>
+    </td>
+    <td>{$dataStore.georefIndex[georefKey].locality}</td>
+    <td class='indicator'>
+      {#if $dataStore.georefIndex[georefKey].uncertainty}
+        <span class="material-icons">task_alt</span>
+      {/if}
+    </td>
+    <td class='indicator'>
+      {#if $dataStore.georefIndex[georefKey].sources}
+        <span class="material-icons">task_alt</span>
+      {/if}
+    </td>
+    <td class='indicator'>
+      {#if $dataStore.georefIndex[georefKey].protocol && $dataStore.georefIndex[georefKey].protocol.toLowerCase().trim() != 'unspecified'}
+        <span class="material-icons">task_alt</span>
+      {/if}
+    </td>
+    <td class='indicator'>
+      {#if $dataStore.georefIndex[georefKey].datum}
+        <span class="material-icons">task_alt</span>
+      {/if}  
+    </td>
+    <td class='indicator'>
+      {#if $dataStore.georefIndex[georefKey].verified}
+        <span class="material-icons">task_alt</span>
+      {/if}
+    </td>
+  {/if}
 </tr>
 
 <!-- ############################################## -->

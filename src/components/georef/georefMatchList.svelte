@@ -1,6 +1,5 @@
 <script>
 import { dataStore } from './dataStore.js'
-import {createEventDispatcher} from 'svelte'
 import MatchListRow from './georefMatchListRow.svelte'
 import Loader from '../loader.svelte'
 

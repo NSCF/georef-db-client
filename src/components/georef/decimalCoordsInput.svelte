@@ -202,6 +202,7 @@ const validateCoordsString = coordsString => {
 
 input:disabled {
   color:black;
+  background-color: white;
 }
 
 .material-icons.md-inactive {

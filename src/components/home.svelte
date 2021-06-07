@@ -22,11 +22,17 @@ let searching = false
 
 //METHODS
 function darkBox() {
-  box.style.borderColor = 'gray'
+  box.style.borderColor = '#bcd0ec'
+  box.querySelector('.ico-up').style.color = '#bcd0ec'
+  box.querySelector('.dwc-p').style.color = '#495d9e'
+  box.querySelector('.box-arrow').style.color = '#495d9e'
 }
 
 function lightBox() {
   box.style.borderColor ='lightgray'
+  box.querySelector('.ico-up').style.color = 'lightgray'
+  box.querySelector('.dwc-p').style.color = 'lightgray'
+  box.querySelector('.box-arrow').style.color = 'lightgray'
 }
 
 function handleBoxClick(evt){
@@ -107,7 +113,12 @@ function toEmitOrNotToEmit(file){
         on:click={handleBoxClick}
         ondragover="return false"
       >
-        <p class="boxtext">Drag and drop a Darwin Core CSV file for georeferencing here or click to select manually</p>
+        <div>
+          <span class="material-icons-outlined ico-up">cloud_upload</span>
+          <p class="dwc-p">Darwin Core</p>
+          <p class="box-p">Drag&Drop a CSV file to start georeferencing</p>
+          <span class="material-icons-outlined box-arrow">reply</span>
+        </div>
       </div>
       <div class='warning'><strong>Please note that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine datasets</strong></div>
       
@@ -146,32 +157,65 @@ function toEmitOrNotToEmit(file){
 		font-size: 4em;
 		font-weight: 100;
 	}
+
  .wrapper {
+    position:relative;
     width:500px;
     margin:0 auto;
     margin-top:20px;
-
+    color:lightgray
   }
+
   .fileDropBox {
     margin:auto;
     margin-bottom:20px;
     width: 20em;
     text-align: center;
-    color: gray;
     border-radius: 7px;
     border: 10px dashed lightgray;
   }
 
-  .fileDropBox:hover {
-    border: 10px dashed grey;
+  .fileDropBox * {
+    pointer-events: none;
   }
 
-  p {
-    margin-top: 5em;
-    margin-bottom: 5em;
+  .fileDropBox:hover {
+    border: 10px dashed #bcd0ec;
+    color: #bcd0ec;
+  }
+
+  .ico-up {
+    font-size: 6em;
+  }
+
+  .box-p {
+    width:80%;
+    color: grey;
+    padding-top: 5px;
+    margin-bottom: 3em;
     margin-left: 2em;
     margin-right: 2em;
-    pointer-events: none;
+  }
+
+  .dwc-p {
+    position:absolute;
+    font-family: 'Mr Dafoe', cursive;
+    font-size: 2em;
+    top: 0.6em;
+    right: 3em;
+    transform: rotate(-35deg)
+  }
+
+  .box-arrow {
+    position:absolute;
+    font-size: 2em;
+    top: 3.3em;
+    left: 7.5em;
+    transform: rotate(-100deg)
+  }
+
+  .fileDropBox:hover .dwc-p, .fileDropBox:hover  .box-arrow {
+    color: #495d9e;
   }
 
   .datasets-button {

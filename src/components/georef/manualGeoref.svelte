@@ -47,20 +47,11 @@
     selectedRegion = selectedRegion
   }
 
-  $: if(regionSelect && regionSelect.value){
-    console.log('the select has a value')
-  }
-  else {
-    console.log('there is no region')
-  }
-
   $: if(selectedRegion && selectedDomain) {
     elasticIndex = (selectedRegion + selectedDomain).toLowerCase().replace(/\s+/g, '')
-    console.log('index is', elasticIndex)
   }
   else {
     elasticIndex = null
-      console.log('values not yet selected')
   }
 
   const handleCustomGeorefs = ev => {
@@ -137,7 +128,9 @@
 <div class="container" >
   <div class="search-container" class:left={Boolean($dataStore.georefIndex)}>
     <div>
-      <CustomSearch elasticindex={elasticIndex} 
+      <CustomSearch 
+      placeholder={`Search for a locality in ${selectedRegion}`}
+      elasticindex={elasticIndex} 
       on:custom-georefs={handleCustomGeorefs} 
       on:custom-search-searching 
       on:custom-search-cleared={handleSearchCleared} />
@@ -164,7 +157,7 @@
     
   </div>
   {#if $dataStore.georefIndex} 
-    <div class="grid-container" in:fly="{{ y: 200, duration: 2000 }}">
+    <div class="grid-container" in:fly="{{ y: 200, duration: 1000 }}">
       <div class="table-container">
         <div class="table-flex">
           <GeorefMatchList  on:georef-selected={handleGeorefSelected} />

@@ -109,6 +109,7 @@ const calcDecimalCoords = coordsString => {
 
 input:disabled {
   color:black;
+  background-color: white;
 }
 
 .material-icons.md-inactive {

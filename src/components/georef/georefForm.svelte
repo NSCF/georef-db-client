@@ -479,10 +479,12 @@ textarea {
 
 input:disabled {
   color:black;
+  background-color: white;
 }
 
 textarea:disabled {
   color: black;
+  background-color: white;
 }
 
 .oneliner{

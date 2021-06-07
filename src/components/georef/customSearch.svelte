@@ -7,6 +7,7 @@ const dispatch = createEventDispatcher()
 
 export let customSearchString = null //prop so we can reset from outside
 export let elasticindex
+export let placeholder = "Search for a custom locality here"
 let customSearchSearching = false
  
 const getGeorefs = async _ => {
@@ -61,7 +62,7 @@ const clearCustomSearch = _ => {
     <input class="icon-input" 
     class:input-active={customSearchString && customSearchString.trim().length} 
     disabled={customSearchSearching} 
-    placeholder="Search for a custom locality here" 
+    placeholder={placeholder}
     on:keyup={e=>e.key==='Enter' && getGeorefs()}
     bind:value={customSearchString} />
     <span class="material-icons inline-icon icon-input-icon" style="right:30px" title="paste clipboard" on:click={handlePaste}>content_paste</span>

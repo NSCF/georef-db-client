@@ -961,17 +961,7 @@
           </div>
         </div>
       {/if}  
-      <div class="button-container">
-        <button on:click={handleStartGeoreferencing}>Start georeferencing</button>
-        <button on:click={handleBackToDatasets}>Back to datasets</button>
-        {#if dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid))}
-          <button on:click = {clearLockedRecordGroups}>Clear locked record groups</button> <!--TODO add only for admins-->
-          <button on:click={handleDownloadDataset}>Download dataset with georeferences</button>
-          <button on:click={handleDownloadGeorefs}>Download georeferences only</button>
-        {/if}
-      </div>
     {/if}
-    
   </div>
 </div>
 

@@ -21,9 +21,9 @@
       Datasets can be up to 10s of thousands of records, depending on the size of your team and time 
       you want to take to work on the dataset. It is recommended to provide reasonably sized datasets that
       can be completed in a month or two to keep momentum and motivation in the team. Required fields are 
-      dwc:scientificName, dwc:country, dwc:locality, and a field that uniquely identifies rows in the dataset 
-      such as dwc:occurrenceID, dwc:catalogNumber (if unique in the dataset) or an equivalent. dwc:stateProvince 
-      is recommended to facilitate the georeferencing process.
+      <em>dwc:scientificName</em>, <em>dwc:country</em>, <em>dwc:locality</em>, and a field that uniquely identifies rows in the dataset 
+      such as <em>dwc:occurrenceID</em>, <em>dwc:catalogNumber</em> (if unique in the dataset) or an equivalent. <em>dwc:stateProvince</em>
+      is recommended to facilitate the georeferencing process, and <em>dwc:recordedBy</em> can be included to refine localities further.
     </p>
     <p>Next the dataset is uploaded into the tool, fields are checked, owner details provided, and similar 
       localities grouped. The dataset owner can invite team members to assist with georeferencing at this stage.</p>
@@ -60,7 +60,7 @@
     </p>
     <p>Conversely, georeferences created with this tool, meaning geographic coordinates for a locality string with all supporting
       metadata fields, will be publicly accessible and free from any restrictions or terms of use. This is needed
-      to allow reuse of those georeferences by other parties and thus efficient georeferencing. Note though
+      to allow reuse of those georeferences by other parties and thus facilitate efficient georeferencing. Note though
       that attribution is maintained for a georeference by means of the dwc:georeferencedBy and dwc:georeferencedByID terms
       to indicate who generated the georeference. Georeferences are not linked to specimen records outside of a dataset, 
       i.e. it is not possible for anyone to see what specimens, collectors, or datasets are associated with a 
@@ -72,6 +72,11 @@
 
 <!-- ############################################## -->
 <style>
+
+  em {
+    font-style:normal;
+    text-decoration: underline;
+  }
   .container {
     width: 100%;
     display: flex;

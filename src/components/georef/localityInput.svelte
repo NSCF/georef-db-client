@@ -94,6 +94,7 @@ textarea {
 
 textarea:disabled {
   color: black;
+  background-color: white;
 }
 
 .icon-input-container {

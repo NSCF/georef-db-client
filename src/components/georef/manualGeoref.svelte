@@ -195,6 +195,7 @@
 		left: 50%;
 		transform:translate(-50%);
 		transition: left 1s cubic-bezier(.08,.85,.27,.95);
+    will-change: left;
   }
 
   .search-wrapper {

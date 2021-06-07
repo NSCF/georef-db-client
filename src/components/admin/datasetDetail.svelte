@@ -810,64 +810,78 @@
         <button on:click="{_ => showDownloadComplete = false}">Okay</button>
       </div>
     {:else}
-      <p on:click={handleBackToDatasets}>&lt;&lt;Back to datasets</p>
-      <h2>{dataset.collectionCode}: {dataset.datasetName}</h2>
+      <div class="tools-container">
+        <button class="dataset-tool" title="back to datasets" on:click={handleBackToDatasets}>
+          <span class="material-icons">list</span>
+        </button>
+        {#if dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid))}
+          <button class="dataset-tool" title="download dataset with georefs" on:click={handleDownloadDataset}>
+            <span class="material-icons">file_download</span>
+          </button>
+          <button class="dataset-tool" title="download georefs only" on:click={handleDownloadGeorefs}>
+            <span class="material-icons">download_for_offline</span>
+          </button>
+          <button class="dataset-tool" title="clear locked record groups" on:click={clearLockedRecordGroups}>
+            <span class="material-icons">lock_open</span>
+          </button>
+        {/if}
+        <button class="dataset-tool" title="start georeferencing" on:click={handleStartGeoreferencing}>
+          <span class="material-icons">place</span>
+        </button>
+      </div>
+      <h2>{dataset.datasetName}</h2>
       <div class="content">
         <div>
-          <label>Dataset</label>
-          <span>{dataset.datasetName}</span>
-        </div>
-        <div>
           <label>Collection</label>
-          <span>{dataset.collectionCode}</span>
+          <span class="data-item">{dataset.collectionCode}</span>
         </div>
         <div>
           <label>Region</label>
-          <span>{dataset.region}</span>
+          <span class="data-item">{dataset.region}</span>
         </div>
         <div>
           <label>Domain</label>
-          <span>{dataset.domain}</span>
+          <span class="data-item">{dataset.domain}</span>
         </div>
         <div>
           <label>Date created</label>
-          <span>{dataset.dateCreated? getLocalDate(dataset.dateCreated) : null}</span>
+          <span class="data-item">{dataset.dateCreated? getLocalDate(dataset.dateCreated) : null}</span>
         </div>
         <div>
           <label>Contact</label>
-          <span>{dataset.contactName}</span>
+          <span class="data-item">{dataset.contactName}</span>
         </div>
         <div>
           <label>Contact email</label>
-          <span>{dataset.email}</span>
+          <span class="data-item">{dataset.email}</span>
         </div>
         <div>
           <label>Date completed</label>
-          <span>{dataset.completed? getLocalDate(dataset.dateCompleted) : 'NA'}</span>
+          <span class="data-item">{dataset.completed? getLocalDate(dataset.dateCompleted) : 'NA'}</span>
         </div>
         <div>
           <label>Total Records</label>
-          <span>{dataset.recordCount}</span>
+          <span class="data-item">{dataset.recordCount}</span>
         </div>
         <div>
           <label>Records Completed</label>
-          <span>{dataset.recordsCompleted}</span>
+          <span class="data-item">{dataset.recordsCompleted}</span>
         </div>
         <div>
           <label>Total groups</label>
-          <span>{dataset.groupCount}</span>
+          <span class="data-item">{dataset.groupCount}</span>
         </div>
         <div>
           <label>Groups complete</label>
-          <span>{dataset.groupsComplete}</span>
+          <span class="data-item">{dataset.groupsComplete}</span>
         </div>
         <div>
           <label>Last georeference</label>
-          <span>{dataset.lastGeoreference? getLocalDateTime(dataset.lastGeoreference): 'NA'}</span>
+          <span class="data-item">{dataset.lastGeoreference? getLocalDateTime(dataset.lastGeoreference): 'NA'}</span>
         </div>
         <div>
           <label>Last georeference by</label>
-          <span>{dataset.lastGeoreferenceBy? dataset.lastGeoreferenceBy : 'NA'}</span>
+          <span class="data-item">{dataset.lastGeoreferenceBy? dataset.lastGeoreferenceBy : 'NA'}</span>
         </div>
       </div>
       <div class='charts'>
@@ -1018,7 +1032,7 @@ label {
   padding:2px;
 }
 
-span {
+.data-item {
   border-radius: 2px;
   margin-bottom:0.5em;
   height:2em;
@@ -1093,5 +1107,28 @@ button:hover {
 
 .chart-spacer {
   margin-top: 20px;
+}
+
+.tools-container {
+  margin-top:20px;
+}
+
+.tools-container::after {
+  content: "";
+  display: block; 
+  clear: both;
+}
+
+.dataset-tool {
+  float:right;
+  margin-left:5px;
+  padding-bottom:0;
+  background-color: lightgray;
+}
+
+.dataset-tool:hover {
+  cursor:pointer;
+  background-color:grey;
+  color:white;
 }
 </style>

@@ -1,7 +1,7 @@
 <script>
   //this is a component that kept getting bigger and bigger....
 
-  import { Firestore, Auth, FieldValue, Storage } from '../../firebase.js'
+  import { Firestore, Realtime, Auth, FieldValue, Storage } from '../../firebase.js'
   import Papa from 'papaparse'
   import stringSimilarity from 'string-similarity'
   import {onMount, createEventDispatcher} from 'svelte'
@@ -10,6 +10,7 @@
   import StatsChart from './datasetStatsChart.svelte'
   import UsersChart from './datasetUserStatsChart.svelte'
   import ProgressChart from './datasetProgressChart.svelte'
+  import Toast from '../toast.svelte'
 
   const dispatch = createEventDispatcher()
 
@@ -21,6 +22,8 @@
   let downloading = false
   let showDownloadComplete = false
   let downloadProblems = []
+
+  let georefButton
 
   let downloadProgessMessage = ""
 
@@ -229,6 +232,15 @@
     else {
       alert(`No record groups to unlock`)
     }
+  }
+
+  const clearPlaceholder = async _ => {
+    georefButton.disabled = true
+    let ref = `userDatasetLastRecordGroup/${profile.uid}/${dataset.datasetID}`
+    Realtime.ref(ref).remove().then(_ => {
+      georefButton.disabled = false
+      window.pushToast('you can start over')
+    })
   }
 
   const handleBackToDatasets = _ => {
@@ -825,7 +837,10 @@
             <span class="material-icons">lock_open</span>
           </button>
         {/if}
-        <button class="dataset-tool" title="start georeferencing" on:click={handleStartGeoreferencing}>
+        <button class="dataset-tool" title="start from beginning" on:click={clearPlaceholder}>
+          <span class="material-icons">replay</span>
+        </button>
+        <button class="dataset-tool" title="start georeferencing" on:click={handleStartGeoreferencing} bind:this={georefButton}>
           <span class="material-icons">place</span>
         </button>
       </div>
@@ -963,6 +978,7 @@
       {/if}  
     {/if}
   </div>
+  <Toast />
 </div>
 
 

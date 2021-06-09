@@ -21,9 +21,18 @@
       Datasets can be up to 10s of thousands of records, depending on the size of your team and time 
       you want to take to work on the dataset. It is recommended to provide reasonably sized datasets that
       can be completed in a month or two to keep momentum and motivation in the team. Required fields are 
-      <em>dwc:scientificName</em>, <em>dwc:country</em>, <em>dwc:locality</em>, and a field that uniquely identifies rows in the dataset 
-      such as <em>dwc:occurrenceID</em>, <em>dwc:catalogNumber</em> (if unique in the dataset) or an equivalent. <em>dwc:stateProvince</em>
-      is recommended to facilitate the georeferencing process, and <em>dwc:recordedBy</em> can be included to refine localities further.
+      <a href="https://dwc.tdwg.org/terms/#dwc:scientificName" target="_blank"><em>dwc:scientificName</em></a>, 
+      <a href="https://dwc.tdwg.org/terms/#dwc:country" target="_blank"><em>dwc:country</em></a>, 
+      <a href="https://dwc.tdwg.org/terms/#dwc:locality" target="_blank"><em>dwc:locality</em></a> or 
+      <a href="https://dwc.tdwg.org/terms/#dwc:verbatimLocality" target="_blank"><em>dwc:verbatimLocality</em></a>, 
+      and a field that uniquely identifies rows in the dataset such as 
+      <a href="https://dwc.tdwg.org/terms/#dwc:occurrenceID" target="_blank"><em>dwc:occurrenceID</em></a>, 
+      <a href="https://dwc.tdwg.org/terms/#dwc:catalogNumber" target="_blank"><em>dwc:catalogNumber</em></a> 
+      (if unique in the dataset) or an equivalent. 
+      <a href="https://dwc.tdwg.org/terms/#dwc:stateProvince" target="_blank"><em>dwc:stateProvince</em></a>
+      is recommended to facilitate the georeferencing process, and 
+      <a href="https://dwc.tdwg.org/terms/#dwc:recordedBy" target="_blank"><em>dwc:recordedBy</em></a> can be 
+      included to refine localities further.
     </p>
     <p>Next the dataset is uploaded into the tool, fields are checked, owner details provided, and similar 
       localities grouped. The dataset owner can invite team members to assist with georeferencing at this stage.</p>
@@ -32,11 +41,15 @@
       existing georeferences and 'tying' or 'linking' those to the locality strings from the dataset. Users should
       have an appropriate set of georeferencing tools at hand, inluding GIS and appropriate data layers, Geolocate, 
       and so on, for generating new georeferences. Localities from the dataset are presented in groups of 
-      similar or the same locality with the numbers of associated specimen records indicated. The user selects one 
-      or more locality strings from the group; an existing, appropriate georeference is selected or a new one is created; 
-      then the user applies the selected georeference to the selected locality strings. Team members work 
-      through the dataset until all locality groups have been processed. Locality groups can be skipped or bookmarked 
-      to return to later.
+      similar or the same locality with the numbers of associated specimen records indicated. The process is then as follows:
+    </p>
+    <ol>
+      <li>The user selects one or more locality strings from the group</li>
+      <li>An existing, appropriate georeference is selected or a new one is created</li>
+      <li>The user applies the selected georeference to the selected locality strings</li>
+    </ol>
+    <p>Team members work through the dataset until all locality groups have been processed. 
+      Locality groups can be skipped or bookmarked to return to later.
     </p>
     <p>For NSCF partner institutions we recommend the use of the georeferencing protocol in the 
       <a href="https://nscf.org.za/resources/collections-management/" target="_blank">Collections Management Manual</a> or
@@ -78,6 +91,7 @@
     text-decoration: underline;
   }
   .container {
+    font-size:1.1em;
     width: 100%;
     display: flex;
     flex-direction: column;

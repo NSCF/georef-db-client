@@ -51,6 +51,9 @@
     <p>Team members work through the dataset until all locality groups have been processed. 
       Locality groups can be skipped or bookmarked to return to later.
     </p>
+    <p class="warning">When finished georeferencing for the day, please make sure to return to the datasets list 
+      from the georeferencer before closing the browser tab. <em>DON'T JUST CLOSE THE BROWSER!</em> Doing
+    so will leave record groups locked for other others.</p>
     <p>For NSCF partner institutions we recommend the use of the georeferencing protocol in the 
       <a href="https://nscf.org.za/resources/collections-management/" target="_blank">Collections Management Manual</a> or
       <a href="https://bit.ly/georefprotocol" target="_blank">available here</a>. Remember that your georeferences will be used by
@@ -89,6 +92,15 @@
   em {
     font-style:normal;
     text-decoration: underline;
+  }
+
+  .warning {
+    background-color: #ffd47d;
+    font-weight: bolder;
+    color: rgb(73, 93, 158);
+    border-radius: 2px;
+    border-width: 20px;
+    border: 4px solid #c98f18;
   }
   .container {
     font-size:1.1em;

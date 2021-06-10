@@ -912,10 +912,8 @@
             </div>
           {/if}
         {/if}
-        {#if profilesIndex}
-          <div class="chart-spacer"></div>
-          <StatsChart {dataset} {profilesIndex} userID={profile.uid} />
-        {/if}
+        <div class="chart-spacer"></div>
+        <StatsChart {dataset} {profilesIndex} userID={profile.uid} />
       </div>
       {#if profilesIndex && (dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid)))  }
         <div>

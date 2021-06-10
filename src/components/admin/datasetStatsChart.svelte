@@ -6,7 +6,7 @@
   import Loader from '../loader.svelte'
 
   export let dataset
-  export let profilesIndex
+  export let profilesIndex = null
   export let userID
   export let size = 6 //the number of columns in the graph
 

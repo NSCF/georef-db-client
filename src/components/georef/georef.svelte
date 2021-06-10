@@ -296,7 +296,6 @@ const fetchNextRecordGroup = async lastSnap => {
       }
     }
     else {
-      alert('no more records to georeference in this dataset')
       $dataStore.recordGroupSnap = null
       $dataStore.recordGroup = null
       $dataStore.candidateGeorefs = null
@@ -310,7 +309,6 @@ const fetchNextRecordGroup = async lastSnap => {
 
     }
   }
-  
 }
 
 const releaseRecordGroup = async _ => {

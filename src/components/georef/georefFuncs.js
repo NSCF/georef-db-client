@@ -277,11 +277,15 @@ const updateGeorefRecords = (Firestore, FieldValue, docRef, georef, datasetID, r
       if (!docSnap.exists) {
         let newDoc = {}
         //just some redundancy here for ease of use
+        //we also add the fields for verification
+        newDoc.georefID = georef.georefID
         newDoc.country = georef.country || null
         newDoc.stateProvince = georef.stateProvince || null
         newDoc.locality = georef.locality || null
         newDoc.decimalLatitude = georef.decimalLatitude || null
         newDoc.decimalLongitude = georef.decimalLongitude || null
+        newDoc.locked = false
+        newDoc.verified = false
         newDoc.datasets = {}
         newDoc.datasets[datasetID] = recordIDs
         newDoc.recordCount = recordIDs.length

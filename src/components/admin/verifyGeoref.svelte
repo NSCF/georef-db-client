@@ -1,17 +1,17 @@
 <script>
   import {onMount, createEventDispatcher} from 'svelte'
+  import {Firestore} from '../../firebase'
   import GeorefForm from '../georef/georefForm.svelte'
   import Loader from '../loader.svelte'
   import VerifyMap from './verifyGeorefMap.svelte'
 
   let dispatch = createEventDispatcher()
 
-  export let Firestore
   export let dataset
 
   let elasticindex
 
-  let georefQueue = [] //a queue of {snapshot, georef} objects, with snapshot from firestore, georef from elastic
+  let georefQueue = [] //a queue of {ref, georef} objects, with ref from firestore, georef from elastic
   let desiredQueueLength = 3 //just setting a param here
   let noMoreGeorefs = false
 
@@ -21,43 +21,43 @@
   let currentGeoref
   let previousCoords = [] //just so we hand handle accidental pin moves
 
+  $: if(dataset) {
+    elasticindex = (dataset.region + dataset.domain).toLowerCase()
+  }
+
+  $: if(datasetGeorefsIDs.length) {
+    getGeorefsToVerify()
+  }
 
   onMount(async _ => {
     let datasetGeorefsSnap = await Firestore.collection('datasetGeorefs').doc(dataset.datasetID).get()
-    if(georefsSnap.exists) {
-      datasetGeorefsIDs = georefsSnap.data().georefIDs
+    if(datasetGeorefsSnap.exists) { //it should unless no georefs done
+      datasetGeorefsIDs = datasetGeorefsSnap.data().georefIDs
     }
-    else {
+    else { //this should only happen if nothing has been georeferenced in the dataset
+      //TODO handle this better
       alert('no georefs available for this dataset')
       dispatch('to-datasets')
     }
   })
 
-  $: if(dataset) {
-    elasticindex = (dataset.region + dataset.domain).toLowerCase()
-  }
-
-  $: if(georefQueue && datasetGeorefsIDs.length) {
-    getGeorefsToVerify()
-  }
-
   //this looks for one to lock in Firestore
-  //uses two while loops to loop through all the georef IDs
   const getGeorefsToVerify = async _ => {
     while (searchIndStart < datasetGeorefsIDs.length && georefQueue.length < desiredQueueLength) {
       //get unlocked, unverified georefs used in this dataset
-      let lockInd = 0
+      
       let searchIDs = datasetGeorefsIDs.slice(searchIndStart, searchIndStart + 10)
-      let querySnap = await Firestore.collection('georefRecords')
+      let querySnap = await Firestore.collection('georefVerification')
       .where('georefID', 'in', searchIDs)
       .where('verified', '==', false)
-      .where('locked', '==', false) //this assumes that once locked it will be verified
+      .where('locked', '==', false) //this assumes that once locked it will be verified, but of course we can look again later
 
       //try to lock and queue some
       if(!querySnap.empty) {
         let ref
-        while (lockInd < querySnap.docs.length && georefQueue.length < desiredQueueLength) {
-          ref = querySnap.docs[lockInd].ref
+        let lockTargetInd = 0
+        while (lockTargetInd < querySnap.docs.length && georefQueue.length < desiredQueueLength) {
+          ref = querySnap.docs[lockTargetInd].ref
           try {
             await Firestore.runTransaction(transaction => {
               return transaction.get(ref).then(snap => {
@@ -72,22 +72,22 @@
 
             //if it doesn't lock it throws before we get here
             try {
-              let georef = await fetchGeoref(querySnap.docs[lockInd].id)
+              let georef = await fetchGeoref(querySnap.docs[lockTargetInd].id)
               if(currentGeoref) {
-                georefQueue = [...georefQueue, {snap: querySnap.docs[lockInd], georef}]
+                georefQueue = [...georefQueue, {ref: querySnap.docs[lockTargetInd].ref, georef}]
               }
               else {
-                currentGeoref = {snap: querySnap.docs[lockInd], georef}
+                currentGeoref = {ref: querySnap.docs[lockTargetInd].ref, georef}
               }
-              lockInd++
+              lockTargetInd++
             }
             catch(err) {
               console.log('error fetching georef from elastic:', err.message)
-              lockInd++
+              lockTargetInd++
             }
           }
           catch(err) { //this is a failed transaction, so we try next
-            lockInd++
+            lockTargetInd++
           }
         }
         
@@ -124,10 +124,10 @@
 
     if(res.ok) {
       let georefs = await res.json()
-      currentGeoref = georefs[0] //there can only be one
+      return currentGeoref = georefs[0] //there can only be one
     }
     else {
-      alert('there was a problem fetching the georef record')
+      throw new Error('there was a problem fetching the georef record:' + res.statusText)
     }
   }
 

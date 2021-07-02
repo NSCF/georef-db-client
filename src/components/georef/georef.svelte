@@ -583,6 +583,15 @@ const handleSetGeoref = async ev => {
         }
       })
       
+      //also update firebase for verification later
+      //we only need to verify a georef the first time it is created
+      Firestore.collection('georefVerification').doc(georef.georefID).set({
+        georefID: georef.georefID, //needed for querying
+        locked: false, 
+        verified: false
+      }).catch(err => {
+        //do nothing, we don't want to slow down
+      })
       
       $dataStore.georefIndex[georef.georefID] = georef // so we can use it again
       if(georefIndexOnHold){
@@ -864,19 +873,23 @@ const handleLocalityCopied = async => {
 }
 
 //just to unlock a locked record group if the user closes or refreshes
-const handleUnload = ev => {
+const confirmUnload = ev => {
   if(georefsAdded) {
     ev.preventDefault()
     ev.returnValue = 'georefs have not been saved, go back to datsets before closing';
     return 'georefs have not been saved, go back to datsets before closing'
   }
-  //navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updaterecordgrouplock?groupid=${$dataStore.recordGroupSnap.id}`, '')
 }
+
+const handleUnload = _ => {
+  navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updaterecordgrouplock?groupid=${$dataStore.recordGroupSnap.id}`, '')
+}
+
 
 </script>
 
 <!-- ############################################## -->
-<svelte:window on:beforeunload={handleUnload} /> <!--in case the user just closes-->
+<svelte:window on:beforeunload={confirmUnload}  on:unload={handleUnload}/> <!--in case the user just closes-->
 {#if !datasetComplete}
   <div class="col-flex-container">
     <div class="flex-item">

@@ -27,6 +27,8 @@
 
   let downloadProgessMessage = ""
 
+  let qualityAssurance = false
+
   onMount(async _ => {
 
     //only the person who created the dataset can see the georeferencers
@@ -832,6 +834,9 @@
           </button>
           <button class="dataset-tool" title="download georefs only" on:click={handleDownloadGeorefs}>
             <span class="material-icons">download_for_offline</span>
+          </button>
+          <button class="dataset-tool" title="quality assurance" on:click={_=> qualityAssurance = true}>
+            <span class="material-icons-outlined">inventory</span>
           </button>
           <button class="dataset-tool" title="clear locked record groups" on:click={clearLockedRecordGroups}>
             <span class="material-icons">lock_open</span>

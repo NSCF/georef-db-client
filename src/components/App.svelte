@@ -20,10 +20,9 @@ import DatasetDetail from './admin/datasetDetail.svelte'
 
 import Georeferencer from './georef/georef.svelte'
 
-import GeorefStats from './georefStats.svelte'
+import QualityControl from './admin/qualityControl.svelte'
 
-import Workshop from './workshop/workshop.svelte'
-import Yard from './yard.svelte'
+import GeorefStats from './georefStats.svelte'
 
 import { Circle } from 'svelte-loading-spinners'
 
@@ -56,7 +55,7 @@ let statsLabels = [
 
 //for 'page navigation'
 // do we need a router??????
-let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'About', 'Home', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeferencer' ]
+let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'About', 'Home', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeferencer', 'QualityControl' ]
 let datasetPages = ['datsetList', 'datasetDetail']
 let georeferencePage = 'Georeferencer' //just the one
 
@@ -215,6 +214,10 @@ function handleDatasetSelected(ev){
 	currentPage = 'datasetDetail'
 }
 
+function handleToDatasetDetail() {
+	currentPage = 'datasetDetail'
+}
+
 function handleStartGeoreferencing(){
 	currentPage = 'Georeferencer'
 }
@@ -224,6 +227,7 @@ function handleBackToDatasets() {
 	currentPage = 'datasetList'
 }
 
+//just for debugging
 const testAuth = _ => {
 	if (fbUser) {
 		fbUser.getIdToken(true).then(token => {
@@ -341,16 +345,13 @@ const testAuth = _ => {
 					<DatasetList {profile} on:dataset-selected={handleDatasetSelected}/>
 				{/if}
 				{#if currentPage == 'datasetDetail'}
-					<DatasetDetail {profile} dataset={selectedDataset} on:to-datasets={handleToDatasets} on:start-georeferencing={handleStartGeoreferencing}/>
+					<DatasetDetail {profile} dataset={selectedDataset} on:to-datasets={handleToDatasets} on:start-georeferencing={handleStartGeoreferencing} on:quality-control={_ => currentPage = 'QualityControl'}/>
 				{/if}
 				{#if currentPage == 'Georeferencer'}
 					<Georeferencer {Firestore} {Firebase} {FieldValue} {profile} dataset={selectedDataset} on:back-to-datasets='{_=> currentPage = 'datasetList'}'/>
 				{/if}
-				{#if currentPage == 'workshop'}
-					<Workshop />
-				{/if}
-				{#if currentPage == 'yard'}
-					<Yard {Firestore} {Firebase} {FieldValue} {profile} />
+				{#if currentPage == "QualityControl"}
+					<QualityControl {profile} dataset={selectedDataset} on:to-datasets={handleBackToDatasets}/>
 				{/if}
 			</div>
 			<div class="stopper"></div>

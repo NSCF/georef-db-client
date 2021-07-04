@@ -378,21 +378,23 @@ const checkAndDispatchGeoref = _ => {
           <option value="WGS84">
         </datalist>
       </div>
-      <div class="oneliner">
-        <label for="georefBy">georef by</label>
-        {#if defaultGeorefBy}
-          <input class:hasError={georefByHasError} type="text" list="defaultGeorefBy" id="georefBy" style="width:50%" bind:value={localGeoref.by}/>
-          <datalist id="defaultGeorefBy">
-            <option value={defaultGeorefBy}>
-          </datalist>
-        {:else}
-          <input class:hasError={georefByHasError} type="text" id="georefBy" style="width:50%" bind:value={localGeoref.by}/>
-        {/if}
-      </div>
-      <div class="oneliner">
-        <label for="georefByORCID">georef by ORCID</label>
-        <input type="text" id="georefByORCID" style="width:100%;max-width:300px" bind:value={localGeoref.byORCID}/>
-      </div>
+      {#if !showVerification}
+        <div class="oneliner">
+          <label for="georefBy">georef by</label>
+          {#if defaultGeorefBy}
+            <input class:hasError={georefByHasError} type="text" list="defaultGeorefBy" id="georefBy" style="width:50%" bind:value={localGeoref.by}/>
+            <datalist id="defaultGeorefBy">
+              <option value={defaultGeorefBy}>
+            </datalist>
+          {:else}
+            <input class:hasError={georefByHasError} type="text" id="georefBy" style="width:50%" bind:value={localGeoref.by}/>
+          {/if}
+        </div>
+        <div class="oneliner">
+          <label for="georefByORCID">georef by ORCID</label>
+          <input type="text" id="georefByORCID" style="width:100%;max-width:300px" bind:value={localGeoref.byORCID}/>
+        </div>
+      {/if}
       <div class="oneliner">
         <div class="fields">
           <div class="flex">
@@ -431,7 +433,14 @@ const checkAndDispatchGeoref = _ => {
     {#if showVerification}
       <div class="oneliner">
         <label for="verifiedBy">verified by</label>
-        <input type="text" id="verifiedBy" style="width:50%" class:hasError={verifiedByHasError} bind:value={localGeoref.verifiedBy}/>
+        {#if defaultGeorefBy}
+          <input type="text" list="defaultVerifiedBy" id="verifiedBy" style="width:50%" class:hasError={verifiedByHasError} bind:value={localGeoref.verifiedBy}/>
+          <datalist id="defaultVerifiedBy">
+            <option value={defaultGeorefBy}>
+          </datalist>
+        {:else}
+          <input type="text" id="verifiedBy" style="width:50%" class:hasError={verifiedByHasError} bind:value={localGeoref.verifiedBy}/>
+        {/if}
       </div>
       <div class="oneliner">
         <label for="verifiedByORCID">verified by ORCID</label>
@@ -441,7 +450,7 @@ const checkAndDispatchGeoref = _ => {
         <label for="verifierRole">verifier role</label>
         <input id="verifierRole" class:hasError={verifierRoleHasError} list="verifierRoles" name="verifierRole" style="width:50%" bind:value={localGeoref.verifierRole}>
         <datalist id="verifierRoles">
-          <option value="QC">
+          <option value="quality controller">
           <option value="curator">
           <option value="collector">
         </datalist>

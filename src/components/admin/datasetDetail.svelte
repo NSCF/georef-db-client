@@ -27,7 +27,7 @@
 
   let downloadProgessMessage = ""
 
-  let qualityAssurance = false
+  let qualityControl = false
 
   onMount(async _ => {
 
@@ -835,7 +835,7 @@
           <button class="dataset-tool" title="download georefs only" on:click={handleDownloadGeorefs}>
             <span class="material-icons">download_for_offline</span>
           </button>
-          <button class="dataset-tool" title="quality assurance" on:click={_=> qualityAssurance = true}>
+          <button class="dataset-tool" title="quality control" on:click={_=> dispatch('quality-control')}>
             <span class="material-icons-outlined">inventory</span>
           </button>
           <button class="dataset-tool" title="clear locked record groups" on:click={clearLockedRecordGroups}>

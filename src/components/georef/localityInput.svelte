@@ -1,79 +1,78 @@
 <script>
+  export let value
+  export let hasError
+  export let editable
 
-export let value
-export let hasError
-export let editable
+  let thisel
 
-let thisel
-
-const handleCopy = ev => {
-  if(navigator.clipboard.writeText) {
-    if(value && value.trim()) {
-      //anything selected?
-      let selected = getSelectedText()
-      if(selected){
-        navigator.clipboard.writeText(selected).then(_ => {
-          if(window.pushToast) {
-            window.pushToast('selection copied')
-          }
-        })
+  const handleCopy = ev => {
+    if(navigator.clipboard.writeText) {
+      if(value && value.trim()) {
+        //anything selected?
+        let selected = getSelectedText()
+        if(selected){
+          navigator.clipboard.writeText(selected).then(_ => {
+            if(window.pushToast) {
+              window.pushToast('selection copied')
+            }
+          })
+        }
+        else {
+          navigator.clipboard.writeText(value).then(_ => {
+            console.log('locality copied')
+            if(window.pushToast) {
+              window.pushToast('locality copied')
+            }
+          })
+        }
       }
       else {
-        navigator.clipboard.writeText(value).then(_ => {
-          console.log('locality copied')
-          if(window.pushToast) {
-            window.pushToast('locality copied')
+        alert('no content to copy')
+      }
+    }
+    else {
+      alert('this browser does not support programmatic copy/paste')
+    }
+  }
+
+  const handlePaste = _ => {
+    if(navigator.clipboard.readText){
+      if(editable) {
+        navigator.clipboard.readText().then(pasteVal => {
+          if(pasteVal && pasteVal.trim()){
+            value = pasteVal.trim()
+          }
+          else {
+            if(window.pushToast) {
+              window.pushToast('clipboard empty')
+            }
+            else {
+              alert('clipboard empty')
+            }
           }
         })
       }
     }
     else {
-      alert('no content to copy')
+      alert('this browser does not support programmatic copy/paste')
     }
+    
   }
-  else {
-     alert('this browser does not support programmatic copy/paste')
-  }
-}
 
-const handlePaste = _ => {
-  if(navigator.clipboard.readText){
-    if(editable) {
-      navigator.clipboard.readText().then(pasteVal => {
-        if(pasteVal && pasteVal.trim()){
-          value = pasteVal.trim()
-        }
-        else {
-          if(window.pushToast) {
-            window.pushToast('clipboard empty')
+  //helper
+  //modified from https://stackoverflow.com/questions/4342229/copy-selected-text-from-one-textarea-to-another
+  function getSelectedText() {
+      if (typeof thisel.selectionStart == "number") {
+          return thisel.value.slice(thisel.selectionStart, thisel.selectionEnd);
+      } else if (typeof document.selection != "undefined") {
+          var range = document.selection.createRange();
+          if (range.parentElement() == thisel) {
+              return range.text;
           }
-          else {
-            alert('clipboard empty')
-          }
-        }
-      })
-    }
+      }
+      console.log('no value to copy')
+      return null;
   }
-  else {
-    alert('this browser does not support programmatic copy/paste')
-  }
-  
-}
-
-//helper
-//modified from https://stackoverflow.com/questions/4342229/copy-selected-text-from-one-textarea-to-another
-function getSelectedText() {
-    if (typeof thisel.selectionStart == "number") {
-        return thisel.value.slice(thisel.selectionStart, thisel.selectionEnd);
-    } else if (typeof document.selection != "undefined") {
-        var range = document.selection.createRange();
-        if (range.parentElement() == thisel) {
-            return range.text;
-        }
-    }
-    console.log('no value to copy')
-    return null;
-}
 
 </script>
 

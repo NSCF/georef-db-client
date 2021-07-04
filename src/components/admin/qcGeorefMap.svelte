@@ -31,7 +31,7 @@
     }
     
     map = new google.maps.Map(container, {
-      zoom: 5,
+      zoom: 8,
       center: {lat: -24.321476, lng: 24.909317}, //TODO set an appropriate coordinate for the region
       disableDoubleClickZoom:true
     });
@@ -44,15 +44,16 @@
   //note this differs for a new georef vs changes to a previous georef
   $: if(subGeoref && mapReady) {
     if(subGeoref == prevGeoref) {
+      console.log('this is the same georef')
       //something has changed so we update
-      let newUncertainty = getRadiusM(subGeoref.accuracy, subGeoref.accuracyUnit)
+      let newUncertainty = getRadiusM(subGeoref.uncertainty, subGeoref.uncertaintyUnit)
       
       //check if it's different
       if(newUncertainty > 0) {
         //do we work with the current new circle or create one?
         if(newGeorefCircle) {
           if(newGeorefCircle.getRadius() != newUncertainty) {
-            newGeorefCircle.setRarius(newUncertainty)
+            newGeorefCircle.setRadius(newUncertainty)
           }
         }
         else if (originalGeorefMarker.circle) {
@@ -66,6 +67,9 @@
           newGeorefCircle = makeCircle(subGeoref.decimalCoordinates, subGeoref.uncertainty, subGeoref.uncertaintyUnit, map, 'blue')
         }
       }
+      else {
+        console.log('there was an error calcuating the uncertainty')
+      }
 
       //and if coords change
       //we use 8 decimal places
@@ -77,14 +81,17 @@
         coordsPin.setPosition(latlng)
 
         if(newGeorefCircle) {
-          newGeorefCircle.setPosition(latlng)
+          newGeorefCircle.setCenter(latlng)
         }
         else {
-          newGeorefCircle = makeCircle(subGeoref.decimalCoordinates, subGeoref.accuracy, subGeoref.accuracyUnit, map, 'blue')
+          newGeorefCircle = makeCircle(subGeoref.decimalCoordinates, subGeoref.uncertainty, subGeoref.uncertaintyUnit, map, 'blue')
         }
       }
     }
     else {
+      console.log('this is a NEW georef')
+      prevGeoref = subGeoref
+      
       //remove
       if(originalGeorefMarker) {
         if(originalGeorefMarker.circle) {
@@ -122,13 +129,15 @@
           position: pinLocation,
           map: map,
           draggable: true,
+          color: 'blue',
           title: "Move to update coordinates"
         });
 
         google.maps.event.addListener(coordsPin, 'dragend', function(evt){
           let coords = evt.latLng.toUrlValue()
+          subGeoref.decimalCoordinates = coords
           if(newGeorefCircle) {
-            newGeorefCircle.setPosition(evt.latLng)
+            newGeorefCircle.setCenter(evt.latLng)
           }
           else {
             newGeorefCircle = makeCircle(coords, subGeoref.uncertainty, subGeoref.uncertaintyUnit, map, 'blue')
@@ -136,8 +145,6 @@
           dispatch('new-coords', coords)
         });
       }
-
-      prevGeoref = subGeoref
 
       map.panTo(pinLocation)
 

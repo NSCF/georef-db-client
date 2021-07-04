@@ -36,10 +36,11 @@
   //also reset the prevCoords array
   $: if(currentGeoref) {
     if(currentGeoref != prevGeoref) {
+      prevGeoref = currentGeoref
       subGeoref = {
         decimalCoordinates: currentGeoref.decimalCoordinates,
-        accuracy: currentGeoref.accuracy,
-        accuracyUnit: currentGeoref.accuracyUnit
+        uncertainty: currentGeoref.uncertainty,
+        uncertaintyUnit: currentGeoref.uncertaintyUnit
       }
       previousCoords = []
     }
@@ -58,7 +59,6 @@
     }
   })
   
-
   //This populates georefQueue and gives a currentGeoref if we don't have one
   const getGeorefsToVerify = async _ => {
     console.log('fetching georefs to verify')
@@ -189,6 +189,12 @@
     }
   }
 
+  const handleUncertaintyChanged = ev => {
+    //currentGeoref.uncertainty = ev.detail.uncertainty
+    //currentGeoref.uncertaintyUnit = ev.detail.uncertaintyUnit
+    subGeoref = Object.assign(subGeoref, ev.detail) //NB this gives us the original object, not a new one!
+  }
+
   //this is just an instruction to save, and it should always do so because we now have verification
   const handleSetGeoref = async ev => {
     let georef = ev.detail.georef
@@ -276,7 +282,9 @@
           showVerification={true}
           defaultGeorefBy={profile.formattedName}
           defaultGeorefByORCID={profile.orcid}
+          requiredFields={['verifiedBy', 'verifiedDate', 'verifierRole']}
           on:coords-from-paste={handleNewCoordsFromGeoref}
+          on:uncertainty-changed={handleUncertaintyChanged}
           on:set-georef={handleSetGeoref} />
       </div>
     {:else}

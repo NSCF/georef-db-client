@@ -7,6 +7,7 @@ import DecimalCoordsInput from './decimalCoordsInput.svelte'
 import VerbatimCoordsInput from './verbatimCoordsInput.svelte'
 import DateInput from './dateInput.svelte'
 import Georef from './Georef.js'
+import Toast from '../toast.svelte'
 
 import { georefsEqual } from './georefFormFuncs.js'
 
@@ -28,7 +29,7 @@ export let showWKT = false
 export let showVerification = false
 export let submitButtonText = ""
 
-export let requiredFields = ['datum', 'date'] //for on form validation
+export let requiredFields = ['uncertainty', 'datum', 'by', 'date'] //for on form validation
 
 let uncertaintyUnitsEnum = ['m', 'km']
 let uncertaintySelect
@@ -62,7 +63,7 @@ export let georefSources = [
 //control editing of metadatafields
 let metaEditable
 
-//validations
+//field validations
 let validationVars = ['localityhasError', 'coordsHasError', 'uncertaintyHasError', 'uncertaintyUnitHasError', 'datumHasError', 'georefByHasError', 'georefDateHasError', 'protocolHasError', 'sourcesHasError', 'verifiedByHasError', 'verifiedDateHasError', 'verifierRoleHasError'] //must match below
 $: hasLocalityAndCoords = editable && Boolean(localGeoref.locality && localGeoref.locality.trim() && localGeoref.decimalCoordinates)
 $: localityhasError = editable && Boolean(localGeoref.decimalCoordinates && (!localGeoref.locality || !localGeoref.locality.trim()))
@@ -76,7 +77,7 @@ $: protocolHasError = editable && Boolean(hasLocalityAndCoords && requiredFields
 $: sourcesHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('sources') && (!localGeoref.sourcesArray || !localGeoref.sourcesArray.length))
 $: verifiedByHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('verifiedBy') && (!localGeoref.verifiedBy || !localGeoref.verifiedBy.trim()))
 $: verifiedDateHasError = editable && Boolean(hasLocalityAndCoords && (localGeoref.verifiedBy && localGeoref.verifiedBy.trim() || requiredFields.includes('verifiedDate')) && (!localGeoref.verifiedDate || !localGeoref.verifiedDate.trim())) //see the component for more validation
-$: verifierRoleHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('verifierrole') && (!localGeoref.verifierRole || !localGeoref.verifierRole.trim()))
+$: verifierRoleHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('verifierRole') && (!localGeoref.verifierRole || !localGeoref.verifierRole.trim()))
 
 //watchers
 $: georef, setLocalGeoref()
@@ -88,6 +89,14 @@ $: localGeoref.locality, updateOnLocalityChange()
 
 $: if(uncertaintySelect && !localGeoref.uncertaintyUnit){
   handleUncertaintyBlur() //this is just to handle new incoming georefs with no uncertainty after previous ones
+}
+
+//for dispatching changes to uncertainty during verification
+$: if (localGeoref && showVerification && localGeoref.uncertainty && localGeoref.uncertaintyUnit) {
+  dispatch('uncertainty-changed',  {
+    uncertainty: localGeoref.uncertainty,
+    uncertaintyUnit: localGeoref.uncertaintyUnit
+  })
 }
 
 //for testing
@@ -118,7 +127,7 @@ const setLocalGeoref = _ => {
     if(editable) {
       //we'll use an array of values to check
       let checkVars =  [localGeoref.uncertainty, localGeoref.datum, localGeoref.by, localGeoref.date, localGeoref.sources, localGeoref.protocol]
-      metaEditable = checkVars.some(x => !x) //any are empty
+      metaEditable = showVerification || checkVars.some(x => !x) //any are empty
     }
   }
   else  {
@@ -262,6 +271,7 @@ const handleCoordsFromPaste = _ => {
 }
 
 const handleUncertaintyBlur = _ => {
+  //reset if the value has been removed
   //from https://stackoverflow.com/questions/12737528/reset-the-value-of-a-select-box
   if(!localGeoref.uncertainty){
     let options = uncertaintySelect.options;
@@ -430,7 +440,14 @@ const checkAndDispatchGeoref = _ => {
         </div>
       {/if}
     </fieldset>
+    <div>
+      <label for="remarks" style="width:100%;text-align:right">georef remarks</label>
+      <textarea id="remarks" rows="3" disabled={!editable || !metaEditable} bind:value={localGeoref.remarks}/>
+    </div>
     {#if showVerification}
+      <div class="hr-break">
+        <hr/><hr/>
+      </div>
       <div class="oneliner">
         <label for="verifiedBy">verified by</label>
         {#if defaultGeorefBy}
@@ -456,18 +473,21 @@ const checkAndDispatchGeoref = _ => {
         </datalist>
       </div>
       <div class="oneliner">
-      <div class="fields">
-        <div class="flex">
-          <label for="verifiedDate" style="padding-right:10px">verified date</label>
-          <DateInput hasBy={localGeoref.verifiedBy && localGeoref.verifiedBy.trim()} {editable} hasError={verifiedDateHasError} bind:value={localGeoref.verifiedDate} />
+        <div class="fields">
+          <div class="flex">
+            <label for="verifiedDate" style="padding-right:10px">verified date</label>
+            <DateInput hasBy={localGeoref.verifiedBy && localGeoref.verifiedBy.trim()} {editable} hasError={verifiedDateHasError} bind:value={localGeoref.verifiedDate} />
+          </div>
         </div>
       </div>
-    </div>
+      <div>
+        <label for="veriremarks" style="width:100%;text-align:right">verification remarks</label>
+        <textarea id="veriremarks" rows="3" bind:value={localGeoref.verificationRemarks}/>
+      </div>
+      <div class="hr-break">
+        <hr/><hr/>
+      </div>
     {/if}
-    <div>
-      <label for="remarks" style="width:100%;text-align:right">remarks</label>
-      <textarea id="remarks" rows="3" disabled={!editable || !metaEditable} bind:value={localGeoref.remarks}/>
-    </div>
   </fieldset>
   {#if showSubmitButton}
     <div style="text-align:center">
@@ -616,5 +636,14 @@ textarea:disabled {
   cursor:pointer;
   background-color:gray;
   color:white;
+}
+
+.hr-break {
+  margin-bottom:10px;
+}
+
+hr {
+  border: 1px solid lightgray;
+  margin:1px;
 }
 </style>

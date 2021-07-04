@@ -18,7 +18,7 @@
 
 <!-- ############################################## -->
 <!-- HTML -->
-<div class=container> <!--just in case-->
+<div class="qc-container"> <!--just in case-->
   <div class="tools-container">
     <button class="dataset-tool" title="back to datasets" on:click={handleBackToDatasets}>
       <span class="material-icons">list</span>
@@ -38,32 +38,25 @@
       </div>
     </div>
   </div>
-  <div class="flex-item">
+  <div class="working-area">
     {#if selectedTab == 'georefs'}
-      <div class='working-area'>
-        <QCGeoref {profile} {dataset} />
-      </div>
+      <QCGeoref {profile} {dataset} />
     {:else if selectedTab == 'localitygroups'}
-      <div class='working-area'>nothing here yet</div>
+      <div>nothing here yet</div>
     {:else}
-      <div class='working-area'>nothing here yet either</div>
+      <div>nothing here yet either</div>
     {/if}
   </div>
-  <div class="stopper"/>
 </div>
 
 <!-- ############################################## -->
 <style>
-  .container {
+  .qc-container {
     position:relative;
     display:flex;
     flex-direction:column;
     height: 100%;
     width:100%;
-  }
-
-  .flex-item {
-    flex: 1 1 auto;
   }
 
   .tabs {
@@ -87,7 +80,8 @@
   }
 
   .working-area {
-    height:100%;
+    flex: 1;
+    overflow-y:auto; /*absolutely no idea why this works but it does */
     width:100%;
   }
 

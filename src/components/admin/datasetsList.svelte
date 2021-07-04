@@ -261,71 +261,81 @@ const emitDataset = dataset => {
 
 <!-- ############################################## -->
 <!-- HTML -->
-<div></div> <!-- This is needed otherwise the table doesnt show  -->
-<div class="tabs">
-	<div class="tab" class:tab-selected={firstTab} on:click='{_ => firstTab = true}'>
-		Current datasets
-	</div>
-	<div class="tab" class:tab-selected={!firstTab} on:click='{_ => firstTab = false}'>
-		Invited datasets
-	</div>
-</div>
-{#if datasetsFetched}
-  {#if datasets.length}
-  <div></div><!-- This is needed otherwise the table doesnt show  -->
-  <table>
-    <tr>
-      <th>Dataset</th> <!-- dataset name-->
-      <th>Collection</th>
-      <th>Region</th>
-      <th>Domain</th>
-      <th>Created</th>
-      <th>Completed</th>
-      <th>Total Records</th>
-      <th>Locality Groups</th>
-      <th>Records Complete</th>
-      <th>Groups Complete</th>
-      <th>Last Georef</th>
-      {#if !firstTab}
-        <th>Accept</th>
-      {/if}
-      <th>Remove</th>
-    </tr>
-    {#each datasets as dataset, index}
-      <tr class="tr-hover" class:oddrow={index%2} on:click={emitDataset(dataset)}>
-        <td>{dataset.datasetName || null}</td>
-        <td>{dataset.collectionCode || null}</td>
-        <td>{dataset.region || null}</td>
-        <td>{dataset.domain || null}</td>
-        <td>{dataset.dateCreated ? getLocalDate(dataset.dateCreated) : ''}</td>
-        <td>{dataset.completed}</td>
-        <td>{dataset.recordCount}</td>
-        <td>{dataset.groupCount}</td>
-        <td>{dataset.recordsCompleted} ({Math.round(dataset.recordsCompleted / dataset.recordCount * 100)}%)</td>
-        <td>{dataset.groupsComplete} ({Math.round(dataset.groupsComplete / dataset.groupCount * 100)}%)</td>
-        <td>{dataset.lastGeoreference? getLocalDateTime(dataset.lastGeoreference) : null}</td>
-        {#if !firstTab}
-          <td class="table-button"><button on:click|stopPropagation='{_ => acceptInvitedDataset(dataset.datasetID)}'>Accept</button></td>
-        {/if}
-        <td class="table-button"><button on:click|stopPropagation={_ => removeDataset(dataset.datasetID)}>Remove</button></td>
-      </tr>
-    {/each}
-  </table>
-  {:else}
-  <div class="nodatasets">
-    No datasets to show
-  </div>  
-  {/if}
-  <div>
-    <button on:click={refresh} >Start over</button>
-    <button disabled={!datasets.length} on:click={getDatasets} >Show next</button>
+<div class="datasetlist-container">
+  <div class="tabs">
+    <div class="tab" class:tab-selected={firstTab} on:click='{_ => firstTab = true}'>
+      Current datasets
+    </div>
+    <div class="tab" class:tab-selected={!firstTab} on:click='{_ => firstTab = false}'>
+      Invited datasets
+    </div>
   </div>
-{:else}
-  <Loader />
-{/if}  
+  <div class="datasetslist-content">
+    {#if datasetsFetched}
+      {#if datasets.length}
+        <table>
+          <tr>
+            <th>Dataset</th> <!-- dataset name-->
+            <th>Collection</th>
+            <th>Region</th>
+            <th>Domain</th>
+            <th>Created</th>
+            <th>Completed</th>
+            <th>Total Records</th>
+            <th>Locality Groups</th>
+            <th>Records Complete</th>
+            <th>Groups Complete</th>
+            <th>Last Georef</th>
+            {#if !firstTab}
+              <th>Accept</th>
+            {/if}
+            <th>Remove</th>
+          </tr>
+          {#each datasets as dataset, index}
+            <tr class="tr-hover" class:oddrow={index%2} on:click={emitDataset(dataset)}>
+              <td>{dataset.datasetName || null}</td>
+              <td>{dataset.collectionCode || null}</td>
+              <td>{dataset.region || null}</td>
+              <td>{dataset.domain || null}</td>
+              <td>{dataset.dateCreated ? getLocalDate(dataset.dateCreated) : ''}</td>
+              <td>{dataset.completed}</td>
+              <td>{dataset.recordCount}</td>
+              <td>{dataset.groupCount}</td>
+              <td>{dataset.recordsCompleted} ({Math.round(dataset.recordsCompleted / dataset.recordCount * 100)}%)</td>
+              <td>{dataset.groupsComplete} ({Math.round(dataset.groupsComplete / dataset.groupCount * 100)}%)</td>
+              <td>{dataset.lastGeoreference? getLocalDateTime(dataset.lastGeoreference) : null}</td>
+              {#if !firstTab}
+                <td class="table-button"><button on:click|stopPropagation='{_ => acceptInvitedDataset(dataset.datasetID)}'>Accept</button></td>
+              {/if}
+              <td class="table-button"><button on:click|stopPropagation={_ => removeDataset(dataset.datasetID)}>Remove</button></td>
+            </tr>
+          {/each}
+        </table>      
+      {:else}
+        <div class="nodatasets">
+          No datasets to show
+        </div>  
+      {/if}
+      <div>
+        <button on:click={refresh} >Start over</button>
+        <button disabled={!datasets.length} on:click={getDatasets} >Show next</button>
+      </div>
+    {:else}
+      <Loader />
+    {/if} 
+  </div> 
+</div>
 
 <!-- ############################################## -->
 <style>
+
+ .datasetlist-container {
+   display:flex;
+   flex-direction: column;
+   width:100%;
+   height:100%;
+   padding-top:50px;
+ }
 
 .tabs {
   display: grid;
@@ -345,6 +355,11 @@ const emitDataset = dataset => {
 .tab-selected {
   background-color:#b6d8fc;
   font-weight:500;
+}
+
+.datasetslist-content {
+  flex: 1;
+  overflow-y:auto;
 }
 
 th {

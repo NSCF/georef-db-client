@@ -1,260 +1,244 @@
 <script>
-import {onMount} from 'svelte'
-import {Auth, Firestore, FieldValue, Realtime as Firebase } from '../firebase.js'
+	import {onMount} from 'svelte'
+	import {Auth, Firestore, FieldValue, Realtime as Firebase } from '../firebase.js'
 
-import Modal from 'svelte-simple-modal';
-import Register from './signUp.svelte'
-import SignIn from './signIn.svelte'
-import ForgotPwd from './signInForgotPwd.svelte'
-import PwdReset from './signInPwdReset.svelte'
-import About from './About.svelte'
-import Home from './home.svelte'
-import ConfirmFields from './confirmCSVFields.svelte'
-import ConfirmData from './confirmCSVData.svelte'
-import RegisterDataset from './registerDataset.svelte'
-import PackAndLoad from './packAndLoad.svelte'
-import WellDone from './welldone.svelte'
+	import Modal from 'svelte-simple-modal';
+	import Register from './signUp.svelte'
+	import SignIn from './signIn.svelte'
+	import ForgotPwd from './signInForgotPwd.svelte'
+	import PwdReset from './signInPwdReset.svelte'
+	import About from './About.svelte'
+	import Home from './home.svelte'
+	import ConfirmFields from './confirmCSVFields.svelte'
+	import ConfirmData from './confirmCSVData.svelte'
+	import RegisterDataset from './registerDataset.svelte'
+	import PackAndLoad from './packAndLoad.svelte'
+	import WellDone from './welldone.svelte'
 
-import DatasetList from './datasetsListPage.svelte'
-import DatasetDetail from './admin/datasetDetail.svelte'
+	import DatasetList from './datasetsListPage.svelte'
+	import DatasetsList from './admin/datasetsList.svelte'
+	import DatasetDetail from './admin/datasetDetail.svelte'
 
-import Georeferencer from './georef/georef.svelte'
+	import Georeferencer from './georef/georef.svelte'
 
-import QualityControl from './admin/qualityControl.svelte'
+	import QualityControl from './admin/qualityControl.svelte'
 
-import GeorefStats from './georefStats.svelte'
+	import OverallStats from './stats/overallStats.svelte'
+	import DatasetStats from './stats/datasetStats.svelte'
 
-import { Circle } from 'svelte-loading-spinners'
+	import { Circle } from 'svelte-loading-spinners'
 
-//just for now
-let profile
-let fbUser //the firebase user object
-let userID
-let firstAuth = false
+	//just for now
+	let profile
+	let fbUser //the firebase user object
+	let userID
+	let firstAuth = false
 
-//the stats we want to show
-let statsRefStrings
+	//the stats we want to show
+	let statsRefStrings
 
-$: if(userID) statsRefStrings = [
-	`stats/perUser/${userID}/georefsAdded`,
-  `stats/perUser/${userID}/recordsGeoreferenced`,
-	'stats/georefsAdded',
-	'stats/recordsGeoreferenced',
-	'stats/lastGeorefAdded', 
-	'stats/lastGeorefAddedBy'
-]
+	//for 'page navigation'
+	// do we need a router??????
+	let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'About', 'Home', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeferencer', 'QualityControl' ]
+	let datasetPages = ['DatasetList', 'DatasetDetail']
+	let georeferencePage = 'Georeferencer' //just the one
 
-let statsLabels = [
-	'My georefs', 
-	'My records',
-	'Total georefs',
-	'Total records',
-	'Last georef', 
-	'Last georef by'
-]
+	let currentPage = 'Home'
+	let pwdResetCode
 
-//for 'page navigation'
-// do we need a router??????
-let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'About', 'Home', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeferencer', 'QualityControl' ]
-let datasetPages = ['datsetList', 'datasetDetail']
-let georeferencePage = 'Georeferencer' //just the one
+	//locals
+	let fileForGeoref
+	let requiredFields
+	let datasetSummary
+	let datasetDetails
+	let selectedDataset
+	let invalidCountries
 
-let currentPage = 'Home'
-let pwdResetCode
+	//LIFECYCLE
+	onMount(_ => {
+		//hopefully this is triggered when we open the page again and sign in is persisted
+		Auth.onAuthStateChanged(async user => {
+			//TODO wait to get it from the registration dispatch
+			fbUser = user
+			if(user){
 
-//locals
-let fileForGeoref
-let requiredFields
-let datasetSummary
-let datasetDetails
-let selectedDataset
-let invalidCountries
-
-//LIFECYCLE
-onMount(_ => {
-	//hopefully this is triggered when we open the page again and sign in is persisted
-	Auth.onAuthStateChanged(async user => {
-		//TODO wait to get it from the registration dispatch
-		fbUser = user
-		if(user){
-
-			if(window.location.href.includes('/auth/userMgmt')) {
-				window.location = window.location.href.split('/auth/userMgmt')[0]
-			} 
-			else {
-				//wait one moment for the dispatch to catch up if this is new registration
-				setTimeout( async _ => {
-					if(!profile){
-						try {
-							let fetchURL =`https://us-central1-georef-745b9.cloudfunctions.net/getprofilebyid?uid=${user.uid}`
-							let res = await fetch(fetchURL)
-							let fetchData = await res.json()
-							if (fetchData){
-								profile = fetchData
-								userID = user.uid
-								firstAuth = true
-								if(currentPage != 'workshop') {
-									currentPage = 'Home'// TODO this must go back to previous page the user was on
+				if(window.location.href.includes('/auth/userMgmt')) {
+					window.location = window.location.href.split('/auth/userMgmt')[0]
+				} 
+				else {
+					//wait one moment for the dispatch to catch up if this is new registration
+					setTimeout( async _ => {
+						if(!profile){
+							try {
+								let fetchURL =`https://us-central1-georef-745b9.cloudfunctions.net/getprofilebyid?uid=${user.uid}`
+								let res = await fetch(fetchURL)
+								let fetchData = await res.json()
+								if (fetchData){
+									profile = fetchData
+									userID = user.uid
+									firstAuth = true
+									if(currentPage != 'workshop') {
+										currentPage = 'Home'// TODO this must go back to previous page the user was on
+									}
+								}
+								else {
+									console.log('no profile for this user')
+									//then we assume this is from first sing up, and the profile is not created yet. We'll get it from the dispatch
 								}
 							}
-							else {
-								console.log('no profile for this user')
-								//then we assume this is from first sing up, and the profile is not created yet. We'll get it from the dispatch
+							catch(err) {
+								alert('error fetching user profile: ' + err.message) //hopefully also doesn't happen
 							}
 						}
-						catch(err) {
-							alert('error fetching user profile: ' + err.message) //hopefully also doesn't happen
-						}
-					}
-				}, 100)
+					}, 100)
+				}
 			}
+			else {
+				profile = null
+				userID = null
+				firstAuth = true
+			}
+		})
+
+		//ALL THIS STUFF BELOW MUST BE REWIRED WHEN REAL ROUTING IS ADDED LATER
+
+		//and our one and only real 'route'
+		//remember to set the appropriate rewrite for hosting, see https://firebase.google.com/docs/hosting/full-config#rewrites
+		let currentURL = window.location
+		if(currentURL.href.includes('/auth/userMgmt')) {
+			console.log('got this far')
+			let params = (new URL(window.location)).searchParams;
+			console.log('mode is', params.get('mode'))
+			if(params.get('mode') == 'resetPassword') {
+				pwdResetCode = params.get('oobCode')
+				currentPage = 'ResetPwd'
+			}
+		}
+
+		//if the user reloads
+		if(window.performance){
+			if (performance.navigation.type == performance.navigation.TYPE_RELOAD) { //deprecated but still works and WAY simpler than the new thing...
+				if(window.location.href.includes('/auth/userMgmt')) {
+					window.location = window.location.href.split('/auth/userMgmt')[0]
+				}
+			}
+		}
+	})
+
+	//METHODS
+
+	function handleHomeClick() {
+		if(currentPage == 'Georeferencer') {
+			alert('Please click \'Done\' above the locality group to return')
+		}
+		else if (currentPage == 'Home'){
+			return //do nothing
 		}
 		else {
+			currentPage = "Home"
+		}
+	}
+
+	function handleSignInSuccess(ev){
+		let user = ev.detail.userCredential.user
+		userID = user.uid
+		profile = ev.detail.profile
+	}
+
+	function signOutClick () {
+		Auth.signOut().then(_ => {
 			profile = null
 			userID = null
-			firstAuth = true
-		}
-	})
-
-	//ALL THIS STUFF BELOW MUST BE REWIRED WHEN REAL ROUTING IS ADDED LATER
-
-	//and our one and only real 'route'
-	//remember to set the appropriate rewrite for hosting, see https://firebase.google.com/docs/hosting/full-config#rewrites
-	let currentURL = window.location
-	if(currentURL.href.includes('/auth/userMgmt')) {
-		console.log('got this far')
-		let params = (new URL(window.location)).searchParams;
-		console.log('mode is', params.get('mode'))
-		if(params.get('mode') == 'resetPassword') {
-			pwdResetCode = params.get('oobCode')
-			currentPage = 'ResetPwd'
-		}
-	}
-
-	//if the user reloads
-	if(window.performance){
-		if (performance.navigation.type == performance.navigation.TYPE_RELOAD) { //deprecated but still works and WAY simpler than the new thing...
-			if(window.location.href.includes('/auth/userMgmt')) {
-				window.location = window.location.href.split('/auth/userMgmt')[0]
-			}
-		}
-	}
-})
-
-//METHODS
-
-function handleHomeClick() {
-	if(currentPage == 'Georeferencer') {
-		alert('Please click \'Done\' above the locality group to return')
-	}
-	else if (currentPage == 'Home'){
-		return //do nothing
-	}
-	else {
-		currentPage = "Home"
-	}
-}
-
-function handleSignInSuccess(ev){
-	let user = ev.detail.userCredential.user
-	userID = user.uid
-	profile = ev.detail.profile
-}
-
-function signOutClick () {
-	Auth.signOut().then(_ => {
-		profile = null
-		userID = null
-		currentPage = 'Home'
-	})
-	.catch(err => {
-		alert('error signing out: ' + err.message)
-	}) 
-}
-
-function handleFileSelected(event){
-	fileForGeoref = event.detail.file
-	console.log('we got file', fileForGeoref.name)
-	currentPage = 'ConfirmFields'
-}
-
-function handleFieldsConfirmed(event){
-	requiredFields = event.detail
-	currentPage = 'ConfirmData'
-}
-
-function handleConfirmCanceled() {
-	fileForGeoref = requiredFields = null
-	currentPage = 'Home'
-}
-
-function handleFileContentsConfirmed(ev) {
-		datasetSummary = ev.detail
-		currentPage = 'RegisterDataset'
-}
-
-function handleRegisterDataset(ev) {
-	datasetDetails = ev.detail.datasetDetails
-	invalidCountries = ev.detail.invalidCountries
-	datasetDetails.recordIDField = requiredFields.recordIDField //very important!!
-	datasetDetails.localityField = requiredFields.localityField
-	currentPage = 'UploadData'
-}
-
-function handleUploadComplete(ev){
-	currentPage = 'WellDone'
-}
-
-function handleToDatasets(){
-	currentPage = 'datasetList'
-}
-
-function handleDatasetSelected(ev){
-	selectedDataset = ev.detail
-	currentPage = 'datasetDetail'
-}
-
-function handleToDatasetDetail() {
-	currentPage = 'datasetDetail'
-}
-
-function handleStartGeoreferencing(){
-	currentPage = 'Georeferencer'
-}
-
-function handleBackToDatasets() {
-	selectedDataset = null
-	currentPage = 'datasetList'
-}
-
-//just for debugging
-const testAuth = _ => {
-	if (fbUser) {
-		fbUser.getIdToken(true).then(token => {
-			console.log('id token is', token)
-			fetch('https://us-central1-georef-745b9.cloudfunctions.net/hello', {
-				headers: {
-					Authorization: token
-				}
-			}).then(res => {
-				if (res.ok){
-					res.json().then(data => {
-						console.log(data)
-						alert('Success!! See console for response data')
-					})
-				}
-				else {
-					alert('unsuccessfull with body: ' + res.body)
-				}
-			}).catch(err => {
-				alert('fetch failed with message: ' + err.message)
-			})
+			currentPage = 'Home'
 		})
+		.catch(err => {
+			alert('error signing out: ' + err.message)
+		}) 
 	}
-	else {
-		alert('there is no user yet')
+
+	function handleFileSelected(event){
+		fileForGeoref = event.detail.file
+		console.log('we got file', fileForGeoref.name)
+		currentPage = 'ConfirmFields'
 	}
-}
+
+	function handleFieldsConfirmed(event){
+		requiredFields = event.detail
+		currentPage = 'ConfirmData'
+	}
+
+	function handleConfirmCanceled() {
+		fileForGeoref = requiredFields = null
+		currentPage = 'Home'
+	}
+
+	function handleFileContentsConfirmed(ev) {
+			datasetSummary = ev.detail
+			currentPage = 'RegisterDataset'
+	}
+
+	function handleRegisterDataset(ev) {
+		datasetDetails = ev.detail.datasetDetails
+		invalidCountries = ev.detail.invalidCountries
+		datasetDetails.recordIDField = requiredFields.recordIDField //very important!!
+		datasetDetails.localityField = requiredFields.localityField
+		currentPage = 'UploadData'
+	}
+
+	function handleUploadComplete(ev){
+		currentPage = 'WellDone'
+	}
+
+	function handleToDatasets(){
+		currentPage = 'DatasetList'
+	}
+
+	function handleDatasetSelected(ev){
+		selectedDataset = ev.detail
+		currentPage = 'DatasetDetail'
+	}
+
+	function handleToDatasetDetail() {
+		currentPage = 'DatasetDetail'
+	}
+
+	function handleStartGeoreferencing(){
+		currentPage = 'Georeferencer'
+	}
+
+	function handleBackToDatasets() {
+		selectedDataset = null
+		currentPage = 'DatasetList'
+	}
+
+	//just for debugging
+	const testAuth = _ => {
+		if (fbUser) {
+			fbUser.getIdToken(true).then(token => {
+				console.log('id token is', token)
+				fetch('https://us-central1-georef-745b9.cloudfunctions.net/hello', {
+					headers: {
+						Authorization: token
+					}
+				}).then(res => {
+					if (res.ok){
+						res.json().then(data => {
+							console.log(data)
+							alert('Success!! See console for response data')
+						})
+					}
+					else {
+						alert('unsuccessfull with body: ' + res.body)
+					}
+				}).catch(err => {
+					alert('fetch failed with message: ' + err.message)
+				})
+			})
+		}
+		else {
+			alert('there is no user yet')
+		}
+	}
 
 </script>
 
@@ -287,14 +271,15 @@ const testAuth = _ => {
 						{/if}	
 					{/if}
 				</div>
-				
 			</div>
-			{#if userID && currentPage != 'Georeferencer'}
-					<GeorefStats {Firebase} {statsRefStrings}  {statsLabels} descriptor={'Georef stats:'}/>
+			{#if profile}
+				{#if selectedDataset && ['Georeferencer', 'DatasetDetail'].includes(currentPage)}
+					<DatasetStats {profile} dataset={selectedDataset} />
+				{:else if ['Home', 'DatasetsList'].includes(currentPage)}
+					<OverallStats {profile} />
+				{/if}
 			{/if}
-			<button style="display:none" on:click={testAuth}>Click to test auth api call</button>
-			<div class="content">
-				
+			<div class="content-container">
 				{#if currentPage == 'Register'}
 					<Register {Firestore} {Auth} on:user-sign-in={handleSignInSuccess} />	
 				{/if}
@@ -341,20 +326,19 @@ const testAuth = _ => {
 				{#if currentPage == 'WellDone'}
 					<WellDone />
 				{/if}
-				{#if currentPage == 'datasetList'}
-					<DatasetList {profile} on:dataset-selected={handleDatasetSelected}/>
+				{#if currentPage == 'DatasetList'}
+					<DatasetsList {profile} on:dataset-selected={handleDatasetSelected}/>
 				{/if}
-				{#if currentPage == 'datasetDetail'}
+				{#if currentPage == 'DatasetDetail'}
 					<DatasetDetail {profile} dataset={selectedDataset} on:to-datasets={handleToDatasets} on:start-georeferencing={handleStartGeoreferencing} on:quality-control={_ => currentPage = 'QualityControl'}/>
 				{/if}
 				{#if currentPage == 'Georeferencer'}
-					<Georeferencer {Firestore} {Firebase} {FieldValue} {profile} dataset={selectedDataset} on:back-to-datasets='{_=> currentPage = 'datasetList'}'/>
+					<Georeferencer {Firestore} {Firebase} {FieldValue} {profile} dataset={selectedDataset} on:back-to-datasets='{_=> currentPage = 'DatasetList'}'/>
 				{/if}
 				{#if currentPage == "QualityControl"}
 					<QualityControl {profile} dataset={selectedDataset} on:to-datasets={handleBackToDatasets}/>
 				{/if}
 			</div>
-			<div class="stopper"></div>
 		</div>
 	</Modal>
 </main>
@@ -404,16 +388,9 @@ const testAuth = _ => {
 		font-weight:bold;
 	}
 
-	.content {
-		flex: 1 1 auto;
+	.content-container {
+		flex: 1;
 		overflow:hidden;
-	}
-
-/* This bugger is needed to stop the overflow!!!!*/
-	.stopper {
-		position: absolute;
-		height:0;
-		bottom:0;
 	}
 
 	button {

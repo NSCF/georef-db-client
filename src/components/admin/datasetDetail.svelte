@@ -1003,7 +1003,7 @@ h2 {
 .container {
   height:100%;
   width:50%;
-  min-width: 500px;
+  min-width: 1000px;
   margin: auto;
 }
   

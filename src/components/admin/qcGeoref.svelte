@@ -22,9 +22,9 @@
   let datasetGeorefsIDs = []
 
   let currentGeoref
-  let subGeoref
+  let currentGeorefMapVals //for storing change history
   let prevGeoref = null //for checking if the georef object has changed or now
-  let previousCoords = [] //just so we hand handle accidental pin moves
+  let history = [] //just so we hand handle accidental pin moves
 
   let changesMade = false
 
@@ -32,17 +32,17 @@
     elasticindex = (dataset.region + dataset.domain).toLowerCase().replace(/\s+/g, '')
   }
 
-  //set the subgeoref when we get a new currentGeoref
-  //also reset the prevCoords array
+  
+  //when current georef changes...
   $: if(currentGeoref) {
     if(currentGeoref != prevGeoref) {
+      history = []
       prevGeoref = currentGeoref
-      subGeoref = {
-        decimalCoordinates: currentGeoref.decimalCoordinates,
-        uncertainty: currentGeoref.uncertainty,
-        uncertaintyUnit: currentGeoref.uncertaintyUnit
-      }
-      previousCoords = []
+    }
+    currentGeorefMapVals = {
+      decimalCoordinates: currentGeoref.decimalCoordinates,
+      uncertainty: currentGeoref.uncertainty,
+      uncertaintyUnit: currentGeoref.uncertaintyUnit
     }
   }
 
@@ -167,44 +167,66 @@
   //for undoing coordinate changes on the georef being verified
   const handleKeyUp = ev => {
     if (ev.code == 'KeyZ' && (ev.ctrlKey || ev.metaKey)) {
-      if(previousCoords.length) {
-        currentGeoref.decimalCoordinates = previousCoords.pop()
+      if(history.length) {
+        currentGeoref.decimalCoordinates = history.pop()
       }
     }
   }
 
-  const handleNewCoordsFromMap = ev => {
-    let newCoords = ev.detail
-    if(newCoords) {
-      previousCoords.push(currentGeoref.decimalCoordinates)
-      currentGeoref.decimalCoordinates = ev.detail
-    }
+  const handleNewCoordsFromMap = _ => {
+    history.push(currentGeorefMapVals)
+    currentGeoref = currentGeoref
   }
 
-  const handleNewCoordsFromGeoref = ev => {
-    let newCoords = ev.detail
-    if(newCoords) {
-      previousCoords.push(currentGeoref.decimalCoordinates)
-      subGeoref.decimalCoordinates = newCoords //To tell the map to move it's marker
-    }
+  const handleNewCoordsFromGeoref = _ => {
+    history.push(currentGeorefMapVals)
+    currentGeoref = currentGeoref //svelte, to update the map
   }
 
   const handleUncertaintyChanged = ev => {
-    //currentGeoref.uncertainty = ev.detail.uncertainty
-    //currentGeoref.uncertaintyUnit = ev.detail.uncertaintyUnit
-    subGeoref = Object.assign(subGeoref, ev.detail) //NB this gives us the original object, not a new one!
+    history.push(currentGeorefMapVals)
+    currentGeoref = currentGeoref //svelte, to update the map
   }
 
-  //this is just an instruction to save, and it should always do so because we now have verification
+  //save the verified georef
+  //update firebase
+  //if remarks save the map and feedback for the georeferencer
   const handleSetGeoref = async ev => {
+
+    //lets get the next one to work on (because of some async stuff below)...
+    currentGeoref = null
+    setTimeout(async _ => {
+      if(georefQueue.length){
+        currentGeoref = georefQueue.shift() 
+      }
+      
+      await getGeorefsToVerify()
+
+      //handle the case where we have nothing left
+      if(noMoreGeorefs) {
+        showNoMoreGeorefs = true
+      }
+    }, 500)
+
+    //handle the updated georef
     let georef = ev.detail.georef
+
+    //TODO this must be queued for feedback to the georeferencer -- still need to work that out 
+    if(georef.verificationRemarks) {
+
+    }
+
     let url = 'https://us-central1-georef-745b9.cloudfunctions.net/updategeoref'
     
     //send it off async and hope for the best, we don't want to slow down!!
+    let res
     try {
-      fetch(url, {
+      let token = await Auth.currentUser.getIdToken(true);
+      
+      res = await fetch(url, {
         method: 'POST',
         headers: {
+          'Authorization': token,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({georef, index: elasticindex}) 
@@ -212,26 +234,19 @@
     }
     catch(err) {
       alert('Oops, something went wrong while trying to save georef with ID ' + georef.georefID + ': ' + err.message)
+      return
     }
     
-    //same for the firebase update
-    try {
-      Firestore.collection('georefRecords').doc(georef.georefID).update({verified: true, locked: false})
-    }
-    catch(err) {
-      alert('Oops, something went wrong with the georef verification update to Firestore for georef with ID ' + georef.georefID + ': ' + err.message)
-    }
-
-    if(georefQueue.length){
-      currentGeoref = georefQueue.shift() 
+    //if successful above
+    if(res.ok) {
+      try {
+        Firestore.collection('georefRecords').doc(georef.georefID).update({verified: true, locked: false})
+      }
+      catch(err) {
+        alert('Oops, something went wrong with the georef verification update to Firestore for georef with ID ' + georef.georefID + ': ' + err.message)
+      }
     }
     
-    await getGeorefsToVerify()
-
-    //handle the case where we have nothing left
-    if(noMoreGeorefs) {
-      showNoMoreGeorefs = true
-    }
   }
 
   const unlockGeorefs = _ => {
@@ -273,7 +288,7 @@
   {:else}
     {#if currentGeoref}
       <div class="map">
-        <VerifyMap {subGeoref} on:new-coords={handleNewCoordsFromMap}/>
+        <VerifyMap {currentGeoref} on:new-coords={handleNewCoordsFromMap}/>
       </div>
       <div class="form">
         <GeorefForm georef={currentGeoref} 

@@ -1,6 +1,7 @@
 export default class Georef {
   constructor() {
     this.georefID = null
+    this.guid = null
     this.country = null
     this.stateProvince = null
     this.locality = null
@@ -23,12 +24,18 @@ export default class Georef {
     this.verifiedDate = null
     this.verifiedByRole = null
     this.verificationRemarks = null
-    this.dateCreated = Date.now()
     this.createdBy = null
-    this.createdByORCID = null
+    this.createdByID = null
+    this.dateCreated = Date.now()
     this.lastEdited = null
     this.lastEditedBy = null
+    this.lastEditdByID = null
     this.lastEditRemarks = null
+    this.region = null
+    this.domain = null
+    this.used = false
+    this.flagged = false
+    this.ambiguous = false
 
     Object.defineProperties(this, {
       protocolObject: {

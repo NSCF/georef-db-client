@@ -13,7 +13,6 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
     }
 
     let fetchResults
-
     try {
       fetchResults = await Promise.all(elasticFetches)
     }
@@ -77,7 +76,7 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
 //just a helper for above
 const fetchGeorefsForLoc = async (locString, index, limit) => {
   let search = encodeURI(locString)
-  let url = `https://us-central1-georef-745b9.cloudfunctions.net/getgeorefs?search=${search}&index=${index}`
+  let url = `https://us-central1-georef-745b9.cloudfunctions.net/getgeorefs?search=${search}&index=${index}&noflags`
   if (limit && !isNaN(limit)){
     url += `&limit=${limit}`
   }

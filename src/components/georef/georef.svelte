@@ -1,6 +1,7 @@
 <script>
   import {onMount, onDestroy, createEventDispatcher} from 'svelte'
   import { nanoid } from "nanoid/nanoid.js" //see https://github.com/ai/nanoid/issues/237
+  import { v4 as uuid } from 'uuid'; //because we need uuid guids as well...
 
   import {
       updateGeorefStats,
@@ -472,8 +473,13 @@
       let saveGeoref = ev.detail.saveGeoref
 
       if(saveGeoref){ //we treat it as a new georef
+        georef.guid = uuid()
         georef.dateCreated = Date.now()
         georef.createdBy = profile.formattedName
+        georef.createdByID = profile.uid
+
+        georef.region = dataset.region
+        georef.domain = dataset.domain
 
         georef.used = true
         newGeorefsUsed.push(georef.georefID)
@@ -577,6 +583,7 @@
       for (let loc of selectedLocs){
         loc.georefID = georef.georefID
         loc.georefBy = profile.formattedName
+        loc.georefByUID = profile.uid
         loc.georefByID = profile.orcid
         loc.georefDate = Date.now()
         loc.georefVerified = false

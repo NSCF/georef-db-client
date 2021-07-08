@@ -4,8 +4,10 @@ import  {createEventDispatcher} from 'svelte'
 
 const dispatch = createEventDispatcher()
 
+export let filterBest
 export let georefKey
 let rowindex = 0
+let showThisRow = true
 
 $: if(georefKey){
   if($dataStore.georefIndex) {
@@ -15,8 +17,11 @@ $: if(georefKey){
   
 }
 
+$: filterBest, hidden()
+
 const qualityColor = _ => {
   let georef = $dataStore.georefIndex[georefKey]
+
   let qualityVars = ['uncertainty', 'datum', 'sources', 'protocol']
 
   let count = 0
@@ -27,6 +32,10 @@ const qualityColor = _ => {
   }
 
   if( count == 4) {
+    if(georef.verified) {
+      return '#0066ff'
+    }
+    //else
     return '#00CC66'
   }
 
@@ -36,6 +45,38 @@ const qualityColor = _ => {
 
   return '#D3D3D3'
 
+}
+
+const hidden = _ => {
+  if ($dataStore.georefIndex && $dataStore.georefIndex[georefKey]) {
+    let georef = $dataStore.georefIndex[georefKey]
+    if(filterBest) {
+
+      let qualityVars = ['uncertainty', 'datum', 'sources', 'protocol']
+      let count = 0
+      for (let qVar of qualityVars){
+        if(Boolean(georef[qVar])) {
+          count++
+        }
+      }
+
+      if( count == 4) {
+        if(georef.verified) {
+          showThisRow = true
+          return
+        }
+        //else
+        showThisRow = true
+        return 
+      }
+
+      //else
+      showThisRow = false
+    }
+    else {
+      showThisRow = true
+    }
+  }
 }
 
 const handleRowClick = _ => {
@@ -50,6 +91,7 @@ const handleRowClick = _ => {
 <tr 
 class:active="{$dataStore.georefIndex && $dataStore.georefIndex[georefKey].selected}" 
 class:oddrow={$dataStore.georefIndex && rowindex % 2 && !$dataStore.georefIndex[georefKey].selected}
+class:hidden={!showThisRow}
 on:click={handleRowClick}>
   {#if $dataStore.georefIndex}
     <td>
@@ -102,6 +144,10 @@ tr:hover {
 
 .oddrow {
   background-color: #E8E8E8
+}
+
+.hidden {
+  display: none;
 }
 
 </style>

@@ -467,9 +467,30 @@
 
   //this is the heavy lifting
   const handleSetGeoref = async ev => {
+    //confirm required fields...
+    let georef = ev.detail.georef
+    let requiredFields = ['decimalCoordinates', 'uncertainty', 'uncertaintyUnit', 'datum', 'by', 'date', 'protocol', 'sources']
+    let missing = []
+    for (let field of requiredFields) {
+      if(!georef[field] || (typeof georef[field] == 'string' && !georef[field].trim())) {
+        missing.push(field)
+      }
+    }
+
+    if(missing.length) {
+      alert("Required fields are missing: " + missing.join(', ') + '\r\nPlease make sure these fields are completed before proceeding')
+      return
+    }
+
+    //double check uncertainty
+    if(isNaN(georef.uncertainty)) {
+      alert('Please check the uncertainty on this georef, there appears to be a problem')
+      return
+    }
+
+    //carry on if we're happy...
     let selectedLocs = $dataStore.recordGroup.groupLocalities.filter(x => x.selected)
     if(selectedLocs.length){ //it has to be
-      let georef = ev.detail.georef
       let saveGeoref = ev.detail.saveGeoref
 
       if(saveGeoref){ //we treat it as a new georef
@@ -949,9 +970,6 @@ h4 {
   height: 100%;
   flex-direction: column;
   box-sizing: border-box;
-}
-.flex-item {
-  flex: 1 1 auto;
 }
 
 .stopper {

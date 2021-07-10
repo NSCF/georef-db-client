@@ -469,24 +469,24 @@
   const handleSetGeoref = async ev => {
     //confirm required fields...
     let georef = ev.detail.georef
-    let requiredFields = ['decimalCoordinates', 'uncertainty', 'uncertaintyUnit', 'datum', 'by', 'date', 'protocol', 'sources']
-    let missing = []
-    for (let field of requiredFields) {
-      if(!georef[field] || (typeof georef[field] == 'string' && !georef[field].trim())) {
-        missing.push(field)
+
+    //validate, but only for real georefs
+    if(!georef.ambiguous) {
+      let requiredFields = ['decimalCoordinates', 'uncertainty', 'uncertaintyUnit', 'datum', 'by', 'date', 'protocol', 'sources']
+      let missing = []
+      for (let field of requiredFields) {
+        if(!georef[field] || (typeof georef[field] == 'string' && !georef[field].trim())) {
+          missing.push(field)
+        }
+      }
+
+      //only for non-ambiguous georefs
+      if(missing.length ) {
+        alert("Required fields are missing: " + missing.join(', ') + '\r\nPlease make sure these fields are completed before proceeding')
+        return
       }
     }
-
-    if(missing.length) {
-      alert("Required fields are missing: " + missing.join(', ') + '\r\nPlease make sure these fields are completed before proceeding')
-      return
-    }
-
-    //double check uncertainty
-    if(isNaN(georef.uncertainty)) {
-      alert('Please check the uncertainty on this georef, there appears to be a problem')
-      return
-    }
+    
 
     //carry on if we're happy...
     let selectedLocs = $dataStore.recordGroup.groupLocalities.filter(x => x.selected)

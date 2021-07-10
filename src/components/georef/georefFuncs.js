@@ -29,26 +29,52 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
     let georefIndex = {} //it will be a and object of georefID: georefobject pairs
     
     if(fetchResults.length){
-      for (let [index, elasticGeorefs] of fetchResults.entries()){
+      for (let elasticGeorefs of fetchResults){
         if(elasticGeorefs.length){
           for (let elasticGeoref of elasticGeorefs){
             
             let georef = Object.assign(new Georef, elasticGeoref._source)
-            if(georef.selected) { //just in case any of these sneak through
-              georef.selected = false
-            }
-
-            if(!georef.decimalCoordinatesOkay){
-              //console.log('error with coordinates for georef', elasticGeoref._id)
-              continue
-            }
-
-            if (georef.flagged) { //we don't want to see flagged georefs
-              continue;
-            }
-
             if(!georefIndex[georef.georefID]){
+              if(georef.selected) { //just in case any of these sneak through
+                georef.selected = false
+              }
+
+              if(!georef.decimalCoordinatesOkay){
+                //console.log('error with coordinates for georef', elasticGeoref._id)
+                continue
+              }
+
+              if (georef.flagged) { //we don't want to see flagged georefs
+                continue;
+              }
+
+              //fix uncertainty because it seems it's sometimes a string...
+              //double check uncertainty, it seems to be causing issues with some georefs...
+              if(georef.uncertaintyUnit && georef.uncertaintyUnit.trim()) {
+                if(!georef.uncertainty || isNaN(georef.uncertainty)) {
+                  georef.uncertainty = null
+                  georef.uncertaintyUnit = null
+                }
+                else { 
+                  if(typeof georef.uncertainty == 'string') {
+                    let val = Number(georef.uncertainty)
+                    if(!isNaN(val) && val && val > 0) {
+                      georef.uncertainty = val
+                    }
+                    else {
+                      georef.uncertainty = null
+                      georef.uncertaintyUnit = null
+                    }
+                  }
+                }
+              }
+              else {
+                georef.uncertainty = null
+                georef.uncertaintyUnit = null
+              }
+              
               georefIndex[georef.georefID] = georef
+              
             }  
           }
         } 

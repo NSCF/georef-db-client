@@ -275,7 +275,7 @@
 			{#if profile}
 				{#if selectedDataset && ['Georeferencer', 'DatasetDetail'].includes(currentPage)}
 					<DatasetStats {profile} dataset={selectedDataset} />
-				{:else if ['Home', 'DatasetsList'].includes(currentPage)}
+				{:else if ['Home', 'DatasetList'].includes(currentPage)}
 					<OverallStats {profile} />
 				{/if}
 			{/if}

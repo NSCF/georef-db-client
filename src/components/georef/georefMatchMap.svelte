@@ -102,13 +102,15 @@ const setPoints = _ => {
     if(currentGeorefs == $dataStore.georefIndex) { //something has changed but we only want to respond if a georef has been added or removed
       //check if any georefs have been added
       for (let [georefID, georef] of Object.entries($dataStore.georefIndex)){
-        if(!$dataStore.markers.hasOwnProperty(georefID)){
-          //add it to the map
-          let marker = createMarker(georef, map, circlesOn)
-          if(!$dataStore.markers){
-            $dataStore.markers = {}
+        if(!georef.ambiguous) { //we don't plot ambiguous georefs
+          if(!$dataStore.markers.hasOwnProperty(georefID)){
+            //add it to the map
+            let marker = createMarker(georef, map, circlesOn)
+            if(!$dataStore.markers){
+              $dataStore.markers = {}
+            }
+            $dataStore.markers[georefID] = marker
           }
-          $dataStore.markers[georefID] = marker
         }
       }
 
@@ -129,10 +131,11 @@ const setPoints = _ => {
 
     //set bounds and add marker
     let bounds = new google.maps.LatLngBounds()
-    for (let georefID of Object.keys($dataStore.georefIndex)){
-      let georef = $dataStore.georefIndex[georefID]
-      let coords = new google.maps.LatLng(georef.decimalLatitude, georef.decimalLongitude);
-      bounds.extend(coords);
+    for (let georef of Object.values($dataStore.georefIndex)){
+      if(!georef.ambiguous) {
+        let coords = new google.maps.LatLng(georef.decimalLatitude, georef.decimalLongitude);
+        bounds.extend(coords);
+      }
     }
     
     map.fitBounds(bounds)
@@ -186,7 +189,10 @@ const setPoints = _ => {
     circlesOn = true //just to make sure
 
     for (let [georefID, georef] of Object.entries($dataStore.georefIndex)) {
-      
+      if(georef.ambiguous) {
+        continue
+      }
+
       let marker
       try {
         marker = createMarker(georef, map, circlesOn)

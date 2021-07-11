@@ -1,9 +1,8 @@
 <script>
   import {onMount, onDestroy, createEventDispatcher} from 'svelte'
   import { nanoid } from "nanoid/nanoid.js" //see https://github.com/ai/nanoid/issues/237
-  import { v4 as uuid } from 'uuid'; //because we need uuid guids as well...
 
-  import { Firestore, Realtime as Firebase, Auth, FieldValue } from '../../firebase.js'
+  import { Firestore, Realtime as Firebase, FieldValue } from '../../firebase.js'
 
   import {
       updateGeorefStats,
@@ -15,13 +14,14 @@
 
   import { dataStore } from './dataStore.js'
 
-  import GeorefStats from '../stats/georefStats.svelte'
   import RecordGroup from './georefRecordGroup.svelte'
   import MatchList from './georefMatchList.svelte'
   import MatchMap from './georefMatchMap.svelte'
   import GeorefForm from './georefForm.svelte'
   import CustomSearch from './customSearch.svelte'
   import Toast from '../toast.svelte'
+
+  import Georef from './Georef'
 
   export let dataset
 
@@ -37,7 +37,7 @@
   let dispatch = createEventDispatcher()
 
   //the georef prop to send to the form
-  //can be a georef object, null or a blank object. Null and blank object can be used to reset the georef form
+  //can be a georef object or null. Null and blank object can be used to reset the georef form
   let selectedGeoref
 
   let connected = true //we assume this, but it could cause an issue
@@ -45,7 +45,6 @@
   let savingRecordGroup = false
 
   let elasticindex
-  let ambiguous //for the ambiguous georef
   let newGeorefsUsed = [] //for storing georefIDs of georefs not used before, this allows undo of setting them to used when resetting a record group
   let datasetGeorefsUsed = []
 
@@ -125,24 +124,6 @@
         connected = false
       }
     });
-
-    //get the ambiguous record async
-    fetch(`https://us-central1-georef-745b9.cloudfunctions.net/getambiguous?index=${elasticindex}`)
-    .then(res => res.json())
-    .then(data => {
-      if(data._source) {
-        ambiguous = data._source //just an object with an ID, not a Georef instance...
-      }
-      else {
-        ambiguous = data
-      } 
-      ambiguous.remarks = null //because we now use this for no georef
-    })
-    .catch(err => {
-      console.log('err getting ambiguous georef:')
-      console.log(err)
-    })
-
   })
 
   onDestroy(async _ => {
@@ -159,8 +140,9 @@
       $dataStore.locGeorefIndex = null
 
       if(selectedGeoref) {
-        selectedGeoref.selected = false
+        let hold = selectedGeoref
         selectedGeoref = null
+        hold.selected = false
       }
       
       newGeorefsUsed = [] //start over
@@ -256,8 +238,9 @@
         $dataStore.candidateGeorefs = null
 
         if(selectedGeoref) {
-          selectedGeoref.selected = false
+          let hold = selectedGeoref
           selectedGeoref = null
+          hold.selected = false
         }
 
         datasetComplete = true
@@ -314,31 +297,31 @@
         savingRecordGroup = false
       }
       
+      //update georefRecords
+      //we can't use withGeorefs because there may have been some already done when we got the group
       if(georefsAdded || recordsGeoreferenced) {
         let proms = []
 
         let recordsPerGeoref = {}
-        for(let gl of $dataStore.recordGroup.groupLocalities){
-          if(gl.georefID){ //it was georeferenced
-            if(recordsPerGeoref[gl.georefID]){
-              recordsPerGeoref[gl.georefID] = [...recordsPerGeoref[gl.georefID], ...gl.recordIDs]
+        for(let groupLoc of $dataStore.recordGroup.groupLocalities){
+          if(groupLoc.georefID){ //it was georeferenced
+            if(recordsPerGeoref[groupLoc.georefID]){
+              recordsPerGeoref[groupLoc.georefID] = [...recordsPerGeoref[groupLoc.georefID], ...groupLoc.recordIDs]
             }
             else {
-              recordsPerGeoref[gl.georefID] = gl.recordIDs
+              recordsPerGeoref[groupLoc.georefID] = groupLoc.recordIDs
             }
           }
         }
 
         for(let [georefID, recordIDs] of Object.entries(recordsPerGeoref)){
-          let ref = Firestore.collection('georefRecords').doc(georefID)
           let georef = $dataStore.georefIndex[georefID]
           if(!georef){
-            console.log('error getting georef with id', georefID)
+            console.error('georef with', georefID, 'is missing')
           }
           else {
-            proms.push(updateGeorefRecords(Firestore, FieldValue, ref, georef, dataset.datasetID, recordIDs))
+            proms.push(updateGeorefRecords(Firestore, FieldValue, georef, dataset.datasetID, recordIDs))
           }
-          
         }
 
         proms.push(updateGeorefStats(Firebase, georefsAdded, recordsGeoreferenced, profile.uid, profile.formattedName, dataset.datasetID, groupComplete))
@@ -355,6 +338,7 @@
       }
       savingRecordGroup = false
     }
+    return
   }
 
   const handleSkipRecordGroup = async _ => {
@@ -425,8 +409,8 @@
     if(ev && ev.detail){
       let georefID = ev.detail
       
+      $dataStore.georefIndex[georefID].selected = true
       selectedGeoref = $dataStore.georefIndex[georefID]
-      selectedGeoref.selected = true
 
       let selectedMarker = $dataStore.markers[georefID]
       if(selectedMarker) {
@@ -467,15 +451,16 @@
     $dataStore.selectedGeorefID = null
 
     if(selectedGeoref) {
-      selectedGeoref.selected = false
+      let hold = selectedGeoref
       selectedGeoref = null
+      hold.selected = false
     }
   }
 
   //this is the heavy lifting
   const handleSetGeoref = async ev => {
     //confirm required fields...
-    let georef = ev.detail.georef
+    let georef = ev.detail
 
     //validate, but only for real georefs
     if(!georef.ambiguous) {
@@ -494,116 +479,23 @@
       }
     }
     
-
     //carry on if we're happy...
     let selectedLocs = $dataStore.recordGroup.groupLocalities.filter(x => x.selected)
     if(selectedLocs.length){ //it has to be
-      let saveGeoref = ev.detail.saveGeoref
+      let saveGeoref = true
+      if(selectedGeoref && selectedGeoref.georefID == georef.georefID) {
+        saveGeoref = false 
+      } 
 
       if(saveGeoref){ //we treat it as a new georef
-        georef.guid = uuid()
-        georef.dateCreated = Date.now()
-        georef.createdBy = profile.formattedName
-        georef.createdByID = profile.uid
-
-        georef.region = dataset.region
-        georef.domain = dataset.domain
-
+        
         georef.used = true
-        newGeorefsUsed.push(georef.georefID)
-
-        if(!georef.originalGeorefSource || !georef.originalGeorefSource.trim()) {
-          georef.originalGeorefSource = 'NSCF georeference database'
-        }
-        
-        //save it to elastic via our API
-        //this is async so we don't slow down
-        let url = 'https://us-central1-georef-745b9.cloudfunctions.net/addgeoref'
-        let token = await Auth.currentUser.getIdToken(true);
-        fetch(url, {
-          method: 'POST', 
-          headers: {
-            'Authorization': token,
-            'Content-Type': 'application/json'
-          },
-          body: (JSON.stringify({georef, index: elasticindex}))
-        }).then(res => {
-          if(res.status != 200) {
-            res.json().then(body => {
-              if(body.validation) {
-                georef.validationErrors = body.validation
-                console.log(georef)
-                try {
-                  Firestore.collection('saveGeorefErrors').doc(georef.georefID).set(georef) //async
-                }
-                catch(err) {
-                  alert('Failed to store failed georef on Firebase:', err.message)
-                }
-                
-                let message = 'There was an error saving a new georeference.\r\n\r\n'
-                message += 'There were validation errors with these fields:' + body.validation + '\r\n\r\n'
-                message += 'Please alert the NSCF on data@nscf.org.za'
-                alert(message)
-              }
-              else {
-                georef.saveErrors = body
-                console.log(georef)
-                try {
-                  Firestore.collection('saveGeorefErrors').doc(georef.georefID).set(georef) //async
-                }
-                catch(err) {
-                  alert('Failed to store failed georef on Firebase:', err.message)
-                }
-                
-                let message = 'There was an error saving a new georeference.\r\n\r\n'
-                message += 'There were validation errors with these fields:' + body + '\r\n\r\n'
-                message += 'Please alert the NSCF on data@nscf.org.za'
-                alert(message)
-              }
-            })
-          }
-          else {
-            if(window.pushToast) {
-              window.pushToast('new georef saved')
-            } 
-          }
-        })
-        .catch(err => {
-          georef.saveError = err.message
-          console.log(georef)
-          try {
-            Firestore.collection('saveGeorefErrors').doc(georef.georefID).set(georef) //async
-          }
-          catch(err) {
-            alert('Failed to store failed georef on Firebase:', err.message)
-          }
-        })
-        
-        //also update firebase for verification later
-        //we only need to verify a georef the first time it is created
-        Firestore.collection('georefVerification').doc(georef.georefID).set({
-          georefID: georef.georefID, //needed for querying
-          locked: false, 
-          verified: false
-        }).catch(err => {
-          //do nothing, we don't want to slow down
-        })
-        
-        $dataStore.georefIndex[georef.georefID] = georef // so we can use it again
-        if(georefIndexOnHold){
-          georefIndexOnHold[georef.georefID] = georef
-        }
-        $dataStore.georefIndex = $dataStore.georefIndex //svelte
-
-        //we fake it
-        let ev = {
-          detail: georef.georefID
-        }
-
-        handleGeorefSelected(ev)
+        let saveGeoref = georef.persist(profile, dataset, elasticindex, false) //its a promise, we don't want to slow down here
+        $dataStore.georefIndex = {...$dataStore.georefIndex, [georef.georefID]: georef} //svelte
 
       }
 
+      //this is if we haven't used this georef before
       if(!georef.used) {
         // fire off the update request to the API
         georef.used = true
@@ -614,20 +506,27 @@
 
       datasetGeorefsUsed.push(georef.georefID)
       
+      //update each locality with the georef details
       for (let loc of selectedLocs){
         loc.georefID = georef.georefID
         loc.georefBy = profile.formattedName
         loc.georefByUID = profile.uid
-        loc.georefByID = profile.orcid
+        loc.georefByID = profile.orcid || null
         loc.georefDate = Date.now()
+        if(selectedLocGeorefRemarks) {
+          loc.georefRemarks = selectedLocGeorefRemarks
+        }
+        else {
+          loc.georefRemarks = null
+        }
+
+        //add the verification fields
         loc.georefVerified = false
         loc.georefVerifiedBy = null
         loc.georefVerifiedDate = null
         loc.georefVerifiedByRole = null
-        loc.georefRemarks = null
-        if(selectedLocGeorefRemarks) {
-          loc.georefRemarks = selectedLocGeorefRemarks
-        }
+        loc.georefVerifiedRemarks = null
+
         if(loc.recordIDs && loc.recordIDs.length) { //this really should never be necessary
           recordsGeoreferenced += loc.recordIDs.length
         }
@@ -642,10 +541,10 @@
       } 
       
       //we need to clear the georef
-      //remember it is cleared by the form itself if it needs to be saved
-      if(selectedGeoref && !saveGeoref) {
-        selectedGeoref.selected = false
+      if(selectedGeoref) {
+        let hold = selectedGeoref
         selectedGeoref = null
+        hold.selected = false
       }
 
       georefsAdded += selectedLocs.length
@@ -676,8 +575,9 @@
     $dataStore.recordGroupSnap = null
     $dataStore.recordGroup = null
     if(selectedGeoref){
-      selectedGeoref.selected = false
+      let temp = selectedGeoref
       selectedGeoref = null
+      temp.selected = false
     }
     
     $dataStore.georefIndex = null
@@ -841,17 +741,30 @@
     }
   }
 
+  //we want to push these to the database so that we can use them again in future
   const handleNoGeoref = _ => {
     let selectedLocs = $dataStore.recordGroup.groupLocalities.filter(x => x.selected)
     if(selectedLocs.length){
       //piggy backing on setGeoref
       if(selectedLocGeorefRemarks && selectedLocGeorefRemarks.trim()){
+
+        let georef = new Georef()
+        georef.locality = selectedLocs[0].loc //we use the first
+        georef.ambiguous = true
+        georef.by = profile.formattedName
+        georef.byORCID = profile.orcid || null
+
+        let now = new Date()
+        georef.date = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
+        georef.originalGeorefSource = 'NSCF georeference database'
+        
+        //TODO get user input for the protocol
+        georef.protocol = null
+        georef.remarks = selectedLocGeorefRemarks
+
         let fakeEv = {
-          detail : {
-              georef: ambiguous,
-              saveGeoref: false
-            }
-          }
+          detail : georef
+        }
         handleSetGeoref(fakeEv)
       }
       else {

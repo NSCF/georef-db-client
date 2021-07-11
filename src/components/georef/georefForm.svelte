@@ -1,15 +1,10 @@
 <script>
-import { nanoid } from "nanoid/nanoid.js" //see https://github.com/ai/nanoid/issues/237
-
 import Select from 'svelte-select'
 import LocalityInput from './localityInput.svelte'
 import DecimalCoordsInput from './decimalCoordsInput.svelte'
 import VerbatimCoordsInput from './verbatimCoordsInput.svelte'
 import DateInput from './dateInput.svelte'
 import Georef from './Georef.js'
-import Toast from '../toast.svelte'
-
-import { georefsEqual } from './georefFormFuncs.js'
 
 import {createEventDispatcher} from 'svelte'
 let dispatch = createEventDispatcher();
@@ -67,14 +62,14 @@ let metaEditable
 let validationVars = ['localityhasError', 'coordsHasError', 'uncertaintyHasError', 'uncertaintyUnitHasError', 'datumHasError', 'georefByHasError', 'georefDateHasError', 'protocolHasError', 'sourcesHasError', 'verifiedByHasError', 'verifiedDateHasError', 'verifierRoleHasError'] //must match below
 $: hasLocalityAndCoords = editable && Boolean(localGeoref.locality && localGeoref.locality.trim() && localGeoref.decimalCoordinates)
 $: localityhasError = editable && Boolean(localGeoref.decimalCoordinates && (!localGeoref.locality || !localGeoref.locality.trim()))
-$: coordsHasError = editable && Boolean(localGeoref.locality && localGeoref.locality.trim() && (!localGeoref.decimalCoordinates || !localGeoref.decimalCoordinatesOkay || localGeoref.decimalCoordinatesWarning))
-$: uncertaintyHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('uncertainty') && !localGeoref.uncertainty)
-$: uncertaintyUnitHasError = editable && Boolean(localGeoref.uncertainty && !localGeoref.uncertaintyUnit)
-$: datumHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('datum') && (!localGeoref.datum || !localGeoref.datum.trim()))
-$: georefByHasError =  editable && Boolean(hasLocalityAndCoords && requiredFields.includes('by') && (!localGeoref.by || !localGeoref.by.trim()))
-$: georefDateHasError = editable && Boolean(hasLocalityAndCoords && (localGeoref.by && localGeoref.by.trim() || requiredFields.includes('date')) && (!localGeoref.date || !localGeoref.date.trim())) //see the component for more validation
-$: protocolHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('protocol') && (!localGeoref.protocolObject || !localGeoref.protocolObject.value))
-$: sourcesHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('sources') && (!localGeoref.sourcesArray || !localGeoref.sourcesArray.length))
+$: coordsHasError = editable && Boolean(localGeoref.locality && localGeoref.locality.trim() && (!localGeoref.decimalCoordinates || !localGeoref.decimalCoordinatesOkay || localGeoref.decimalCoordinatesWarning) && !localGeoref.ambiguous)
+$: uncertaintyHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('uncertainty') && !localGeoref.uncertainty && !localGeoref.ambiguous)
+$: uncertaintyUnitHasError = editable && Boolean(localGeoref.uncertainty && !localGeoref.uncertaintyUnit && !localGeoref.ambiguous)
+$: datumHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('datum') && (!localGeoref.datum || !localGeoref.datum.trim()) && !localGeoref.ambiguous)
+$: georefByHasError =  editable && Boolean(hasLocalityAndCoords && requiredFields.includes('by') && (!localGeoref.by || !localGeoref.by.trim()) && !localGeoref.ambiguous)
+$: georefDateHasError = editable && Boolean(hasLocalityAndCoords && (localGeoref.by && localGeoref.by.trim() || requiredFields.includes('date')) && (!localGeoref.date || !localGeoref.date.trim()) && !localGeoref.ambiguous) //see the component for more validation
+$: protocolHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('protocol') && (!localGeoref.protocolObject || !localGeoref.protocolObject.value) && !localGeoref.ambiguous)
+$: sourcesHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('sources') && (!localGeoref.sourcesArray || !localGeoref.sourcesArray.length) && !localGeoref.ambiguous)
 $: verifiedByHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('verifiedBy') && (!localGeoref.verifiedBy || !localGeoref.verifiedBy.trim()))
 $: verifiedDateHasError = editable && Boolean(hasLocalityAndCoords && (localGeoref.verifiedBy && localGeoref.verifiedBy.trim() || requiredFields.includes('verifiedDate')) && (!localGeoref.verifiedDate || !localGeoref.verifiedDate.trim())) //see the component for more validation
 $: verifierRoleHasError = editable && Boolean(hasLocalityAndCoords && requiredFields.includes('verifierRole') && (!localGeoref.verifierRole || !localGeoref.verifierRole.trim()))
@@ -122,9 +117,9 @@ const checkValidations = _ => {
 
 const setLocalGeoref = _ => {
   metaEditable = false;
-  if(georef && georef.constructor && georef.constructor.name == 'Georef') {
+  if(georef && georef instanceof Georef) {
     localGeoref = georef.copy()
-    if(editable) {
+    if(editable && !localGeoref.ambiguous) {
       //we'll use an array of values to check
       let checkVars =  [localGeoref.uncertainty, localGeoref.datum, localGeoref.by, localGeoref.date, localGeoref.sources, localGeoref.protocol]
       metaEditable = showVerification || checkVars.some(x => !x) //any are empty
@@ -166,6 +161,7 @@ const updateOnLocalityChange = _ => {
       if(localCleaned != originalCleaned){
         localGeoref.verbatimCoordinates = null
         localGeoref.originalGeorefSource = null
+        localGeoref.ambiguous = false //it's no longer a blank georef if we start editing
         if(editable){
           metaEditable = true //the locality has changed so other things can too
         }
@@ -243,6 +239,7 @@ const handleCoordsFromVerbatim = ev => {
       localGeoref.decimalCoordinates = coordsFromVerbatim
       localGeoref.sources = 'verbatim coordinates'
       localGeoref.originalGeorefSource = null
+      localGeoref.ambiguous = false //its no longer blank if we edit
       dispatch('coords-from-paste', localGeoref.decimalCoordinates)
     }
     else {
@@ -263,10 +260,12 @@ const handleCoordsFromVerbatim = ev => {
 const handleCoordsFromPaste = _ => {
   //because the coords have changed
   if(editable){
-    metaEditable = true //the locality has changed so other things can too
+    metaEditable = true //the coords have changed so other things can too
   }
   localGeoref.verbatimCoordinates = null
   localGeoref.originalGeorefSource = null
+  localGeoref.ambiguous = false //its no longer blank if we edit
+
   dispatch('coords-from-paste', localGeoref.decimalCoordinates)
 }
 
@@ -289,45 +288,30 @@ const handleUncertaintyBlur = _ => {
 }
 
 const checkAndDispatchGeoref = _ => {
-  
-  //simple validation first
-  let invalidFields = []
-  for(let v of validationVars){
-    if(eval(v)){
-      invalidFields.push(v.replace('HasError', ''))
-    }
-  }
 
-  if(invalidFields.length){
-    let message = `The following fields have invalid values: ${invalidFields}.\r\n\r\nDo you want to continue?`
-    let cont = confirm(message)
-    if(!cont) {
-      return
-    }
-  }
-  //else
   try {
-    let saveGeoref = false
-    let georefsAreEqual = georefsEqual(georef, localGeoref)
-    if(!georefsAreEqual){
-      localGeoref.georefID = nanoid()
-      localGeoref.flagged = false
-      localGeoref.selected = false
-      localGeoref.verified = false
-      localGeoref.verifiedBy = null
-      localGeoref.verifiedDate = null
-      localGeoref.verifiedByRole = null
-      saveGeoref = true
-    }
-    dispatch('set-georef', {georef: localGeoref, saveGeoref})
+    if(localGeoref.differentTo(georef)) {
+      //some validation first
+      //simple validation first
+      let invalidFields = []
+      for(let v of validationVars){
+        if(eval(v)){
+          invalidFields.push(v.replace('HasError', ''))
+        }
+      }
 
-    //the form has to clear itself if georef is null and we are dispatching a local georef
-    //because we can't update from the parent in this case
-    //this should also take care of making sure we don't duplicate new georefs
-    if(saveGeoref) {
-      georef = null
-      setLocalGeoref() 
+      if(invalidFields.length){
+        let message = `The following fields have invalid values: ${invalidFields}.\r\n\r\nDo you want to continue?`
+        let cont = confirm(message)
+        if(!cont) {
+          return
+        }
+      }
+      localGeoref.resetFieldsIfDifferent()
     }
+
+    dispatch('set-georef', localGeoref)
+  
   }
   catch(err) {
     alert('error checking georefs are equal: ' + err.message)
@@ -491,7 +475,7 @@ const checkAndDispatchGeoref = _ => {
   </fieldset>
   {#if showSubmitButton}
     <div style="text-align:center">
-      <button class="georefbutton" disabled={!hasLocalityAndCoords}>{submitButtonText}</button> <!--this is the form submit-->
+      <button class="georefbutton" disabled={!hasLocalityAndCoords && !localGeoref.ambiguous}>{submitButtonText}</button> <!--this is the form submit-->
     </div>
   {/if}
 </form>
@@ -601,14 +585,6 @@ textarea:disabled {
   background-color: lightgray;
   border: 1px solid grey;
   border-radius: 2px;
-}
-
-.material-icons.md-inactive {
-  color:rgb(202, 201, 201);
-}
-
-.material-icons.md-inactive:hover {
-  cursor: default;
 }
 
 .json-button {

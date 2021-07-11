@@ -80,8 +80,8 @@
 <!-- HTML -->
 <div class="icon-input-container">
     <textarea class="icon-input" class:hasError type="text" id="loc" rows="2" bind:value bind:this={thisel}/>
-    <span class="material-icons inline-icon icon-input-icon" style="right:30px" title="copy coords" on:click={handleCopy}>content_copy</span>
-    <span class="material-icons inline-icon icon-input-icon" style="right:5px" title="paste coords" disabled={!editable} class:md-inactive={!editable} on:click={handlePaste}>content_paste</span>
+    <span class="material-icons inline-icon icon-input-icon" style="right:30px" title="copy locality" on:click={handleCopy}>content_copy</span>
+    <span class="material-icons inline-icon icon-input-icon" style="right:5px" title="paste locality" disabled={!editable} class:md-inactive={!editable} on:click={handlePaste}>content_paste</span>
 </div>
 
 <!-- ############################################## -->

@@ -22,6 +22,15 @@ $: filterBest, hidden()
 const qualityColor = _ => {
   let georef = $dataStore.georefIndex[georefKey]
 
+  if(georef.ambiguous) {
+    if(georef.verified) {
+      return '#0066ff' //blue
+    }
+    else {
+      return '#00CC66' //green
+    }
+  }
+
   let qualityVars = ['uncertainty', 'datum', 'sources', 'protocol']
 
   let count = 0
@@ -33,17 +42,17 @@ const qualityColor = _ => {
 
   if( count == 4) {
     if(georef.verified) {
-      return '#0066ff'
+      return '#0066ff' //blue
     }
     //else
-    return '#00CC66'
+    return '#00CC66' //green
   }
 
   if (count >= 2) {
-    return '#FF9966'
+    return '#FF9966' //orange
   }
 
-  return '#D3D3D3'
+  return '#D3D3D3' //grey
 
 }
 
@@ -51,6 +60,11 @@ const hidden = _ => {
   if ($dataStore.georefIndex && $dataStore.georefIndex[georefKey]) {
     let georef = $dataStore.georefIndex[georefKey]
     if(filterBest) {
+
+      if(georef.ambiguous) {
+        showThisRow = true
+        return
+      }
 
       let qualityVars = ['uncertainty', 'datum', 'sources', 'protocol']
       let count = 0

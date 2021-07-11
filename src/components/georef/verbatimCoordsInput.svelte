@@ -70,7 +70,7 @@ const calcDecimalCoords = coordsString => {
 <!-- HTML -->
 <div class="icon-input-container">
     <input type="text" class="icon-input" class:hasError readonly on:paste={handleInputPasteCoords} bind:value>
-    <span class="material-icons inline-icon icon-input-icon" style="right:5px" title="paste coords" class:md-inactive={!editable} on:click={pasteVerbatimCoords}>content_paste</span>
+    <span class="material-icons inline-icon icon-input-icon" style="right:5px" title="paste verbatim coords" class:md-inactive={!editable} on:click={pasteVerbatimCoords}>content_paste</span>
 </div>
 
 <!-- ############################################## -->

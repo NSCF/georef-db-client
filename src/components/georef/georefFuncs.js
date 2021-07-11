@@ -1,6 +1,6 @@
 //FUNCTIONS USED BY georef COMPONENT
 
-const Georef =require('./Georef.js')
+const Georef = require('./Georef.js')
 
 const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
   //groupLocalities must be a set of {id: ..., loc: ... } objects
@@ -296,49 +296,49 @@ const updateDatasetGeorefs = (Firestore, FieldValue, datasetID, georefIDs) => {
   })
 }
 
-const updateGeorefRecords = (Firestore, FieldValue, docRef, georef, datasetID, recordIDs) => {
-  return Firestore.runTransaction(function(transaction) {
-    return transaction.get(docRef).then(function(docSnap) {
+const updateGeorefRecords = async (Firestore, FieldValue, georef, datasetID, recordIDs) => {
+  try {
+    await Firestore.runTransaction(async transaction => {
+      let ref = Firestore.collection('georefRecords').doc(georef.georefID)
+      let docSnap = await transaction.get(ref)
       if (!docSnap.exists) {
-        let newDoc = {}
-        //just some redundancy here for ease of use
-        //we also add the fields for verification
-        newDoc.georefID = georef.georefID
-        newDoc.country = georef.country || null
-        newDoc.stateProvince = georef.stateProvince || null
-        newDoc.locality = georef.locality || null
-        newDoc.decimalLatitude = georef.decimalLatitude || null
-        newDoc.decimalLongitude = georef.decimalLongitude || null
-        newDoc.locked = false
-        newDoc.verified = false
-        newDoc.datasets = {}
-        newDoc.datasets[datasetID] = recordIDs
-        newDoc.recordCount = recordIDs.length
-        transaction.set(docRef, newDoc)
+        let georefRecord = {
+          georefID: georef.georefID,
+          country: georef.country,
+          stateProvince: georef.stateProvince || null,
+          locality: georef.locality || null,
+          decimalLatitude: georef.decimalLatitude || null,
+          decimalLongitude: georef.decimalLongitude || null,
+          locked: false,
+          verified: false,
+          datasets: {[datasetID]: recordIDs},
+          recordCount: recordIDs.length,
+        }
+  
+        transaction.set(ref, georefRecord)
+  
       }
       else {
-        let doc = docSnap.data()
+        let georefRecord = docSnap.data()
         
         let update = {}
         update.datasets = {}
-        if(doc.datasets && doc.datasets[datasetID]) {
+        if(georefRecord.datasets && georefRecord.datasets[datasetID]) {
           update.datasets[datasetID] = FieldValue.arrayUnion(...recordIDs)
         }
         else {
           update.datasets[datasetID] = recordIDs
         }
-        update.recordCount = doc.recordCount + recordIDs.length
-
-        transaction.update(docRef, update)
+        update.recordCount = georefRecord.recordCount + recordIDs.length
+  
+        transaction.update(ref, update)
       }
-
-    });
-  }).then(function() {
-    let i = 0 //do nothing
-    //console.log("Dataset record updated!");
-  }).catch(function(error) {
-    throw error;
-  });
+    })
+  }
+  catch(err) { //this shouldn't happen!
+    alert('Error updating georefRecords, see the console')
+    console.error(err)
+  }
 }
 
 module.exports = {

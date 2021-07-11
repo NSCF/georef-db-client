@@ -135,6 +135,11 @@ export default class Georef {
     this.dateCreated = Date.now()
   }
 
+  //indicate whether this is different to another georef, eg for checking changes
+  compareOther() {
+
+  }
+
   get decimalCoordinates() {
     if(this.decimalLatitude && this.decimalLongitude) {
       return this.decimalLatitude  + ',' + this.decimalLongitude

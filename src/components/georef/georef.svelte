@@ -3,6 +3,8 @@
   import { nanoid } from "nanoid/nanoid.js" //see https://github.com/ai/nanoid/issues/237
   import { v4 as uuid } from 'uuid'; //because we need uuid guids as well...
 
+  import { Firestore, Realtime as Firebase, Auth, FieldValue } from '../../firebase.js'
+
   import {
       updateGeorefStats,
       updateDatasetStats, 
@@ -20,10 +22,6 @@
   import GeorefForm from './georefForm.svelte'
   import CustomSearch from './customSearch.svelte'
   import Toast from '../toast.svelte'
-
-  export let Firestore
-  export let FieldValue
-  export let Firebase
 
   export let dataset
 
@@ -289,7 +287,16 @@
         $dataStore.recordGroup.completed = true
       }
 
+      //update some fields
       $dataStore.recordGroup.groupLocked = false
+      if($dataStore.recordGroup.georeferencers && Array.isArray($dataStore.recordGroup.georeferencers)) {
+        if(!$dataStore.recordGroup.georeferencers.includes(profile.uid)) {
+          $dataStore.recordGroup.georeferencers.push(profile.uid) //so we can get a georeferencers record groups later...
+        }
+      }
+      else {
+        $dataStore.recordGroup.georeferencers = [profile.uid]
+      }
 
       //clean out the ids to avoid confusion later
       for (let loc of $dataStore.recordGroup.groupLocalities){
@@ -512,9 +519,11 @@
         //save it to elastic via our API
         //this is async so we don't slow down
         let url = 'https://us-central1-georef-745b9.cloudfunctions.net/addgeoref'
+        let token = await Auth.currentUser.getIdToken(true);
         fetch(url, {
           method: 'POST', 
           headers: {
+            'Authorization': token,
             'Content-Type': 'application/json'
           },
           body: (JSON.stringify({georef, index: elasticindex}))
@@ -523,11 +532,12 @@
             res.json().then(body => {
               if(body.validation) {
                 georef.validationErrors = body.validation
+                console.log(georef)
                 try {
-                  Firestore.collection('saveGeorefErrors').add(georef) //async
+                  Firestore.collection('saveGeorefErrors').doc(georef.georefID).set(georef) //async
                 }
                 catch(err) {
-                  //do nothing, we don't want to slow down
+                  alert('Failed to store failed georef on Firebase:', err.message)
                 }
                 
                 let message = 'There was an error saving a new georeference.\r\n\r\n'
@@ -537,11 +547,12 @@
               }
               else {
                 georef.saveErrors = body
+                console.log(georef)
                 try {
-                  Firestore.collection('saveGeorefErrors').add(georef) //async
+                  Firestore.collection('saveGeorefErrors').doc(georef.georefID).set(georef) //async
                 }
                 catch(err) {
-                  //do nothing, we don't want to slow down
+                  alert('Failed to store failed georef on Firebase:', err.message)
                 }
                 
                 let message = 'There was an error saving a new georeference.\r\n\r\n'
@@ -551,18 +562,20 @@
               }
             })
           }
-
-          if(window.pushToast) {
-            window.pushToast('new georef saved')
-          } 
+          else {
+            if(window.pushToast) {
+              window.pushToast('new georef saved')
+            } 
+          }
         })
         .catch(err => {
           georef.saveError = err.message
+          console.log(georef)
           try {
-            Firestore.collection('saveGeorefErrors').add(georef) //async
+            Firestore.collection('saveGeorefErrors').doc(georef.georefID).set(georef) //async
           }
           catch(err) {
-            //do nothing, we don't want to slow down
+            alert('Failed to store failed georef on Firebase:', err.message)
           }
         })
         

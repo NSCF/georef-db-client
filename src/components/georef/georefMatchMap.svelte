@@ -121,6 +121,23 @@ const setPoints = _ => {
           marker.circle.setMap(null)
           marker.setMap(null)
           delete $dataStore.markers[markerID]
+          //reset the bounds and pin position
+          //set bounds and add marker
+          let bounds = new google.maps.LatLngBounds()
+          for (let georef of Object.values($dataStore.georefIndex)){
+            if(!georef.ambiguous) {
+              let coords = new google.maps.LatLng(georef.decimalLatitude, georef.decimalLongitude);
+              bounds.extend(coords);
+            }
+          }
+          map.fitBounds(bounds)
+          let boundsCenter = bounds.getCenter()
+          coordsPin.setPosition(boundsCenter)
+          if(navigator && navigator.clipboard) {
+            navigator.clipboard.writeText('') //clear it just in case
+          }
+
+          break //this should be fine as there should only be one
         }
       }
 
@@ -144,8 +161,11 @@ const setPoints = _ => {
     if(coordsPin){
       //move it
       coordsPin.setPosition(coordsPinPos)
-      navigator.clipboard.writeText('') //clear it just in case
-    } else {
+      if(navigator && navigator.clipboard) {
+        navigator.clipboard.writeText('') //clear it just in case
+      } 
+    } 
+    else {
       //make it
       coordsPin = new google.maps.Marker({
         position: coordsPinPos,

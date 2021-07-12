@@ -27,6 +27,8 @@
 
   export let profile
 
+  let formContainer
+
   let datasetRef 
   let bookMarksRef
 
@@ -85,7 +87,7 @@
     }
     catch(err){
       alert('there was an error getting last recordgroup SNAP for this user: ' + err.message)
-      console.log(err)
+      console.error(err)
       return
     }
 
@@ -99,7 +101,7 @@
       }
       catch(err){
         alert('there was an error getting last recordgroup for this user: ' + err.message)
-        console.log(err)
+        console.error(err)
         return
       }
 
@@ -212,17 +214,14 @@
               if(Object.keys(candidateGeorefs.georefIndex).length) {
                 $dataStore.georefIndex = candidateGeorefs.georefIndex
                 $dataStore.locGeorefIndex =  candidateGeorefs.locGeorefIndex
-              }
-              else {
-                console.log('no georefs!!!')
-              }
+              }              
 
               //set the last snap on Firebase async
               Firebase.ref(`userDatasetLastRecordGroup/${profile.uid}/${dataset.datasetID}`).set($dataStore.recordGroupSnap.id)
               
             }
             catch(err) {
-              console.log('error fetching georefs:', err.message)
+              console.error('error fetching georefs:', err.message)
               alert('fetching georeferences failed')
             }
           }
@@ -292,7 +291,7 @@
       }
       catch(err){
         alert('error saving record group:' + err.message)
-        console.log(err)
+        console.error(err)
         console.log($dataStore.recordGroup)
         savingRecordGroup = false
       }
@@ -332,7 +331,7 @@
         }
         catch(err) {
           savingRecordGroup = false
-          console.log(err)
+          console.error(err)
           alert('there was an error updating stats: ' + err.message)
         }
       }
@@ -387,13 +386,24 @@
     }
   }
 
-  const handleFlagGeoref = ev => {
+  const handleFlagGeoref = async ev => {
     let georefID = ev.detail
     delete $dataStore.georefIndex[georefID]
     $dataStore.georefIndex = $dataStore.georefIndex //svelte
 
     let url = `https://us-central1-georef-745b9.cloudfunctions.net/flaggeoref?georefID=${georefID}&index=${elasticindex}`
-    fetch(url)
+    let res
+    try {
+      res = await fetch(url)
+    }
+    catch(err) {
+      alert('Failed to flag georef:' + err.message)
+    }
+    if(res.status != 200){
+      let body = await res.json()
+      console.error(body)
+      alert('Failed to flag georef:' + JSON.stringify(body, null, 2))
+    }
   }
 
   const handleCoordsFromPaste = ev => {
@@ -411,6 +421,9 @@
       
       $dataStore.georefIndex[georefID].selected = true
       selectedGeoref = $dataStore.georefIndex[georefID]
+      if(selectedGeoref.ambiguous) {
+        formContainer.scrollTop = 0 //to make sure the user sees the message!
+      }
 
       let selectedMarker = $dataStore.markers[georefID]
       if(selectedMarker) {
@@ -490,7 +503,7 @@
       if(saveGeoref){ //we treat it as a new georef
         
         georef.used = true
-        let saveGeoref = georef.persist(profile, dataset, elasticindex, false) //its a promise, we don't want to slow down here
+        let saveCall = georef.persist(profile, dataset, elasticindex, false) //its a promise, we don't want to slow down here
         $dataStore.georefIndex = {...$dataStore.georefIndex, [georef.georefID]: georef} //svelte
 
       }
@@ -626,7 +639,7 @@
         })
       }
       catch(err) {
-        console.log(err)
+        console.error(err)
         alert('error bookmarking record group: ' + err.message )
         return
       }
@@ -671,7 +684,7 @@
         }
       }
       catch(err) {
-        console.log(err)
+        console.error(err)
         alert('error bookmarking record group: ' + err.message )
         return
       }
@@ -703,7 +716,7 @@
         })
       }
       catch(err) {
-        console.log(err)
+        console.error(err)
         alert('error bookmarking record group: ' + err.message )
         return
       }
@@ -728,7 +741,7 @@
         })
       }
       catch(err) {
-        console.log(err)
+        console.error(err)
         alert('error unbookmarking record group: ' + err.message )
         return
       }
@@ -795,7 +808,6 @@
     navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updaterecordgrouplock?groupid=${$dataStore.recordGroupSnap.id}`, '')
   }
 
-
 </script>
 
 <!-- ############################################## -->
@@ -855,7 +867,7 @@
       </div>
       <div class="georef-form-container">
         <h4 class="georef-flex-header">Georeference</h4>
-        <div class="georef-form-flex">
+        <div class="georef-form-flex" bind:this={formContainer}>
           <GeorefForm 
           georef={selectedGeoref} 
           defaultGeorefBy={profile.formattedName}

@@ -6,7 +6,7 @@ import VerbatimCoordsInput from './verbatimCoordsInput.svelte'
 import DateInput from './dateInput.svelte'
 import Georef from './Georef.js'
 
-import {createEventDispatcher} from 'svelte'
+import {onMount, createEventDispatcher} from 'svelte'
 let dispatch = createEventDispatcher();
 
 //must be class Georef or null
@@ -48,12 +48,23 @@ export let georefSources = [
   '1:250k topomap',
   '1:50k topomap',
   'SANBI gazetteer',
-  'Fuzzy gazetteer',
   'Geolocate', 
   'Nominatum',
   'verbatim coordinates',
   'NSCF georeference database'
 ]
+
+onMount(_ => {
+  let savedProtocols = localStorage.getItem('custom-protocols')
+  if(savedProtocols){
+    georefProtocols = [...georefProtocols, ...JSON.parse(savedProtocols)]
+  }
+
+  let savedSources = localStorage.getItem('custom-sources')
+  if(savedSources){
+    georefSources = [...georefSources, ...JSON.parse(savedSources)]
+  }
+})
 
 //control editing of metadatafields
 let metaEditable
@@ -139,16 +150,20 @@ const setLocalGeoref = _ => {
 }
 
 const setDefaultORCID = field => {
-  if(localGeoref[field] && localGeoref[field].trim()){
+  if(localGeoref[field] && localGeoref[field].trim()){ //make changes if there is a value
     if(defaultGeorefBy){
       if(defaultGeorefByORCID) {
-        if(!localGeoref[field + 'ORCID'] || !localGeoref[field + 'ORCID'].trim()){
-          if(localGeoref[field] == defaultGeorefBy){
-            localGeoref[field + 'ORCID'] = defaultGeorefByORCID
-          }
+        if(localGeoref[field] == defaultGeorefBy){
+          localGeoref[field + 'ORCID'] = defaultGeorefByORCID
         }
       }
+      else { //it's changed and we don't have a default
+        localGeoref[field + 'ORCID'] = null
+      }
     }
+  }
+  else { //its blank/empty
+    localGeoref[field + 'ORCID'] = null
   }
 }
 
@@ -173,7 +188,6 @@ const updateOnLocalityChange = _ => {
 const copyGeorefJSON = ev => {
   ev.preventDefault()
   navigator.clipboard.writeText(JSON.stringify(localGeoref, null, 2)).then(_ => {
-      console.log('JSON copied')
       if(window.pushToast) {
         window.pushToast('georef JSON copied')
       }
@@ -222,7 +236,7 @@ const handleClearClick = _ => {
 }
 
 const flagGeoref = _ => {
-  //fire off a message to the api to update on elastic and the parent to flag the original record
+  //fire off a message to parent to flag the original record
   if(!localGeoref.flagged) {
     let cont = confirm('Are you sure you want to flag this georeference?')
     if(cont){
@@ -287,6 +301,46 @@ const handleUncertaintyBlur = _ => {
   }
 }
 
+const handleProtocolSelected = _ => {
+  //add new items to localStorage
+  //here it's just one so we can use the value directly
+  if(localGeoref.protocolObject) {
+    if(!georefProtocols.includes(localGeoref.protocolObject.value)){
+      //add it so we can reuse it
+      georefProtocols = [...georefProtocols, localGeoref.protocolObject.value]
+      let protocols = []
+      let savedProtocols = localStorage.getItem('custom-protocols')
+      if(savedProtocols){
+        protocols = JSON.parse(savedProtocols)
+      }
+      protocols.push(localGeoref.protocolObject.value)
+      localStorage.setItem('custom-protocols', JSON.stringify(protocols))
+    }
+  }
+}
+
+const handleSourceSelected = _ => {
+  //add new items to localStorage
+  //more complicated than for protocol because of multiple arrays
+  //lets use sets
+  if(localGeoref.sourcesArray && localGeoref.sourcesArray.length) { //check we have values first
+    //for each one check if in original array
+    for (let selectedSource of localGeoref.sourcesArray) {
+      if(!georefSources.includes(selectedSource.value)) {
+        georefSources = [...georefSources, selectedSource.value] //add it
+        let sources = [] //this should only happen once so we should be able to do this in the loop...
+        let savedSources = localStorage.getItem('custom-sources')
+        if(savedSources) {
+          sources = JSON.parse(savedSources)
+        }
+        sources.push(selectedSource.value)
+        localStorage.setItem('custom-sources', JSON.stringify(sources))
+        break //this should be safe...
+      }
+    }
+  }
+}
+
 const checkAndDispatchGeoref = _ => {
 
   try {
@@ -311,7 +365,11 @@ const checkAndDispatchGeoref = _ => {
     }
 
     dispatch('set-georef', localGeoref)
-  
+
+    //we have to reset locally if we didnt get a georef from the parent
+    if(!georef) {
+      setLocalGeoref()
+    }
   }
   catch(err) {
     alert('error checking georefs are equal: ' + err.message)
@@ -324,13 +382,22 @@ const checkAndDispatchGeoref = _ => {
 <!-- ############################################## -->
 <!-- HTML -->
 
-<form on:submit|preventDefault={checkAndDispatchGeoref}>
+<form on:submit|preventDefault={checkAndDispatchGeoref}
+  class:form-ambiguous={localGeoref.ambiguous}
+>
   {#if showButtons}
     <div style="text-align:right">
       <span class="material-icons iconbutton" title="Clear all" on:click={handleClearClick}>restore_page</span>
       <span class="material-icons iconbutton" title="Flag this georef" class:utility-button-inactive={localGeoref.flagged} on:click={flagGeoref}>report</span>
       <button class="json-button" title="Copy georef JSON"  on:click={copyGeorefJSON}>JSON</button>
       <span class="material-icons iconbutton" title="Copy tab delimited" on:click={copyTabDelimited}>clear_all</span>
+    </div>
+  {/if}
+  {#if localGeoref.ambiguous}
+    <div class="ambiguous-alert-container">
+      <div class="ambiguous-alert">
+        Please note this is a blank geoference used for imprecise, ambiguous, or otherwise ungeoreferencable locality strings. Any edits will update it to a regular georeference. Only edit if you understand the consequences for other locaties that might use it...
+      </div>
     </div>
   {/if}
   <fieldset disabled={!editable}>
@@ -401,7 +468,7 @@ const checkAndDispatchGeoref = _ => {
         <div>
           <label style="width:100%;text-align:right" for="protocol">protocol</label>
           <div class="inline-select">
-            <Select items={georefProtocols.map(x=> ({value:x, label:x}))} isCreatable={true} placeholder={'Select a protocol...'} hasError={protocolHasError} bind:selectedValue={localGeoref.protocolObject} />
+            <Select items={georefProtocols.map(x=> ({value:x, label:x}))} isCreatable={true} placeholder={'Select a protocol...'} hasError={protocolHasError} on:select={handleProtocolSelected} bind:selectedValue={localGeoref.protocolObject} />
           </div>
         </div>
       {:else}
@@ -414,7 +481,7 @@ const checkAndDispatchGeoref = _ => {
       <div>
         <label style="width:100%;text-align:right" for="sources">sources</label>
         <div class="inline-select">
-          <Select items={georefSources.map(x => ({value:x, label:x}))} isCreatable={true} isMulti={true} placeholder={'Select source/s...'} hasError={sourcesHasError} bind:selectedValue={localGeoref.sourcesArray}/>
+          <Select items={georefSources.map(x => ({value:x, label:x}))} isCreatable={true} isMulti={true} placeholder={'Select source/s...'} hasError={sourcesHasError} on:select={handleSourceSelected} bind:selectedValue={localGeoref.sourcesArray}/>
         </div>
       </div>
       {:else}
@@ -487,6 +554,25 @@ form {
   height:100%;
   max-height:100%;
   box-sizing:border-box;
+}
+
+.form-ambiguous {
+  background-color: #ffe6b4;
+}
+
+.ambiguous-alert-container {
+  width:100%;
+  display:flex;
+  justify-content: space-around;
+}
+
+.ambiguous-alert {
+  width:80%;
+  background-color: #ffd47d;
+  color: rgb(73, 93, 158);
+  border-radius: 2px;
+  border-width: 20px;
+  border: 4px solid #c98f18;
 }
 
 fieldset {

@@ -61,7 +61,7 @@
 			//TODO wait to get it from the registration dispatch
 			fbUser = user
 			if(user){
-
+				//this
 				if(window.location.href.includes('/auth/userMgmt')) {
 					window.location = window.location.href.split('/auth/userMgmt')[0]
 				} 
@@ -70,16 +70,13 @@
 					setTimeout( async _ => {
 						if(!profile){
 							try {
-								let fetchURL =`https://us-central1-georef-745b9.cloudfunctions.net/getprofilebyid?uid=${user.uid}`
-								let res = await fetch(fetchURL)
-								let fetchData = await res.json()
-								if (fetchData){
-									profile = fetchData
+								//this is a test to see if the s dafd asdf fdasde fdad feafdafdadfadffadf
+								let snap = await Firestore.collection('userProfiles').doc(user.uid).get()
+								if (snap.exists){
+									profile = snap.data()
 									userID = user.uid
 									firstAuth = true
-									if(currentPage != 'workshop') {
-										currentPage = 'Home'// TODO this must go back to previous page the user was on
-									}
+									currentPage = 'Home'// TODO this must go back to previous page the user was on
 								}
 								else {
 									console.log('no profile for this user')
@@ -281,10 +278,10 @@
 			{/if}
 			<div class="content-container">
 				{#if currentPage == 'Register'}
-					<Register {Firestore} {Auth} on:user-sign-in={handleSignInSuccess} />	
+					<Register on:user-sign-in={handleSignInSuccess} />	
 				{/if}
 				{#if currentPage == 'SignIn'}
-					<SignIn {Auth} 
+					<SignIn
 					on:to-forgot-pwd='{_ => currentPage = 'ForgotPwd'}' 
 					on:user-sign-in={handleSignInSuccess} />	
 				{/if}

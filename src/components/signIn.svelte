@@ -1,10 +1,9 @@
 <script>
   import {createEventDispatcher} from 'svelte'
   import Loader from './loader.svelte'
+  import {Auth} from '../firebase'
 
   const dispatch = createEventDispatcher()
-
-  export let Auth
 
   let submitClicked = false
   let busy = false
@@ -59,28 +58,32 @@
   {#if busy}
     <Loader />
   {:else}
-    <form>
-      <div class="formsection">
-        <h4>Email</h4>
-        <div class="labelinputinline">
-          <input style="width:400px" type="email" id="email" class:warning={emailWarning} bind:value={email}/>
-          <label for="email">Example: [yourname]@[yourinstitution].org</label>
+    {#if Auth.currentUser}
+    <p>There appears to be an issue, you are already signed in</p>
+    {:else}
+      <form>
+        <div class="formsection">
+          <h4>Email</h4>
+          <div class="labelinputinline">
+            <input style="width:400px" type="email" id="email" class:warning={emailWarning} bind:value={email}/>
+            <label for="email">Example: [yourname]@[yourinstitution].org</label>
+          </div>
         </div>
-      </div>
-      <div class="formsection">
-        <h4>Password</h4>
-        <div class="labelinputinline" style="width:200px">
-          <input style="width:400px" type="password" name="pass" id="pass" class:warning={pwdWarning} bind:value={pwd}/>
-          <label for="pass">Password (min. 8 chars with numbers and special chars)</label>
+        <div class="formsection">
+          <h4>Password</h4>
+          <div class="labelinputinline" style="width:200px">
+            <input style="width:400px" type="password" name="pass" id="pass" class:warning={pwdWarning} bind:value={pwd}/>
+            <label for="pass">Password (min. 8 chars with numbers and special chars)</label>
+          </div>
         </div>
-      </div>
-      <div class="flex">
-        <span class="pwdlink" on:click='{_ => dispatch('to-forgot-pwd')}'>Forgot password?</span>
-      </div>
-      <div style="text-align:center">
-        <button style="margin:auto;width:200px;text-align:center;" on:click|preventDefault={handleSignInClick}>Sign in</button>
-      </div>
-    </form>
+        <div class="flex">
+          <span class="pwdlink" on:click='{_ => dispatch('to-forgot-pwd')}'>Forgot password?</span>
+        </div>
+        <div style="text-align:center">
+          <button style="margin:auto;width:200px;text-align:center;" on:click|preventDefault={handleSignInClick}>Sign in</button>
+        </div>
+      </form>
+    {/if}
   {/if}
 </div>
 <!-- ############################################## -->

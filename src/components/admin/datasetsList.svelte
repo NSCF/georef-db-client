@@ -11,17 +11,39 @@ let dispatch = createEventDispatcher()
 let firstTab = true
 
 let datasetsFetched = false
-let datasets = []
-let datasetIDs = []
-let firstInd = 0
+let userDatasetIDs = null //this is the Object of current and invited dataset IDs
+let focalDatasetIDs = [] //the current or the invited datasets
+let datasets = [] //this is the dataset objects to show on the ui
+
+//for keeping track of searches
+let lastDatasetIDIndex = 0
+let fetchSize = 10 //the page size
 
 $: firstTab, reset()
 
+onMount(async _ => {
+  let userDatasetsSnap = await Firestore.collection('userDatasets').doc(profile.uid).get()
+  if(userDatasetsSnap.exists) {
+    userDatasetIDs = userDatasetsSnap.data()
+    reset()
+  }
+})
+
 const reset = _ => {
-  datasets = null
-  datasetIDs = null
-  firstInd = 0
-  getDatasets()
+
+  datasets = []
+  lastDatasetIDIndex = 0
+  if(userDatasetIDs) {
+    if(firstTab) {
+      focalDatasetIDs = userDatasetIDs.current
+    }
+    else {
+      focalDatasetIDs = userDatasetIDs.invited
+    }
+
+    getDatasets()
+
+  }
 }
 
 const getLocalDate = timestamp => {
@@ -43,86 +65,66 @@ const getLocalDateTime = timestamp => {
   return dtParts.join(' ')
 }
 
+//this fetches a datasets from the db based on a set of datasetIDs
+const fetchDatasets = async (datasetIDs) => {
+
+  let searchField
+  if(firstTab){
+    searchField = 'georeferencers'
+  }
+  else {
+    searchField = 'invitees'
+  }
+  
+  let qry = Firestore.collection('datasets')
+    .where(searchField, 'array-contains', profile.uid) //the security rule
+    .where('datasetID', 'in', datasetIDs)
+
+  let datasetSnaps
+  try {
+    datasetSnaps = await qry.get()
+  }
+  catch(err) {
+    throw new Error('error fetching datasets: ' + err.message)
+  }
+
+  if(datasetSnaps.empty) {
+    return []
+  }
+  else {
+    let datasets = datasetSnaps.docs.map(x => x.data())
+    return datasets
+  }
+}
+
+//this controls what datasets are fetched based on what is selected in the ui, current or invited
 const getDatasets = async _ => {
   datasetsFetched = false //this is a reset
-  let collection
-  if(firstTab){
-    collection = 'userDatasets'
-  }
-  else {
-    collection = 'userPendingDatasets'
-  }
 
-  //get the IDs
-  let userDatasetsSnap = await Firestore.collection(collection).doc(profile.uid).get()
-  if(userDatasetsSnap.exists){
-    let searchDatasets = userDatasetsSnap.data().datasets
-    if (!searchDatasets || !searchDatasets.length){
-      console.log('no datasetIDs returned')
-      datasetIDs = []
-      datasets = []
-      datasetsFetched = true
-      return
-    } 
+  if(focalDatasetIDs && focalDatasetIDs.length) { //we have dataset IDs
+    let searchDatasetIDs = focalDatasetIDs.slice(lastDatasetIDIndex, fetchSize)
+    if(searchDatasetIDs.length) {
+      try {
+        datasets = await fetchDatasets(searchDatasetIDs)
+        lastDatasetIDIndex += fetchSize
+      }
+      catch(err) {
+        alert(err.message)
+        return
+      }
+    }
     else {
-      datasetIDs = searchDatasets.map(x=>x.trim())
+      datasets = []
     }
   }
   else {
-    console.log('no datasets document exists for this user') //will happen on first registration if they have no datasets
-    datasetsFetched = true
-    datasetIDs = []
     datasets = []
-    return
   }
 
-  
-  if (datasetIDs.length) {
-    let lastInd = firstInd + 10 //we can only call ten at a time remember end not included in slice
-    let queryDatasetIDs = datasetIDs.slice(firstInd, lastInd)
-    firstInd += 10 //for the next time
+  datasetsFetched = true
 
-    console.log('queryDatasetIDs has', queryDatasetIDs.length, 'datasetIDs')
-
-    //we can't sort yet because the datasetIDs are random
-
-    let searchField
-    if(firstTab){
-      searchField = 'georeferencers'
-    }
-    else {
-      searchField = 'invitees'
-    }
-
-    let georeferencerDatasetSnaps
-    try {
-      georeferencerDatasetSnaps = await Firestore.collection('datasets')
-      .where(searchField, 'array-contains', profile.uid) //the security rule
-      .where('datasetID', 'in', queryDatasetIDs)
-      .get()
-    }
-    catch(err) {
-      alert('error fetching datasets: ' + err.message)
-      datasetsFetched = true
-      return
-    }
-    
-    if(georeferencerDatasetSnaps.empty) {//no datasets returned, this should not happen
-      console.log('got no datasets')
-      datasets = []
-      datasetsFetched = true
-    }
-    else { 
-      datasets = georeferencerDatasetSnaps.docs.map(x => x.data())
-      datasetsFetched = true
-    }
-  }
 }
 
-const refresh = _ => {
-  firstInd = 0
-  getDatasets()
-}
 
 const moveUserInvitedDataset = async (datasetID, profile) => {
   let userInvitedDatasetsRef = Firestore.collection('userPendingDatasets').doc(profile.uid)
@@ -317,8 +319,8 @@ const emitDataset = dataset => {
         </div>  
       {/if}
       <div>
-        <button on:click={refresh} >Start over</button>
-        <button disabled={!datasets.length} on:click={getDatasets} >Show next</button>
+        <button on:click={reset} >Start over</button>
+        <button disabled={!datasets || !datasets.length} on:click={getDatasets} >Show next</button>
       </div>
     {:else}
       <Loader />

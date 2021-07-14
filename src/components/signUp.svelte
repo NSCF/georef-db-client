@@ -2,13 +2,10 @@
   //This is a registration form. See the separate sign in form
 
   import {createEventDispatcher} from 'svelte'
-  import { FieldValue } from '../firebase';
+  import { Firestore, Auth, FieldValue } from '../firebase';
   import Loader from './loader.svelte'
 
   const dispatch = createEventDispatcher()
-  
-  export let Auth
-  export let Firestore
 
   let busy = false
 
@@ -118,23 +115,31 @@
           dateCreated: Date.now()
         }
 
-        let postProfile = fetch('https://us-central1-georef-745b9.cloudfunctions.net/addprofile', {
-          method: 'POST', // *GET, POST, PUT, DELETE, etc.
-          mode: 'cors', // no-cors, *cors, same-origin
-          headers: {
-            'Content-Type': 'application/json'
-            // 'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: JSON.stringify(profile) // body data type must match "Content-Type" header
-        })
-
-        try{
-          await Promise.all([postProfile, moveInvitedDatasets(email, user)])
+        //create the profile
+        try {
+          Firestore.collection('userProfiles').doc(profile.uid).set(profile)
         }
         catch(err) {
-          alert('creating profile failed: ' + err.message)
+          alert('Error saving profile: ' + err.message)
+          return
         }
-        
+
+        //update any invited datasets for this user
+        let userDatasets = Firestore.collection('userDatasets')
+        try {
+          let snap = await userDatasets.doc(profile.searchEmail).get()
+          if(snap.exists) {
+            let data = snap.data()
+            let add = userDatasets.doc(profile.uid).set(data)
+            let del = userDatasets.doc(profile.searchEmail).delete()
+            await Promise.all(add, del)
+          }
+        }
+        catch(err) {
+          alert('Error updating invited datasets for this user: ' + err.message)
+          return
+        }
+
         dispatch('user-sign-in', {userCredential, profile})
 
       })  
@@ -166,71 +171,6 @@
 
     }, 100)
 
-  }
-
-  //helper for above
-  //this moves the invitions and updates the dataset objects
-  const moveInvitedDatasets = async (email, user) => {
-    let querysnap
-    try {
-      querysnap = await Firestore.collection('invitedUserPendingDatasets')
-      .where('email', '==', email.toLowerCase().trim())
-      .get()
-    }
-    catch(err) {
-      throw new Error('failed to get invited user datasets -- ' + err.message)
-    }
-
-    if(!querysnap.empty){
-      let docsnap = querysnap.docs[0] //should only be one!
-      let datasets = docsnap.data().datasets
-
-      //move to pendingDatasets
-      //this needs to happen first because we need it to verify that the user can update the dataset lower down
-      try {
-        await Firestore.collection('userPendingDatasets')
-        .doc(user.uid)
-        .set({datasets})
-      }
-      catch(err) {
-        throw new Error('failed to create user pending datasets -- ' + err.message)
-      }
-
-      //need to update each dataset
-      try{
-        let proms = []
-        for (let dataset of datasets) {
-          proms.push(updateDatasetInvitees(dataset, email, user.uid)) //this is a transaction in case others are updating
-        }
-        await Promise.all(proms)
-      }
-      catch(err) {
-        throw new Error('failed to update dataset objects -- ' + err.message)
-      }
-
-      try {
-        await docsnap.ref.delete()
-      }
-      catch(err) {
-        throw new Error('failed to delete invited user datasets -- ' + err.message)
-      }
-      
-      return
-    }
-    else {
-      return //we just return because there is nothing to move
-    }
-  }
-
-  const updateDatasetInvitees = async (datasetID, email, profileID) => {
-    let datasetRef =  Firestore.collection('datasets').doc(datasetID)
-    await Firestore.runTransaction(async transaction => {
-      await transaction.update(datasetRef, {
-        newInvitees: FieldValue.arrayRemove(email.toLowerCase().trim()), 
-        invitees: FieldValue.arrayUnion(profileID)
-      })
-    })
-    return 
   }
 	
 </script>

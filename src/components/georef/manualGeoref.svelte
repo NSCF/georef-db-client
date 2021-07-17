@@ -153,8 +153,6 @@
         </select>
       </div>
     </div>
-      
-    
   </div>
   {#if $dataStore.georefIndex} 
     <div class="grid-container" in:fly="{{ y: 200, duration: 1000 }}">
@@ -179,7 +177,7 @@
 <!-- ############################################## -->
 <style>
   .container {
-    
+    width:100%;
   }
 
   .search-container {

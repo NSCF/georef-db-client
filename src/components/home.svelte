@@ -100,32 +100,35 @@ function toEmitOrNotToEmit(file){
     {#if profile}
       <h2 style="color:gray">OR</h2>
       <button class="datasets-button" on:click={handleGoToDatasets}><strong>GO TO DATASETS</strong></button>
-    {/if}
-    <h2 style="color:gray">OR</h2>
-    <div id="wrapper" class="wrapper">
-      <div 
-        id="fileDropBox"
-        class="fileDropBox"
-        bind:this={box}
-        on:dragenter={darkBox}
-        on:dragleave={lightBox}
-        on:drop={handleDragDrop} 
-        on:click={handleBoxClick}
-        ondragover="return false"
-      >
-        <div>
-          <span class="material-icons-outlined ico-up">cloud_upload</span>
-          <p class="dwc-p">Darwin Core</p>
-          <p class="box-p">Drag&Drop a CSV file to start georeferencing</p>
-          <span class="material-icons-outlined box-arrow">reply</span>
+      {#if profile.isAdmin} <!--Note this is not a dataset admin, this is an admin on the tool!-->
+        <h2 style="color:gray">OR</h2>
+        <div id="wrapper" class="wrapper">
+          <div 
+            id="fileDropBox"
+            class="fileDropBox"
+            bind:this={box}
+            on:dragenter={darkBox}
+            on:dragleave={lightBox}
+            on:drop={handleDragDrop} 
+            on:click={handleBoxClick}
+            ondragover="return false"
+          >
+            <div>
+              <span class="material-icons-outlined ico-up">cloud_upload</span>
+              <p class="dwc-p">Darwin Core</p>
+              <p class="box-p">Drag&Drop a CSV file to start georeferencing</p>
+              <span class="material-icons-outlined box-arrow">reply</span>
+            </div>
+          </div>
+          <input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
         </div>
-      </div>
-      <div class='warning'><strong>Please note that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine datasets</strong></div>
-      
-    </div>
-    
-    <input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
-
+        <div class='warning'><strong>Please remember that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine datasets</strong></div>
+      {:else}
+        <div class='warning'><strong>If you're interested to use this tool for your own georeferencing work please contact the NSCF on data[at]nscf.org.za</strong></div>
+      {/if}
+    {:else}
+      <div class='warning'><strong>If you're interested to use this tool for your own georeferencing work please contact the NSCF on data[at]nscf.org.za</strong></div>
+    {/if}
     <div class="madewith">
       <span>made with</span>
       <a href="https://svelte.dev" target="_blank">
@@ -147,8 +150,11 @@ function toEmitOrNotToEmit(file){
 <style>
 
 .container {
-  text-align:center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   height:100%;
+  width: 100%;
   overflow-y: auto;
 }
 	h1 {
@@ -229,10 +235,14 @@ function toEmitOrNotToEmit(file){
 
   .datasets-button:hover:enabled {
     box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
-
   }
 
   .warning {
+    position: absolute;
+    bottom: 10px;
+    width:50%;
+    min-width: 600px;
+    text-align: center;
     background-color: #ffd47d;
     color: rgb(73, 93, 158);
     border-radius: 2px;

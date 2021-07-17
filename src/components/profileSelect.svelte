@@ -13,7 +13,7 @@
 	//based on https://dev.to/chromiumdev/cancellable-async-functions-in-javascript-5gp7
 	//but I dont know if it really works...
 	function* searchProfiles(search) {
-    let res = yield fetch(`https://us-central1-georef-745b9.cloudfunctions.net/findprofilebyemail?search=${search}`)
+    let res = yield fetch(`https://us-central1-georef-745b9.cloudfunctions.net/findprofile?search=${search}`)
     if(res.ok){
       let data = yield res.json()
 			if(data.length) {
@@ -76,18 +76,19 @@
 </script>
 
 <div class="dropcontainer">
-	<input style="width:400px;" placeholder="Type an email address to invite someone" bind:value={inputVal} /> 
+	<input style="width:400px;" placeholder="Type a name or email address" on:blur={_ => inputVal = null} bind:value={inputVal} /> 
 	<div class="optionscontainer">
 		{#each items as item}
 			{#if typeof item == 'string'}
 				{#if item.includes('invite')}
 					<div class="selectableitem" on:click='{_ => dispatchItem(item)}'>{item}</div>
 				{:else}
-					<div class="selectableitem">{item}</div>
+					<div class="selectableitem">invite {item}</div>
 				{/if}
 			{:else}
-				<div class="selectableitem" on:click='{_ => dispatchItem(item)}'>{item.formattedName}</div>
+				<div class="selectableitem" on:click='{_ => dispatchItem(item)}'>invite {`${item.firstName} ${item.lastName} (${item.email})`}</div>
 			{/if}
+			<hr/>
 		{/each}
 	</div>
 </div>
@@ -100,11 +101,18 @@
 	
 	.optionscontainer {
 		position:absolute;
-		top: 40px;
+		bottom: 40px;
 		left: 0px;
+		border: 1px solid darkslategray
 	}
 
+	hr {
+		border-top: 1px solid darkslategray
+	}
 
+	hr:last-of-type {
+		display:none;
+	}
 	
 	.selectableitem {
 		padding: 5px;

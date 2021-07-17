@@ -10,6 +10,7 @@
   import StatsChart from './datasetStatsChart.svelte'
   import UsersChart from './datasetUserStatsChart.svelte'
   import ProgressChart from './datasetProgressChart.svelte'
+  import Team from './datasetTeam.svelte'
   import Toast from '../toast.svelte'
 
   const dispatch = createEventDispatcher()
@@ -33,43 +34,37 @@
 
     //only the person who created the dataset can see the georeferencers
     if(dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid))){
-      //we have georeferencers, invited and newInvitees
-      let uids = []
-      
-      if (dataset.georeferencers && dataset.georeferencers.length) {
-        uids = [...uids, ...dataset.georeferencers]
+      //we have admins, georeferencers, pastGeoreferencers, invited and newInvitees, and declinedInvitees
+
+      let arrays = [dataset.admins, dataset.georeferencers, dataset.pastGeoreferencers, dataset.invitees, dataset.declinedInvitees]
+      arrays = arrays.filter(x => x && x.length)
+      let uids = arrays.flat()
+
+      let proms = []
+      let userProfiles = Firestore.collection('userProfiles')
+
+      for (let uid of uids) {
+        if(uid == '1tkz9zL4GLf5ttOrBf41Wea7DPb2') console.log('fetching Mkhipheni!')
+        proms.push(userProfiles.doc(uid).get())
       }
 
-      if (dataset.invitees && dataset.invitees.length) {
-        uids = [...uids, ...dataset.invitees]
-      }
-
-      if (dataset.declinedInvitees && dataset.declinedInvitees.length) {
-        uids = [...uids, ...dataset.declinedInvitees]
-      }
-      
-      if(uids.length) {
-        let res = await fetch('https://us-central1-georef-745b9.cloudfunctions.net/getprofilesforidlist', {
-          method: 'POST', 
-          mode: 'cors', 
-          cache: 'no-cache',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ uids }) // body data type must match "Content-Type" header
-        })
-
-        if(res.ok) {
-          let profiles = await res.json()
-          profilesIndex = {}
-          for (let profile of profiles) {
-            profilesIndex[profile.uid] = profile
-          }
-        }
-        else {
-          alert('there was a problem fetching the user profiles for georeferencers and invitees')
+      let result = {}
+      let snaps = await Promise.all(proms)
+      for (let snap of snaps) {
+        if(snap.exists){
+          let profile = snap.data()
+          result[profile.uid] = profile
         }
       }
+
+      profilesIndex = result
+
+      //how to subset an object...
+      const lists = (({ admins = [], georeferencers = [], pastGeoreferencers = [], invitees = [], newInvitees = [], declinedInvitees = []}) => 
+        ({ admins , georeferencers, pastGeoreferencers, invitees, newInvitees, declinedInvitees }))(dataset);
+      
+      console.log(lists)
+
     }
   })
 
@@ -90,93 +85,6 @@
     let dtParts = dtAdjusted.toISOString().split(/[T\.]/g)
     dtParts.pop() //chuck it!
     return dtParts.join(' ')
-  }
-
-  const handleProfileSelected = async ev => {
-
-    let item = ev.detail
-    if (typeof item == 'string' && item.trim() && item.includes('invite')){
-      let s = item.replace('invite', '').trim().toLowerCase()
-      let iupdUpdate
-      let querySnap = await Firestore.collection('invitedUserPendingDatasets').where('email', '==', s).get()
-      if(querySnap.exists){
-        iupdUpdate = querySnap.docs[0].ref.update({datasets: FieldValue.arrayUnion(dataset.datasetID)})
-      }
-      else {
-        iupdUpdate = Firestore.collection('invitedUserPendingDatasets').add({email: s, datasets: [dataset.datasetID]})
-      }
-
-      let datasetUpdate = Firestore.collection('datasets').doc(dataset.datasetID).update({newInvitees: FieldValue.arrayUnion(s)})
-
-      Promise.all([iupdUpdate, datasetUpdate]).then(_ => {
-        dataset.newInvitees.push(s)
-        dataset.newInvitees = dataset.newInvitees //svelte
-        return
-      }).catch(Err => {
-        alert('there was an error adding', s, 'to the invitee list')
-      })
-    }
-    else { //it must be a profile
-      
-      let updRef = Firestore.collection('userPendingDatasets').doc(profile.uid)
-      let updSnap = await updRef.get()
-      let updUpdate
-      if(updSnap.exists){
-        updUpdate = updRef.update({datasets: FieldValue.arrayUnion(dataset.datasetID)})
-      }
-
-      let datasetUpdate = Firestore.collection('datasets')
-        .doc(dataset.datasetID)
-        .update({
-          invitees: FieldValue.arrayUnion(item.uid),
-          pastGeoreferencers: FieldValue.arrayUnion(item.uid) //this is in case we are reinviting someone who left
-        })
-
-      Promise.all([updUpdate, datasetUpdate]).then(_ => {
-        profilesIndex[item.uid] = item
-        dataset.invitees.push(item.uid)
-        dataset.invitees = dataset.invitees //svelte
-      })
-      .catch(err => {
-        alert('there was an error adding', item.firstName, 'to the invitee list')
-      })
-    }
-  }
-
-  const removeGeoreferencer = async uid => {
-    let conf = confirm('Are you sure you want to remove this active georeferencer?')
-    if(conf){
-      let ref = Firestore.collection('datasets').doc(dataset.datasetID)
-      try {
-        await ref.update({georeferencers: FieldValue.arrayRemove(uid)})
-      }
-      catch(err) {
-        alert('there was an error removing this georeferencer from this dataset, see console')
-        console.error('error removing georeferencer')
-        console.log(err)
-        return
-      }
-      
-      let index = dataset.georeferencers.indexOf(uid)
-      dataset.georeferencers.splice(index, 1)
-      dataset.georeferencers = dataset.georeferencers //svelte
-    }
-  }
-
-  const makeAdmin = uid => {
-    let conf = confirm(`Are you sure you want to make ${profilesIndex[uid].firstName} an admin? This cannot be undone...`)
-    if(conf) {
-      if(dataset.admins) {
-        dataset.admins.push(uid)
-        dataset.admins = dataset.admins //svelte
-        //lets just do this in the backround
-        Firestore.collection('datasets').doc(dataset.datasetID).update({admins: FieldValue.arrayUnion(uid)})
-      }
-      else {
-        dataset.admins = [uid]
-        Firestore.collection('datasets').doc(dataset.datasetID).update({admins: [uid]})
-      }
-    }
   }
 
   const handleStartGeoreferencing = _ => {
@@ -722,75 +630,159 @@
     })
   }
 
-  const removeInvitee = uid => {
-    let datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
-    let userPendingDatasetsRef = Firestore.collection('userPendingDatasets').doc(uid) //upd
+  const makeAdmin = ev => {
+    let {uid, firstName} = ev.detail
+    let conf = confirm(`Are you sure you want to make ${firstName} an admin?`)
+    if(conf) {
+      if(dataset.admins) {
+        dataset.admins = [...dataset.admins, uid] //svelte
+        //lets just do this in the backround
+        Firestore.collection('datasets').doc(dataset.datasetID).update({admins: FieldValue.arrayUnion(uid)})
+      }
+      else {
+        dataset.admins = [uid]
+        Firestore.collection('datasets').doc(dataset.datasetID).update({admins: [uid]})
+      }
+    }
+  }
+
+  const removeUser = ev => {
+    let {uid, firstName, list} = ev.detail
+    let conf = confirm(`Are you sure you want to remove ${firstName} from ${list}?`)
+    if(conf){
+      let datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
+      let userDatasetsRef = Firestore.collection('userDatasets').doc(uid)
+      if(list == 'georeferencers') {
+        let ind = dataset.georeferencers.indexOf(uid)
+        dataset.georeferencers.splice(ind, 1)
+        dataset.georeferencers = dataset.georeferencers
+        datasetRef.update({georeferencers: FieldValue.arrayRemove(uid)}) //async
+        userDatasetsRef.update({current: FieldValue.arrayRemove(dataset.datasetID)})
+        //have they georeferenced?
+        Realtime.ref(`stats/perDataset/${dataset.datasetID}/perUser/${uid}/georefsAdded`)
+        .once('value').then(snap => {
+          if(snap.exists() && snap.val()) {
+            datasetRef.update({pastGeoreferencers: FieldValue.arrayUnion(uid)}) //async
+          }
+        }).catch(err => {
+          console.error('error checking dataset stats for georeferencer with uid', uid, ':', err.message)
+        })
+      }
+      else {
+        let ind = dataset.invitees.indexOf(uid)
+        dataset.invitees.splice(ind, 1)
+        dataset.invitees = dataset.invitees
+        datasetRef.update({invitees: FieldValue.arrayRemove(uid)}) //async
+        userDatasetsRef.update({invited: FieldValue.arrayRemove(dataset.datasetID)})
+      }
+    }
+  }
+
+  const removeNewInvitee = ev => {
+    let email = ev.detail
     
-    Firestore.runTransaction(async transaction => {
-      let update1 = transaction.update(datasetRef, {
-        invitees: FieldValue.arrayRemove(uid)
-      })
-
-      let update2 = transaction.update(userPendingDatasetsRef, {
-        datasets: FieldValue.arrayRemove(dataset.datasetID)
-      })
-
-      await Promise.all([update1, update2]).then(_ => {
-        let index = dataset.invitees.indexOf(uid)
-        if(index >= 0) {
-          dataset.invitees.splice(index, 1)
-          dataset.invitees = dataset.invitees //svelte
-        }
-        return
-      }).catch(err => {
-        console.log('error updating invitees list:', err.message)
-      })
-    })
-  }
-
-  const removeNewInvitee = email => {
     if(email && email.trim()) {
-      Firestore.collection('invitedUserPendingDatasets').where('email', '==', email.toLowerCase())
-      .get().then(UPDSnap => {
-        
-        if(UPDSnap.exists) { //it really should!
-          let datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
+      let datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
+      let searchEmail = email.replace(/[@\.\s]+/g, '').toLowerCase()
+      let userDatasetsRef = Firestore.collection('userDatasets').doc(searchEmail)
 
-          let proms = []
-          return Firestore.runTransaction(async transaction => {
-            let update1 = transaction.update(datasetRef, {
-              newInvitees: FieldValue.arrayRemove(email)
-            })
-
-            proms.push(update1)
-
-            let update2 = transaction.update(UPDSnap.ref, {
-              datasets: FieldValue.arrayRemove(dataset.datasetID)
-            })
-            proms.push(update2)
-
-            await Promise.all(proms)
-            
-            let index = dataset.newInvitees.indexOf(email)
-            if(index >= 0) {
-              dataset.newInvitees.splice(index, 1)
-              dataset.newInvitees = dataset.newInvitees //svelte
-            }
-          })
+      let ind = dataset.newInvitees.indexOf(email)
+      if(ind >= 0) {
+        dataset.newInvitees.splice(ind, 1)
+        dataset.newInvitees = dataset.newInvitees
+        datasetRef.update({newInvitees: FieldValue.arrayRemove(email)}) //async
+        userDatasetsRef.update({invited: FieldValue.arrayRemove(dataset.datasetID)})
+      }
+      else {
+        //edge case
+        //this is a profile that no longer exists...
+        //look in the other lists
+        let lists = ['georeferencers', 'invitees', 'pastGeoreferencers', 'declinedInvitees']
+        for (let list of lists) {
+          let ind = dataset[list].indexOf(email) //yes, it's not an email now, it should be a uid...
+          if(ind >= 0) {
+            dataset[list].splice(ind, 1)
+            dataset[list] = dataset[list]
+            datasetRef.update({[list]: FieldValue.arrayRemove(email)}) //async
+            userDatasetsRef = Firestore.collection('userDatasets').doc(email)
+            userDatasetsRef.delete() //they're no longer on the system so this is fine
+            break
+          }
         }
-      })
-    }
-    else {
-      alert('oops, that didn\'t work!')
+      }
     }
   }
 
-  const reInvite = async uid => {
-    await Firestore.collection('userPendingDatasets').doc(uid).update({datasets: FieldValue.arrayUnion(dataset.datasetID)})
-    await Firestore.collection('datasets').doc(dataset.datasetID).update({declinedInvitees: FieldValue.arrayRemove(uid), invitees: FieldValue.arrayUnion(uid)})
-    dataset.invitees = [...dataset.invitees, uid]
-    let ind = dataset.declinedInvitees.findIndex(uid)
-    dataset.declinedInvitees = dataset.declinedInvitees.splice(ind, 1)
+  const reInvite = ev => {
+    let uid = ev.detail
+    let datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
+    let userDatasetsRef = Firestore.collection('userDatasets').doc(uid)
+    if(dataset.pastGeoreferencers && dataset.pastGeoreferencers.length) {
+      let ind = dataset.pastGeoreferencers.indexOf(uid)
+      if(ind >= 0) {
+        dataset.pastGeoreferencers.splice(ind, 1)
+        dataset.pastGeoreferencers = dataset.pastGeoreferencers
+        datasetRef.update({
+          pastGeoreferencers: FieldValue.arrayRemove(uid),
+          invitees: FieldValue.arrayUnion(uid)
+        })
+        userDatasetsRef.update({current: FieldValue.arrayUnion(dataset.datasetID)})
+        return
+      }
+    }
+
+    //else
+    if(dataset.declinedInvitees && dataset.declinedInvitees.length) {
+      let ind = dataset.declinedInvitees.indexOf(uid)
+      if(ind >= 0) {
+        dataset.declinedInvitees.splice(ind, 1)
+        dataset.declinedInvitees = dataset.declinedInvitees
+        datasetRef.update({
+          declinedInvitees: FieldValue.arrayRemove(uid),
+          invitees: FieldValue.arrayUnion(uid)
+        })
+        userDatasetsRef.update({current: FieldValue.arrayUnion(dataset.datasetID)})
+        return
+      }
+    }
+  }
+
+  const handleProfileSelected = ev => {
+
+    let item = ev.detail
+    let datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
+    if (typeof item == 'string' && item.trim() && item.includes('invite')){
+      let email = item.replace('invite', '').trim()
+      let searchEmail = email.replace(/[@\.\s]+/g, '').toLowerCase()
+      let userDatasetsRef = Firestore.collection('userDatasets').doc(searchEmail)
+      dataset.newInvitees = [...dataset.newInvitees, email]
+      datasetRef.update({newInvitees: FieldValue.arrayUnion(email)})
+      userDatasetsRef.get().then(snap => {
+        if(snap.exists) {
+          userDatasetsRef.update({invited: FieldValue.arrayUnion(dataset.datasetID)})
+        }
+        else {
+          userDatasetsRef.set({invited: [dataset.datasetID]})
+        }
+      }).catch(err => {console.error('error updating userDatesets for', email, ':', error.message)})
+    }
+    else { //it must be a profile
+      let profile = item
+      let userDatasetsRef = Firestore.collection('userDatasets').doc(profile.uid)
+      dataset.invitees = [...dataset.invitees, profile.uid]
+      datasetRef.update({nvitees: FieldValue.arrayUnion(profile.uid)})
+      userDatasetsRef.get().then(snap => {
+        if(snap.exists) {
+          userDatasetsRef.update({invited: FieldValue.arrayUnion(dataset.datasetID)})
+        }
+        else {
+          userDatasetsRef.set({invited: [dataset.datasetID]})
+        }
+      }).catch(err => {
+        let msg = `error updating datasets for ${profile.formattedName} with uid ${profile.uid}: ${err.message}`
+        console.error(msg)
+      })
+    }
   }
 
   const showUTFFilehint = _ => {
@@ -852,55 +844,55 @@
       <h2>{dataset.datasetName}</h2>
       <div class="content">
         <div>
-          <label>Collection</label>
+          <span class="label">Collection</span>
           <span class="data-item">{dataset.collectionCode}</span>
         </div>
         <div>
-          <label>Region</label>
+          <span class="label">Region</span>
           <span class="data-item">{dataset.region}</span>
         </div>
         <div>
-          <label>Domain</label>
+          <span class="label">Domain</span>
           <span class="data-item">{dataset.domain}</span>
         </div>
         <div>
-          <label>Date created</label>
+          <span class="label">Date created</span>
           <span class="data-item">{dataset.dateCreated? getLocalDate(dataset.dateCreated) : null}</span>
         </div>
         <div>
-          <label>Contact</label>
+          <span class="label">Contact</span>
           <span class="data-item">{dataset.contactName}</span>
         </div>
         <div>
-          <label>Contact email</label>
+          <span class="label">Contact email</span>
           <span class="data-item">{dataset.email}</span>
         </div>
         <div>
-          <label>Date completed</label>
+          <span class="label">Date completed</span>
           <span class="data-item">{dataset.completed? getLocalDate(dataset.dateCompleted) : 'NA'}</span>
         </div>
         <div>
-          <label>Total Records</label>
+          <span class="label">Total Records</span>
           <span class="data-item">{dataset.recordCount}</span>
         </div>
         <div>
-          <label>Records Completed</label>
+          <span class="label">Records Completed</span>
           <span class="data-item">{dataset.recordsCompleted}</span>
         </div>
         <div>
-          <label>Total groups</label>
+          <span class="label">Total groups</span>
           <span class="data-item">{dataset.groupCount}</span>
         </div>
         <div>
-          <label>Groups complete</label>
+          <span class="label">Groups complete</span>
           <span class="data-item">{dataset.groupsComplete}</span>
         </div>
         <div>
-          <label>Last georeference</label>
+          <span class="label">Last georeference</span>
           <span class="data-item">{dataset.lastGeoreference? getLocalDateTime(dataset.lastGeoreference): 'NA'}</span>
         </div>
         <div>
-          <label>Last georeference by</label>
+          <span class="label">Last georeference by</span>
           <span class="data-item">{dataset.lastGeoreferenceBy? dataset.lastGeoreferenceBy : 'NA'}</span>
         </div>
       </div>
@@ -920,63 +912,42 @@
         <div class="chart-spacer"></div>
         <StatsChart {dataset} {profilesIndex} userID={profile.uid} />
       </div>
-      {#if profilesIndex && (dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid)))  }
-        <div>
-          {#if dataset.georeferencers.length}
-            <div>
-              <label>Georeferencers</label>
-              <div class="inviteelist">
-                {#each dataset.georeferencers as uid}
-                  <div class="inviteecontainer">
-                    {#if profilesIndex[uid]} <!--this is just in users and their details have been deleted elsewhere-->
-                      <div style="padding-right:5px">{profilesIndex[uid].formattedName}</div>
-                      {#if dataset.admins && dataset.admins.includes(uid)}
-                        <div class="material-icons" title="is admin">person</div>
-                      {:else if dataset.createdByID != uid}
-                        <div class="material-icons icon-input-icon" title="make admin" on:click='{_ => makeAdmin(uid)}'>person_add_alt</div>
-                        <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeGeoreferencer(uid)}'>clear</div>
-                      {/if}
-                    {/if}
-                  </div>
-                {/each}
-              </div>
-            </div>
-          {/if}
-          {#if dataset.invitees.length}
-            <div>
-              <label>Invited</label>
-              <div class="inviteelist">
-                {#each dataset.invitees as uid}
-                  <div class="inviteecontainer">
-                    <div style="padding-right:5px">{profilesIndex[uid].formattedName}</div>
-                    <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeInvitee(uid)}'>clear</div>
-                  </div>
-                {/each}
-                {#each dataset.newInvitees as email}
-                  <div class="inviteecontainer">
-                    <div style="padding-right:5px">{email}</div>
-                    <div class="material-icons icon-input-icon" title="remove" on:click='{_ => removeNewInvitee(email)}'>clear</div>
-                  </div>
-                {/each}
-              </div>
-            </div>
-          {/if}
-          {#if dataset.declinedInvitees.length}
-            <div>
-              <label>Declined</label>
-              <div class="inviteelist">
-                {#each dataset.declinedInvitees as uid}
-                  <div class="inviteecontainer">
-                    <div style="padding-right:5px">{profilesIndex[uid].formattedName}</div>
-                    <div class="material-icons icon-input-icon" title="re-invite" on:click='{_ => reInvite(uid)}'>mail_outline</div>
-                  </div>
-                {/each}
-              </div>
-            </div>
-          {/if}
+      {#if dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid))  }
+        {#if dataset.georeferencers && dataset.georeferencers.length}  
           <div>
-            <ProfileSelect on:profile-selected={handleProfileSelected} />
+            <h4 style="margin-bottom:0">Current Georeferencers</h4>
+            <Team datasetCreatedByID={dataset.createdByID} ids={dataset.georeferencers} 
+            {profilesIndex}
+            georef={true}
+            admins={dataset.admins} 
+            on:make-admin={makeAdmin}
+            on:remove-user={removeUser}/>
           </div>
+        {/if}
+        {#if dataset.pastGeoreferencers && dataset.pastGeoreferencers.length}  
+          <div>
+            <h4 style="margin-bottom:0">Past Georeferencers</h4>
+            <Team ids={dataset.pastGeoreferencers}  {profilesIndex} 
+            on:reinvite={reInvite} />
+          </div>
+        {/if}
+        {#if (dataset.invitees && dataset.invitees.length) || (dataset.newInvitees && dataset.newInvitees.length)}
+          <div>
+            <h4 style="margin-bottom:0">Invitees</h4>
+            <Team ids={[...dataset.invitees, ...dataset.newInvitees]} invitees={true}  {profilesIndex}
+            on:remove-user={removeUser}
+            on:remove-new={removeNewInvitee} />
+          </div>
+        {/if}
+        {#if dataset.declinedInvitees && dataset.declinedInvitees.length}
+          <div>
+            <h4 style="margin-bottom:0">Declined</h4>
+            <Team ids={dataset.declinedInvitees} {profilesIndex} on:reinvite={reInvite} />
+          </div>
+        {/if}
+        <div>
+          <h4 style="margin-bottom:0">Invite new georeferencers</h4>
+          <ProfileSelect on:profile-selected={handleProfileSelected} />
         </div>
       {/if}  
     {/if}
@@ -1036,7 +1007,7 @@ h2 {
   padding: 5px;
 }
 
-label {
+.label {
   background-color: #bcd0ec;
   padding:2px;
 }
@@ -1047,56 +1018,9 @@ label {
   height:2em;
 }
 
-.button-container {
-  display:flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 300px;
-}
-
-.button-container > button {
-  display:block;
-  background-color: lightgray;
-  width:100%;
-  max-width:400px;
-  margin:10px;
-  padding:10px;
-}
-
 button:hover {
   background-color:grey;
   color:white;
-}
-
-.inviteelist {
-  display:flex;
-  flex-wrap: wrap;
-  width: 100%;
-  background-color: white;
-  border-radius: 2px;
-  border: 1px solid gainsboro;
-  margin-bottom:5px;
-}
-
-.icon-input-icon {
-  width:24px;
-  height:24px;
-  color: white;
-}
-
-.icon-input-icon:hover {
-  cursor: pointer;
-}
-
-.inviteecontainer {
-  display:flex;
-  align-items: center;
-  color:white;
-  background-color: grey;
-  border-radius: 4px;
-  border: 1px solid rgb(70, 69, 69);
-  padding: 4px;
-  margin: 2px;
 }
 
 .charts {

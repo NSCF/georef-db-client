@@ -76,7 +76,7 @@
 </script>
 
 <div class="dropcontainer">
-	<input style="width:400px;" placeholder="Type a name or email address" on:blur={_ => inputVal = null} bind:value={inputVal} /> 
+	<input style="width:400px;" placeholder="Type a name or email address" bind:value={inputVal} /> 
 	<div class="optionscontainer">
 		{#each items as item}
 			{#if typeof item == 'string'}

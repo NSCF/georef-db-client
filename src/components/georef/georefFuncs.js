@@ -215,8 +215,6 @@ const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, u
   proms.push(updateDatasetLastGeorefsAddedBy)
 
   await Promise.all(proms) //thats 30 in total!!
-
-  console.log('georef count stats updated')
   
 }
 

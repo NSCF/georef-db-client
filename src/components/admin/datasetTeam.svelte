@@ -11,9 +11,6 @@
   export let invitees = false //a flag for whether this is past georeferencers
   export let admins = [] //these are uids
 
-
-  console.log(ids)
-
   let re = new RegExp(/^[a-z0-9\.-_]*@[a-z0-9\.-_]*\.[a-z]+$/i) //simple email regex, hope it works!
 
 </script>

@@ -44,7 +44,6 @@
       let userProfiles = Firestore.collection('userProfiles')
 
       for (let uid of uids) {
-        if(uid == '1tkz9zL4GLf5ttOrBf41Wea7DPb2') console.log('fetching Mkhipheni!')
         proms.push(userProfiles.doc(uid).get())
       }
 
@@ -63,7 +62,6 @@
       const lists = (({ admins = [], georeferencers = [], pastGeoreferencers = [], invitees = [], newInvitees = [], declinedInvitees = []}) => 
         ({ admins , georeferencers, pastGeoreferencers, invitees, newInvitees, declinedInvitees }))(dataset);
       
-      console.log(lists)
 
     }
   })
@@ -314,7 +312,7 @@
     }
     catch(err) {
       if(err.length) {
-        console.log('errors fetching original dataset:')
+        console.error('errors fetching original dataset:')
         for (let e of err){
           console.log(e)
         }
@@ -753,35 +751,45 @@
     let datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
     if (typeof item == 'string' && item.trim() && item.includes('invite')){
       let email = item.replace('invite', '').trim()
-      let searchEmail = email.replace(/[@\.\s]+/g, '').toLowerCase()
-      let userDatasetsRef = Firestore.collection('userDatasets').doc(searchEmail)
-      dataset.newInvitees = [...dataset.newInvitees, email]
-      datasetRef.update({newInvitees: FieldValue.arrayUnion(email)})
-      userDatasetsRef.get().then(snap => {
-        if(snap.exists) {
-          userDatasetsRef.update({invited: FieldValue.arrayUnion(dataset.datasetID)})
-        }
-        else {
-          userDatasetsRef.set({invited: [dataset.datasetID]})
-        }
-      }).catch(err => {console.error('error updating userDatesets for', email, ':', error.message)})
+      
+      //check if added already
+      let exists = dataset.newInvitees.find(x => x.replace(/[@\.\s]+/g, '').toLowerCase() == email.replace(/[@\.\s]+/g, '').toLowerCase())
+      if(!exists) {
+        let searchEmail = email.replace(/[@\.\s]+/g, '').toLowerCase()
+        let userDatasetsRef = Firestore.collection('userDatasets').doc(searchEmail)
+        dataset.newInvitees = [...dataset.newInvitees, email]
+        datasetRef.update({newInvitees: FieldValue.arrayUnion(email)})
+        userDatasetsRef.get().then(snap => {
+          if(snap.exists) {
+            userDatasetsRef.update({invited: FieldValue.arrayUnion(dataset.datasetID)})
+          }
+          else {
+            userDatasetsRef.set({invited: [dataset.datasetID]})
+          }
+        }).catch(err => {console.error('error updating userDatesets for', email, ':', error.message)})
+      }
     }
     else { //it must be a profile
       let profile = item
+      profilesIndex[profile.uid] = profile
       let userDatasetsRef = Firestore.collection('userDatasets').doc(profile.uid)
-      dataset.invitees = [...dataset.invitees, profile.uid]
-      datasetRef.update({nvitees: FieldValue.arrayUnion(profile.uid)})
-      userDatasetsRef.get().then(snap => {
-        if(snap.exists) {
-          userDatasetsRef.update({invited: FieldValue.arrayUnion(dataset.datasetID)})
-        }
-        else {
-          userDatasetsRef.set({invited: [dataset.datasetID]})
-        }
-      }).catch(err => {
-        let msg = `error updating datasets for ${profile.formattedName} with uid ${profile.uid}: ${err.message}`
-        console.error(msg)
-      })
+      
+      let exists = dataset.invitees.find(x => x.uid == profile.uid)
+      if(!exists) {
+        dataset.invitees = [...dataset.invitees, profile.uid]
+        datasetRef.update({invitees: FieldValue.arrayUnion(profile.uid)})
+        userDatasetsRef.get().then(snap => {
+          if(snap.exists) {
+            userDatasetsRef.update({invited: FieldValue.arrayUnion(dataset.datasetID)})
+          }
+          else {
+            userDatasetsRef.set({invited: [dataset.datasetID]})
+          }
+        }).catch(err => {
+          let msg = `error updating datasets for ${profile.formattedName} with uid ${profile.uid}: ${err.message}`
+          console.error(msg)
+        })
+      }
     }
   }
 
@@ -1005,6 +1013,7 @@ h2 {
   border-radius:2px;
   border: 1px solid lightgray;
   padding: 5px;
+  background-color: white;
 }
 
 .label {

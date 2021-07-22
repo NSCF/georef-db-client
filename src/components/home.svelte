@@ -95,6 +95,7 @@ function toEmitOrNotToEmit(file){
   {:else}
     <div style="margin-top:20px" />
   {/if}
+  <h3 style="color: darkslategray;">Single georeference lookup</h3>
   <ManualGeoref  on:custom-search-searching={_ => searching = true} on:custom-search-cleared={_ => searching = false} />
   {#if !searching}  
     {#if profile}
@@ -120,14 +121,14 @@ function toEmitOrNotToEmit(file){
               <span class="material-icons-outlined box-arrow">reply</span>
             </div>
           </div>
-          <input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
         </div>
         <div class='warning'><strong>Please remember that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine datasets</strong></div>
+        <input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
       {:else}
-        <div class='warning'><strong>If you're interested to use this tool for your own georeferencing work please contact the NSCF on data[at]nscf.org.za</strong></div>
+        <div class='warning warning-lower'><strong>To use this tool for collaborative georeferencing please contact the NSCF on data[at]nscf.org.za</strong></div>
       {/if}
     {:else}
-      <div class='warning'><strong>If you're interested to use this tool for your own georeferencing work please contact the NSCF on data[at]nscf.org.za</strong></div>
+      <div class='warning warning-lower'><strong>To use this tool for collaborative georeferencing please contact the NSCF on data[at]nscf.org.za</strong></div>
     {/if}
     <div class="madewith">
       <span>made with</span>
@@ -238,16 +239,17 @@ function toEmitOrNotToEmit(file){
   }
 
   .warning {
-    position: absolute;
-    bottom: 10px;
-    width:50%;
-    min-width: 600px;
+    width: 600px;
     text-align: center;
     background-color: #ffd47d;
     color: rgb(73, 93, 158);
     border-radius: 2px;
     border-width: 20px;
     border: 4px solid #c98f18;
+  }
+
+  .warning-lower {
+    margin-top:100px;
   }
 
   .madewith {

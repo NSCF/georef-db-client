@@ -38,8 +38,6 @@ const pasteDecimalCoords = _ => {
           let newCoords = validateCoordsString(coordsString)
           if(value) {
             if(newCoords.replace(/\s+/g,'') != value.replace(/\s+/g,'')) {
-              console.log('value is', value)
-              console.log('new coords is', newCoords)
               value = newCoords
               dispatch('coords-from-paste')
             }

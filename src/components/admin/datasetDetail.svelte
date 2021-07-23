@@ -770,22 +770,22 @@
       }
     }
     else { //it must be a profile
-      let userProfile = item
+      let invitedProfile = item
 
-      if(userProfile.uid == profile.uid) {
+      if(invitedProfile.uid == profile.uid) {
         alert('You\'re already listed as a georeferencer') //they can't be here otherwise, and they are the creator
         return
       }
       
-      let invited = dataset.invitees.find(x => x == userProfile.uid)
-      let georeferencer = dataset.georeferencers.find(x => x == userProfile.uid)
+      let invited = dataset.invitees.find(x => x == invitedProfile.uid)
+      let georeferencer = dataset.georeferencers.find(x => x == invitedProfile.uid)
       if(!invited && !georeferencer) {
-        profilesIndex[userProfile.uid] = userProfile
-        dataset.invitees = [...dataset.invitees, userProfile.uid]
+        profilesIndex[invitedProfile.uid] = invitedProfile
+        dataset.invitees = [...dataset.invitees, invitedProfile.uid]
         console.log(dataset.invitees)
 
-        let userDatasetsRef = Firestore.collection('userDatasets').doc(userProfile.uid)
-        datasetRef.update({invitees: FieldValue.arrayUnion(profile.uid)})
+        let userDatasetsRef = Firestore.collection('userDatasets').doc(invitedProfile.uid)
+        datasetRef.update({invitees: FieldValue.arrayUnion(invitedProfile.uid)})
         userDatasetsRef.get().then(snap => {
           if(snap.exists) {
             userDatasetsRef.update({invited: FieldValue.arrayUnion(dataset.datasetID)})
@@ -794,7 +794,7 @@
             userDatasetsRef.set({invited: [dataset.datasetID]})
           }
         }).catch(err => {
-          let msg = `error updating datasets for ${profile.formattedName} with uid ${profile.uid}: ${err.message}`
+          let msg = `error updating datasets for ${invitedProfile.formattedName} with uid ${invitedProfile.uid}: ${err.message}`
           console.error(msg)
         })
       }

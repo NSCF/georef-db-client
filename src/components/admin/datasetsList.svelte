@@ -132,7 +132,7 @@ const acceptInvitedDataset = async datasetID => {
   try {
     let datasetUpdate = fbDataset.update({
       invitees: FieldValue.arrayRemove(profile.uid),
-      georeferencers: FieldValue.arrayUnion(datasetID)
+      georeferencers: FieldValue.arrayUnion(profile.uid)
     })
 
     let userDatasetsUpdate = fbUserDatasets.update({

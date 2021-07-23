@@ -12,15 +12,22 @@ const groupLocalities = async (groupingSource, datasetID, country, stateProvince
     let textPackURL = 'https://us-central1-georefmaps.cloudfunctions.net/grouplocalities '
     
     console.log(`grouping localities for ${country}${stateProvince? ':' + stateProvince : ''}`)
-    let response = await fetch(textPackURL, {
-      method: 'POST', 
-      mode: 'cors',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({localityCollector: Object.keys(groupingSource)}) 
-    })
+    let response
+    
+    try {
+      response = await fetch(textPackURL, {
+        method: 'POST', 
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({localityCollector: Object.keys(groupingSource)}) 
+      })
+    }
+    catch(err) {
+      throw err
+    }
 
     if(response.status == 200) {
       let textpackgroups = await response.json()
@@ -69,6 +76,7 @@ const groupLocalities = async (groupingSource, datasetID, country, stateProvince
       let body = await response.text()
       if (body == "It only makes sense to group large numbers of localities"){
         //then the whole lot is a group
+        console.log(`${country}${stateProvince? ':' + stateProvince : ''} has ${Object.keys(groupingSource).length} records and will be processed client side`)
         let groupLocalities = []
         let groupRecordCount = 0
         for (let key of Object.keys(groupingSource)){

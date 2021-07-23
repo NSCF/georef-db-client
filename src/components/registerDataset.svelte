@@ -3,6 +3,7 @@
 import {nanoid} from "nanoid/nanoid.js"
 import Select from 'svelte-select'
 import ProfileSelect from './profileSelect.svelte'
+import DatasetTeam from './admin/datasetTeam.svelte'
 import {Realtime} from '../firebase.js'
 import { onMount, createEventDispatcher } from 'svelte';
 
@@ -36,8 +37,11 @@ let remarks = null
 
 let datasetID = nanoid()
 
+let profilesIndex = {}
+
 let invitees = [] //existing users invited to georeference
 let newInvitees = [] // emails without profiles invited to georeference
+let allInvitees = [] //for the DatasetTeam component
 
 $: userProfile, addNameAndEmail()
 $: regionOptions, addRegionSelectOptions()
@@ -83,25 +87,42 @@ const handleProfileSelected = ev => {
   let item = ev.detail
   if (typeof item == 'string' && item.trim() && item.includes('invite')){
     let s = item.replace('invite', '').trim()
-    newInvitees.push(s)
-    newInvitees = newInvitees //svelte
+    if (!newInvitees.includes(s)) {
+      newInvitees.push(s)
+      newInvitees = newInvitees //svelte
+    }
   }
   else { //it must be a profile
-    invitees.push(item)
+    if(!invitees.includes(item.uid)) {
+      profilesIndex[item.uid] = item
+      invitees.push(item.uid)
+      invitees = invitees //svelte
+    }
+  }
+
+  //the rerender
+  profilesIndex = profilesIndex
+  allInvitees = [...invitees, ...newInvitees]
+
+}
+
+const removeInvitee = ev => {
+  let data = ev.detail
+  let conf = confirm('Are you certain you want to remove', data.firstName, 'from the invitees?')
+  if(conf) {
+    let index = invitees.indexOf(x => x.uid == data.uid)
+    invitees.splice(index, 1)
     invitees = invitees //svelte
+    allInvitees = [...invitees, ...newInvitees]
   }
 }
 
-const removeInvitee = uid => {
-  let index = invitees.indexOf(x => x.uid == uid)
-  invitees.splice(index, 1)
-  invitees = invitees //svelte
-}
-
-const removeNewInvitee = email => {
+const removeNewInvitee = ev => {
+  let email = ev.detail
   let index = newInvitees.indexOf(x => x == email)
   newInvitees.splice(index, 1)
   newInvitees = newInvitees
+  allInvitees = [...invitees, ...newInvitees]
 }
 
 const handleSubmit = _ => {
@@ -117,8 +138,8 @@ const handleSubmit = _ => {
         domain: domain.value,
         hasStateProvince,
         georeferencers: [userProfile.uid], //the creator is automatically a georeferencer
-        invitees: invitees.map(x=>x.uid), //we only want to store the uid, we don't need the whole profile
-        newInvitees: newInvitees.map(x => x.toLowerCase()), //to simplify search later
+        invitees: invitees, //we only want to store the uid, we don't need the whole profile
+        newInvitees: newInvitees, //to simplify search later
         declinedInvitees: [],
         remarks
       }, 
@@ -133,19 +154,19 @@ const handleSubmit = _ => {
 <h2>Please add the details for this dataset</h2>
 <p>Note that only you and administrators will be able to see the dataset</p>
 <form class="content">
-  <label>Contact Name</label>
-  <input type="text" bind:value={contactName} />
-  <label>Your registered email address</label>
-  <input type="text" bind:value={email} />
-  <label>Collection Code</label>
-  <input type="text" bind:value={collectionCode} placeholder="NU, BOL, NMSA, etc"/>
-  <label>Dataset name</label>
-  <input type="text" bind:value={datasetName} placeholder="e.g. NMSA crabs 2019" />
-  <label>Target region</label>
+  <label for="contactName">Contact Name</label>
+  <input id="contactName" type="text" bind:value={contactName} />
+  <label for="email">Your registered email address</label>
+  <input id="email" type="text" bind:value={email} />
+  <label for="collcode">Collection Code</label>
+  <input id="collcode" type="text" bind:value={collectionCode} placeholder="NU, BOL, NMSA, etc"/>
+  <label for="datasetname">Dataset name</label>
+  <input id="datasetname" type="text" bind:value={datasetName} placeholder="e.g. NMSA crabs 2019" />
+  <label for="region">Target region</label>
   <div style="margin-bottom:0.5em">
     <Select items={regionsSelectOptions} bind:selectedValue={region}/>
   </div>
-  <label>Domain</label>
+  <label for="domain">Domain</label>
   <div style="margin-bottom:0.5em">
     <Select items={domainOptions} bind:selectedValue={domain}/>
   </div>
@@ -154,29 +175,16 @@ const handleSubmit = _ => {
     <span>{regionInvalidCountries.map(x => x.ambiguous? `${x.country} (ambiguous)` : x.country).join(';')}</span>
   </p>
   {/if}
-  <label>Invite georeferencers</label>
+  <label for="invite">Invite georeferencers</label>
   <div>
     <ProfileSelect on:profile-selected={handleProfileSelected} />
   </div>
-  <label>Invited</label>
-  <div>
-    <div class="inviteelist">
-      {#each invitees as profile}
-        <div class="inviteecontainer">
-          <span>{profile.formattedName + " (" + profile.email + ")"}</span>
-          <span class="material-icons icon-input-icon" title="remove" on:click='{_ => removeInvitee(profile.uid)}'>clear</span>
-        </div>
-      {/each}
-      {#each newInvitees as email}
-        <div class="inviteecontainer">
-          <span>{email}</span>
-          <span class="material-icons icon-input-icon" title="remove" on:click='{_ => removeNewInvitee(email)}'>clear</span>
-        </div>
-      {/each}
-    </div>
-  </div>
-  <label>Remarks</label>
-  <textarea bind:value={remarks} />
+  <label for="invited">Invited</label>
+  <DatasetTeam {profilesIndex} ids={allInvitees} invitees={true} 
+  on:remove-new={removeNewInvitee}
+  on:remove-user={removeInvitee} />
+  <label for="remarks">Remarks</label>
+  <textarea id="remarks" bind:value={remarks} />
 </form>
 <br/>
 <button on:click={handleSubmit} disabled={!completed}>Submit</button>
@@ -204,36 +212,4 @@ label {
   text-align: right
 }
 
-.inviteelist {
-  display:flex;
-  width: 100%;
-  height:80px;
-  background-color: white;
-  border-radius: 2px;
-  border: 1px solid gainsboro;
-  margin-bottom:5px;
-}
-
-
-.icon-input-icon {
-  width:24px;
-  height:24px;
-  color: white;
-}
-
-.icon-input-icon:hover {
-  cursor: pointer;
-}
-
-.inviteecontainer {
-  display:flex;
-  align-items: center;
-  height:1em;
-  color:white;
-  background-color: grey;
-  border-radius: 4px;
-  border: 1px solid rgb(70, 69, 69);
-  padding: 4px;
-  margin: 2px;
-}
 </style>

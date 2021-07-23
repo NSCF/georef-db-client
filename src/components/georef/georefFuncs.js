@@ -279,19 +279,22 @@ const updateDatasetStats = (Firestore, datasetRef, recordsGeoreferenced, formatt
   })
 }
 
-const updateDatasetGeorefs = (Firestore, FieldValue, datasetID, georefIDs) => {
-  return Firestore.runTransaction(async transaction => {
-    let datasetGeorefsRef = Firestore.collection('datasetGeorefs').doc(datasetID)
-    let datasetGeorefsSnap = await transaction.get(datasetGeorefsRef)
-    //we cant add a count here because we don't know what the result of arrayUnion will be
-    if(datasetGeorefsSnap.exists){
-      await transaction.update(datasetGeorefsRef, {georefIDs: FieldValue.arrayUnion(...georefIDs)}) 
-    }
-    else {
-      await transaction.set(datasetGeorefsRef, {datasets: georefIDs})
-    }
-    return
-  })
+const updateDatasetGeorefs = async (Firestore, FieldValue, datasetID, georefIDs) => {
+  
+  let datasetGeorefsRef = Firestore.collection('datasetGeorefs').doc(datasetID)
+  let georefsAddedRef = Firestore.collection('datasetGeorefsAdded').doc(datasetID)
+  let snap = await georefsAddedRef.get()
+
+  if(snap.exists) {
+    console.log('updating existing datasetGeorefs')
+    await datasetGeorefsRef.update({georefIDs: FieldValue.arrayUnion(...georefIDs)})
+  }
+  else {
+    console.log('making new datasetGeorefs')
+    await Promise.all([datasetGeorefsRef.set({georefIDs}), georefsAddedRef.set({added: true})])
+  }
+  return
+  
 }
 
 const updateGeorefRecords = async (Firestore, FieldValue, georef, datasetID, recordIDs) => {

@@ -326,6 +326,7 @@
         proms.push(updateGeorefStats(Firebase, georefsAdded, recordsGeoreferenced, profile.uid, profile.formattedName, dataset.datasetID, groupComplete))
         proms.push(updateDatasetStats(Firestore, datasetRef, recordsGeoreferenced, profile.formattedName, groupComplete))
         proms.push(updateDatasetGeorefs(Firestore, FieldValue, dataset.datasetID, datasetGeorefsUsed))
+        
         try {
           await Promise.all(proms)
         }
@@ -334,6 +335,7 @@
           console.error(err)
           alert('there was an error updating stats: ' + err.message)
         }
+        
       }
       savingRecordGroup = false
     }

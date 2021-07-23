@@ -21,22 +21,11 @@ let messageString = ''
 let allDone = false
 
 $: localityRecordIDMap, getLocGroups()
-$: localityGroups, lockAndLoad() //I couldn't help myself...
+$: localityGroups, loadToDatabase() //I couldn't help myself...
 $: if(allDone) dispatch('upload-complete')
 
 const getLocGroups = async () => { 
   if(localityRecordIDMap){
-    //first test database permissions, get one group
-    try {
-      messageString = 'testing Firestore permissions'
-      let res = await Firestore.collection('recordGroups').doc('00aBJzjYjGvXJnZhb67H').get() //this throws if there is a problem
-    }
-    catch(err) {
-      console.log(err.message)
-      uploadErrors = true
-      uploadErrorMessage = err.message
-      return
-    }
 
     messageString = 'grouping localities, this may take a few minutes...'
     let proms = [] //this is a temp variable so that we can assign localityGroups at the end and trigger lockAndLoad
@@ -60,17 +49,33 @@ const getLocGroups = async () => {
 
     try {
       let groupArrays = await Promise.all(proms)
-      localityGroups = arrayUnion(...groupArrays)
+      let unionedGroups = arrayUnion(...groupArrays) //this flattens the array of arrays
+      localityGroups = unionedGroups
     }
     catch(err) {
-      console.log(err.message)
+      console.error(err.message)
       dispatch('error-with-textpack', err)
     }
   }
 }
 
-const lockAndLoad = async () => {
-  messageString = 'grouping completed, firing lock and load'
+//helper for below
+const addUserDataset = async (id, list) => {
+  let userDataset = Firestore.collection('userDatasets').doc(id) //this can a uid or normalized email
+  let snap = await userDataset.get()
+  if(snap.exists) {
+    await userDataset.update({
+      [list]: FieldValue.arrayUnion(dataset.datasetID)
+    })
+  }
+  else {
+    await userDataset.set({
+      [list]: [dataset.datasetID]
+    })
+  }
+}
+
+const loadToDatabase = async () => {
   if(localityGroups) {
     let totalRecordCount = localityGroups.reduce((total, localityGroup) => total + localityGroup.groupRecordCount, 0)
     messageString = 'prepping for data upload'
@@ -84,78 +89,20 @@ const lockAndLoad = async () => {
     dataset.completed = false
     dataset.dateCompleted = null
 
-    let dataLoaders = []
-    let datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
-    dataLoaders.push(datasetRef.set(dataset))
-
-    let fileUploadRef = Storage.ref().child(`${dataset.datasetID}.csv`)
-    dataLoaders.push(fileUploadRef.put(fileForGeoref))
-
-    //add the dataset for the current user
-    let ref = Firestore.collection('userDatasets').doc(userID)
-    let trans = Firestore.runTransaction(transaction => {
-      return transaction.get(ref).then(snap => {
-        if(!snap.exists){
-          ref.set({
-            datasets: [dataset.datasetID]
-          })
-        }
-        else {
-          transaction.update(ref, {datasets: FieldValue.arrayUnion(dataset.datasetID)})
-        }
-      })
-    })
-    dataLoaders.push(trans)
-    
-    //add the dataset for each userID
-    for (let uid of dataset.invitees){
-      let ref = Firestore.collection('userPendingDatasets').doc(uid)
-      let trans = Firestore.runTransaction(transaction => {
-        return transaction.get(ref).then(snap => {
-          if(!snap.exists){
-            ref.set({
-              datasets: [dataset.datasetID]
-            })
-          }
-          else {
-            transaction.update(ref, {datasets: FieldValue.arrayUnion(dataset.datasetID)})
-          }
-        })
-      })
-      dataLoaders.push(trans)
+    //this will take some time
+    messageString = 'saving dataset file'
+    try {
+      let result = await Storage.ref().child(`${dataset.datasetID}.csv`).put(fileForGeoref)
+      dataset.url = await result.ref.getDownloadURL()
     }
-
-    for (let email of dataset.newInvitees) {
-      let collRef = Firestore.collection('invitedUserPendingDatasets')
-      let op = collRef.where('email', '==', email) //it's already lowercase
-      .get()
-      .then(querySnap => {
-        if(querySnap.empty){
-          return collRef.add(
-            {
-              email,
-              datasets: [dataset.datasetID]
-            }
-          )
-        }
-        else {
-          //there can only be one!
-          let docRef = querySnap.docs[0].ref
-          return Firestore.runTransaction(transaction => {
-            return transaction.get(docRef).then(docSnap => {
-              //it has to exist
-              transaction.update(docRef, {
-                datasets: FieldValue.arrayUnion(dataset.datasetID)
-              })
-            })
-          })
-        }
-      })
-
-      dataLoaders.push(op)
+    catch(err) {
+      alert('error saving dataset file:', err.message)
+      return
     }
 
     //now the groups
+    messageString = 'saving locality groups'
+    let dataLoaders = []
     let batch = Firestore.batch()
     let nextCommit = 499 //as long as we have no operations like timestamps inside each group, this should be fine, 500 at a time
     let i = 0
@@ -174,20 +121,56 @@ const lockAndLoad = async () => {
       
     }
 
-    //first is the ref for the dataset doc, second is the snapshot of the file upload
     try {
-      messageString = 'saving data'
-      let loadResults = await Promise.all(dataLoaders)
-      let fileStorageURL = await loadResults[1].ref.getDownloadURL()
-      messageString = 'updating dataset record with file URL'
-      await datasetRef.update({ datasetURL: fileStorageURL })
-      allDone = true
+      await Promise.all(dataLoaders)
     }
-    catch(ex){
-      console.log("error loading data:", ex.message)
-      uploadErrors = true;
-      uploadErrorMessage = ex.message
+    catch(err) {
+      console.error(err)
+      alert('error saving locality groups:', err.message)
+      return
     }
+
+    //add the dataset for the current user
+    messageString = "updating user datasets"
+
+    //add the dataset for the creator
+    try {
+      await addUserDataset(userID, 'current')
+    }
+    catch(err) {
+      alert('error adding userDataset for creator:', err.message)
+      return
+    }
+  
+    //then for invitees
+    let searchEmails = dataset.newInvitees.map(x => x.replace(/[@\.\s]+/g, '').toLowerCase())
+    let allIDs = [...dataset.invitees, ...searchEmails]
+    console.log('allIDs:', allIDs)
+    let proms = []
+    for (let id of allIDs) {
+      proms.push(addUserDataset(id, 'invited'))
+    }
+
+    try {
+      await Promise.all(proms)
+    }
+    catch(err) {
+      console.error(err)
+      alert('error adding userDatasets', err.message)
+      return
+    }
+
+    messageString = 'saving dataset record'
+    try {
+      await Firestore.collection('datasets').doc(dataset.datasetID).set(dataset)
+    }
+    catch(err) {
+      console.error(err)
+      alert('error creating database:', err.message)
+      return
+    }
+
+    dispatch('upload-complete') //what job!
   }
   //no else here
 }

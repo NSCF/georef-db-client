@@ -1,8 +1,10 @@
 <script>
 	import {createEventDispatcher} from 'svelte'
+	import { Circle } from 'svelte-loading-spinners'
 	
 	const dispatch = createEventDispatcher()
 	
+	let fetching = false
 	let inputVal
 	let timer;
 	
@@ -13,6 +15,7 @@
 	//based on https://dev.to/chromiumdev/cancellable-async-functions-in-javascript-5gp7
 	//but I dont know if it really works...
 	function* searchProfiles(search) {
+		fetching = true
     let res = yield fetch(`https://us-central1-georef-745b9.cloudfunctions.net/findprofile?search=${search}`)
     if(res.ok){
       let data = yield res.json()
@@ -31,6 +34,8 @@
     else {
 			items = ['there was a problem']
     }
+
+		fetching = false
   }
 	
 	function makeSingle(generator) {
@@ -77,6 +82,11 @@
 
 <div class="dropcontainer">
 	<input style="width:400px;" placeholder="Type a name or email address" bind:value={inputVal} /> 
+	{#if fetching}
+	<div class="loader">
+		<Circle size="1" color="#1d4a9c" unit="em" />
+	</div>
+	{/if}
 	<div class="optionscontainer">
 		{#each items as item}
 			{#if typeof item == 'string'}
@@ -112,6 +122,10 @@
 
 	hr:last-of-type {
 		display:none;
+	}
+
+	.loader {
+		display: inline-block;
 	}
 	
 	.selectableitem {

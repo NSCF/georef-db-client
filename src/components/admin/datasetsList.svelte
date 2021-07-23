@@ -1,7 +1,7 @@
 <script>
 
 import {onMount, createEventDispatcher} from 'svelte'
-import { Firestore, FieldValue } from '../../firebase.js'
+import { Firestore, Realtime as Firebase, FieldValue } from '../../firebase.js'
 import Loader from '../loader.svelte'
 
 export let profile
@@ -18,6 +18,7 @@ let datasets = [] //this is the dataset objects to show on the ui
 //for keeping track of searches
 let lastDatasetIDIndex = 0
 let fetchSize = 10 //the page size
+
 
 $: firstTab, reset()
 
@@ -125,71 +126,24 @@ const getDatasets = async _ => {
 
 }
 
-
-const moveUserInvitedDataset = async (datasetID, profile) => {
-  let userInvitedDatasetsRef = Firestore.collection('userPendingDatasets').doc(profile.uid)
-  let userDatasetsRef = Firestore.collection('userDatasets').doc(profile.uid)
-  try {
-    await Firestore.runTransaction(async transaction => {
-      let invitedDatasetsSnap = await transaction.get(userInvitedDatasetsRef)
-      if(invitedDatasetsSnap.exists) { //it should!
-
-        let userDatasetsSnap = await transaction.get(userDatasetsRef)
-        if(userDatasetsSnap.exists) {
-          transaction.update(userDatasetsRef, {datasets: FieldValue.arrayUnion(datasetID)})
-        }
-        else {
-          transaction.set(userDatasetsRef, {datasets: [datasetID]})
-        }
-        
-        transaction.update(userInvitedDatasetsRef, {datasets: FieldValue.arrayRemove(datasetID)})
-      }
-    })
-  }
-  catch(err) {
-    throw new Error('error moving invitation -- ' + err.message)
-  }
-}
-
-/**
- * 
- * @param {string} datasetID - The dataset ID to update
- * @param {string} uid - a Firebase uid of the user
- * @param {Boolean} accepted - whether the invitation was accepted or not
- */
-const updateDatasetInvitees = async (datasetID, uid, accepted) => {
-  let ref = Firestore.collection('datasets').doc(datasetID)
-  try {
-      await Firestore.runTransaction(async transaction => {
-      let datasetSnap = await ref.get()
-      if(datasetSnap.exists) { //it should!
-        if(accepted){
-          transaction.update(ref, {
-            georeferencers: FieldValue.arrayUnion(uid),
-            invitees:FieldValue.arrayRemove(uid)
-          })
-        }
-        else {
-          transaction.update(ref, {
-            declinedInvitees: FieldValue.arrayUnion(uid),
-            invitees:FieldValue.arrayRemove(uid)
-          })
-        }
-      }
-    })
-  }
-  catch(err) {
-    throw new Error('error updating dataset invitees -- ' + err.message)
-  }
-  return
-}
-
 const acceptInvitedDataset = async datasetID => {
-  
-  try{
-    await moveUserInvitedDataset(datasetID, profile, true)
-    await updateDatasetInvitees(datasetID, profile.uid, true)
+  let fbDataset = Firestore.collection('datasets').doc(datasetID)
+  let fbUserDatasets = Firestore.collection('userDatasets').doc(profile.uid)
+  try {
+    let datasetUpdate = fbDataset.update({
+      invitees: FieldValue.arrayRemove(profile.uid),
+      georeferencers: FieldValue.arrayUnion(datasetID)
+    })
+
+    let userDatasetsUpdate = fbUserDatasets.update({
+      invited: FieldValue.arrayRemove(datasetID), 
+      current: FieldValue.arrayUnion(datasetID)
+    })
+
+    await Promise.all([datasetUpdate, userDatasetsUpdate])
+
     reset()
+    
   }
   catch(err) {
     alert(err.message)
@@ -197,57 +151,67 @@ const acceptInvitedDataset = async datasetID => {
   }
 }
 
-const removeDataset = async datasetID => {
-  //this is different depending on whether it's invited or current
-  let collection
-  if (firstTab) {
-    collection = 'userDatasets'
-  }
-  else {
-    collection = 'userPendingDatasets'
-  }
-
-  let ref = Firestore.collection(collection).doc(profile.uid)
-  let userDatasetsUpdate =  ref.update({datasets: FieldValue.arrayRemove(datasetID)}).catch(err => {
-    throw new Error('error removing dataset for user --' + err.message)
-  }) 
+const removeCurrent = async datasetID => {
   
-  let datasetUpdate
-  let datasetRef = Firestore.collection('datasets').doc(datasetID)
-  if (collection == 'userPendingDatasets') { //record invite declines
-    datasetUpdate = Firestore.runTransaction(async transaction => {
-      let snap = await transaction.get(datasetRef)
-      if(snap.exists){ //it should
-        await transaction.update(datasetRef, {
-          invitees: FieldValue.arrayRemove(profile.uid),
-          declinedInvitees: FieldValue.arrayUnion(profile.uid)
-        })
-      }
-    }).catch(err => {
-      throw new Error('error updating dataset declined invitations -- ' + err.message)
-    })
-  }
-  else { //this is a georeferencer that has now removed the dataset
-    datasetUpdate = Firestore.runTransaction(async transaction => {
-      let snap = await transaction.get(datasetRef)
-      if(snap.exists){ //it should
-        transaction.update(datasetRef, {
-          georeferencers: FieldValue.arrayRemove(profile.uid), 
-          pastGeoreferencers: FieldValue.arrayUnion(profile.uid)
-        })
-      }
-    }).catch(err => {
-      throw new Error('error updating dataset georeferencers -- ' + err.message)
-    })
-  }
+  let conf = confirm('Are you certain you want to remove this dataset from your list permanently?')
+  if(conf) {
+    let fbDataset = Firestore.collection('datasets').doc(datasetID)
+    let fbUserDatasets = Firestore.collection('userDatasets').doc(profile.uid)
+    
+    //we update based on whether they have georeferenced or not
+    let datasetUpdate = {
+      georeferencers: FieldValue.arrayRemove(profile.uid)
+    }
 
-  try {
-    datasets = null
-    await Promise.all([userDatasetsUpdate, datasetUpdate])
-    reset()
+    //check stats
+    let ref = Firebase.ref(`stats/perDataset/${datasetID}/perUser/${profile.uid}/recordsGeoreferenced`)
+    let snap = await ref.once('value')
+    if(snap.exists()){
+      datasetUpdate.pastGeoreferencers = FieldValue.arrayUnion(profile.uid)
+    }
+    else {
+      datasetUpdate.declinedInvitees = FieldValue.arrayUnion(profile.uid)
+    }
+
+    let fbDatasetUpdate = fbDataset.update(datasetUpdate)
+
+    //thankfully the user dataset us much simpler...
+    let userDatasetsUpdate = fbUserDatasets.update({
+      current: FieldValue.arraryRemove(datasetID)
+    })
+
+    try {
+      await Promise.all([fbDatasetUpdate, userDatasetsUpdate])
+    }
+    catch(err) {
+      console.error(err)
+      alert('error updating database:', err.message)
+    }
   }
-  catch(err) {
-    alert(err.message)
+}
+
+const removeInvited = async datasetID => {
+  let conf = confirm('Are you certain you want to decline this invitation to georeference this dataset?')
+
+  if(conf) {
+    let fbDataset = Firestore.collection('datasets').doc(datasetID)
+    let fbUserDatasets = Firestore.collection('userDatasets').doc(profile.uid)
+    let fbDatasetUpdate = fbDataset.update({
+      invitees: FieldValue.arrayRemove(profile.uid),
+      declinedInvitees: FieldValue.arrayUnion(profile.uid)
+    })
+
+    let fbUserDatasetsUpdate = fbUserDatasets.update({
+      invited: FieldValue.arrayRemove(datasetID)
+    })
+
+    try {
+      await Promise.all([fbDatasetUpdate, fbUserDatasetsUpdate])
+    }
+    catch(err) {
+      console.error(err)
+      alert('error updating database:', err.message)
+    }
   }
 }
 
@@ -308,8 +272,10 @@ const emitDataset = dataset => {
               <td>{dataset.lastGeoreference? getLocalDateTime(dataset.lastGeoreference) : null}</td>
               {#if !firstTab}
                 <td class="table-button"><button on:click|stopPropagation='{_ => acceptInvitedDataset(dataset.datasetID)}'>Accept</button></td>
+                <td class="table-button"><button on:click|stopPropagation={_ => removeInvited(dataset.datasetID)}>Decline</button></td>
+              {:else}
+                <td class="table-button"><button on:click|stopPropagation={_ => removeCurrent(dataset.datasetID)}>Remove</button></td>
               {/if}
-              <td class="table-button"><button on:click|stopPropagation={_ => removeDataset(dataset.datasetID)}>Remove</button></td>
             </tr>
           {/each}
         </table>      

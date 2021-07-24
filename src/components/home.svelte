@@ -222,7 +222,7 @@ function toEmitOrNotToEmit(file){
   }
 
   .fileDropBox:hover .dwc-p, .fileDropBox:hover  .box-arrow {
-    color: #495d9e;
+    color: #990000;
   }
 
   .datasets-button {

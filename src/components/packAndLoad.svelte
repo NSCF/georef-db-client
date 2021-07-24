@@ -14,6 +14,7 @@ export let dataset
 export let userID
 
 let localityGroups = undefined
+let countryProvs = {} //to store the countries and provinces for the dataset
 
 let uploadErrors = false
 let uploadErrorMessage = ''
@@ -38,11 +39,19 @@ const getLocGroups = async () => {
       }
 
       if(dataset.hasStateProvince) {
+        countryProvs[country] = Object.keys(obj)
+        if(countryProvs[country].includes('none')) {
+          const ind = countryProvs[country].indexOf('none')
+          countryProvs[country].splice(ind, 1)
+          countryProvs[country].unshift('none')
+        }
+
         for (let [stateProvince, val] of Object.entries(obj)) {
           proms.push(groupLocalities(val, dataset.datasetID, country, stateProvince))
         }
       }
       else {
+        countryProvs[country] = true
         proms.push(groupLocalities(obj, dataset.datasetID, country, null))
       }
     }
@@ -88,6 +97,7 @@ const loadToDatabase = async () => {
     dataset.lastGeoreference = ''
     dataset.completed = false
     dataset.dateCompleted = null
+    dataset.countryProvs = countryProvs
 
     //this will take some time
     messageString = 'saving dataset file'

@@ -8,6 +8,7 @@
 
   //stats
   let chartData
+  let noData = false
   let dailyChartData
   let weeklyChartData
   let monthlyChartData
@@ -67,6 +68,11 @@
     let snap = await Realtime.ref('stats/perDataset/' + dataset.datasetID + '/' + type).once('value')
     if(snap.exists) {
       let data = snap.val()
+      if (!data) { //apparently this is possible before people start georeferencing, so...
+        noData = true
+        return null
+      }
+
       let labels = []
       let recordsPerPeriod = [] //day week or month
 
@@ -148,6 +154,7 @@
       return chartData
     }
     else {
+      noData = true
       return null
     }
   }
@@ -238,7 +245,9 @@
     </select>
     <LineChart {chartData}/>
   </div>
-{:else}
+{:else if noData}
+  <div></div>
+{:else }
   <div class='loader'>
     <Loader />
   </div>

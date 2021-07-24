@@ -286,13 +286,13 @@ const updateDatasetGeorefs = async (Firestore, FieldValue, datasetID, georefIDs)
   let snap = await georefsAddedRef.get()
 
   if(snap.exists) {
-    console.log('updating existing datasetGeorefs')
     await datasetGeorefsRef.update({georefIDs: FieldValue.arrayUnion(...georefIDs)})
   }
   else {
-    console.log('making new datasetGeorefs')
-    await Promise.all([datasetGeorefsRef.set({georefIDs}), georefsAddedRef.set({added: true})])
+    let proms = [datasetGeorefsRef.set({georefIDs}), georefsAddedRef.set({added: true})]
+    await Promise.all(proms)
   }
+  
   return
   
 }

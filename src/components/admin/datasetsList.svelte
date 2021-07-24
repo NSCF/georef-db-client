@@ -106,7 +106,9 @@ const getDatasets = async _ => {
     let searchDatasetIDs = focalDatasetIDs.slice(lastDatasetIDIndex, fetchSize)
     if(searchDatasetIDs.length) {
       try {
-        datasets = await fetchDatasets(searchDatasetIDs)
+        let res = await fetchDatasets(searchDatasetIDs)
+        res.sort((a, b) => (a.dateCreated < b.dateCreated ? 1 : -1))
+        datasets = res
         lastDatasetIDIndex += fetchSize
       }
       catch(err) {

@@ -125,10 +125,10 @@ function toEmitOrNotToEmit(file){
         <div class='warning'><strong>Please remember that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine datasets</strong></div>
         <input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
       {:else}
-        <div class='warning warning-lower'><strong>To use this tool for collaborative georeferencing please contact the NSCF on data[at]nscf.org.za</strong></div>
+        <div class='warning warning-lower'><strong>To use this tool for collaborative georeferencing please contact the NSCF on <a href="mailto:data@nscf.origin.za">data@nscf.org.za</a></strong></div>
       {/if}
     {:else}
-      <div class='warning warning-lower'><strong>To use this tool for collaborative georeferencing please contact the NSCF on data[at]nscf.org.za</strong></div>
+      <div class='warning warning-lower'><strong>To use this tool for collaborative georeferencing please contact the NSCF on <a href="mailto:data@nscf.origin.za">data@nscf.org.za</a></strong></div>
     {/if}
     <div class="madewith">
       <span>made with</span>

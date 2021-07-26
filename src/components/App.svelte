@@ -70,7 +70,6 @@
 					setTimeout( async _ => {
 						if(!profile){
 							try {
-								//this is a test to see if the s dafd asdf fdasde fdad feafdafdadfadffadf
 								let snap = await Firestore.collection('userProfiles').doc(user.uid).get()
 								if (snap.exists){
 									profile = snap.data()
@@ -87,6 +86,10 @@
 								alert('error fetching user profile: ' + err.message) //hopefully also doesn't happen
 							}
 						}
+
+						//record the person as signed in
+						await Firestore.collection('usersSignedIn').doc('users').update({uids: FieldValue.arrayUnion(profile.uid)})
+
 					}, 100)
 				}
 			}
@@ -238,7 +241,7 @@
 	}
 
 </script>
-
+<svelte:window on:unload={async _ => await Firestore.collection('usersSignedIn').doc('users').update({uids: FieldValue.arrayRemove(profile.uid)})} />
 <main>
 	<Modal>
 		<div class="flex-container">

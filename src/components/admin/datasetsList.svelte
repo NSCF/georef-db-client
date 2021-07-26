@@ -12,7 +12,7 @@ let firstTab = true
 
 let datasetsFetched = false
 let userDatasetIDs = null //this is the Object of current and invited dataset IDs
-let focalDatasetIDs = [] //the current or the invited datasets
+let focalDatasetIDs = [] //the current or the invited datasets, we start with null
 let datasets = [] //this is the dataset objects to show on the ui
 
 //for keeping track of searches
@@ -23,11 +23,22 @@ let fetchSize = 10 //the page size
 $: firstTab, reset()
 
 onMount(async _ => {
-  let userDatasetsSnap = await Firestore.collection('userDatasets').doc(profile.uid).get()
-  if(userDatasetsSnap.exists) {
-    userDatasetIDs = userDatasetsSnap.data()
-    reset()
-  }
+  //first time we actually use a listener on Firestore
+  Firestore.collection('userDatasets').doc(profile.uid).onSnapshot(userDatasetsSnap => {
+    if(userDatasetsSnap.exists) {
+
+      let mustReset = false //so that we can do reset() on the first load
+      if(userDatasetIDs) {
+        mustReset = true
+      }
+
+      userDatasetIDs = userDatasetsSnap.data()
+
+      if(mustReset) {
+        reset()
+      }
+    }
+  })  
 })
 
 const reset = _ => {

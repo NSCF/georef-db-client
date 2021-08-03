@@ -25,10 +25,10 @@ $: firstTab, reset()
 onMount(async _ => {
   //first time we actually use a listener on Firestore
   Firestore.collection('userDatasets').doc(profile.uid).onSnapshot(userDatasetsSnap => {
-    if(userDatasetsSnap.exists) {
+    if(userDatasetsSnap.exists) { //it must
 
       let mustReset = false //so that we can do reset() on the first load
-      if(userDatasetIDs) {
+      if(!userDatasetIDs) {
         mustReset = true
       }
 

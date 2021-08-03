@@ -412,6 +412,7 @@
       'originalGeoreferenceVerifiedBy',
       'originalGeoreferenceVerifiedDate'
     ]]
+    
     let csv = Papa.unparse({fields, data: originals})
 
     let now = new Date()

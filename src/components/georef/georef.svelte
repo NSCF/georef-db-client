@@ -208,6 +208,7 @@
                 georefsPerLocString = 5
               }
 
+              //TODO this muust be try catch
               let candidateGeorefs = await fetchCandidateGeorefs($dataStore.recordGroup.groupLocalities, elasticindex, georefsPerLocString)
 
               georefIndexOnHold = null //just in case custom search is still active
@@ -222,6 +223,7 @@
             }
             catch(err) {
               console.error('error fetching georefs:', err.message)
+              console.error(err)
               alert('fetching georeferences failed')
             }
           }
@@ -315,12 +317,11 @@
 
         for(let [georefID, recordIDs] of Object.entries(recordsPerGeoref)){
           let georef = $dataStore.georefIndex[georefID]
-          if(!georef){
-            console.error('georef with', georefID, 'is missing')
-          }
-          else {
+          if(georef){
             proms.push(updateGeorefRecords(Firestore, FieldValue, georef, dataset.datasetID, recordIDs))
           }
+          //if there isn't one then it hasn't been used, we dont have to worry about it (this happens when reloading a recordgroup with some locs already georeferenced)
+          //if we sent this again we'd be falsely incrementing georefRecord.recordCount
         }
 
         proms.push(updateGeorefStats(Firebase, georefsAdded, recordsGeoreferenced, profile.uid, profile.formattedName, dataset.datasetID, groupComplete))

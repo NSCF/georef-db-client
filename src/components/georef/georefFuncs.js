@@ -9,12 +9,15 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
     let elasticFetches = []//promise array
 
     for (let loc of groupLocalities){
-      elasticFetches.push(fetchGeorefsForLoc(loc.loc, elasticindex, limit))
+      //we only want to fetch for those not already georeferenced
+      if(!loc.georefID) {
+        elasticFetches.push(fetchGeorefsForLoc(loc.loc, elasticindex, limit))
+      }
     }
 
     let fetchResults
     try {
-      fetchResults = await Promise.all(elasticFetches)
+      fetchResults = await Promise.all(elasticFetches) //this should be fine
     }
     catch(err){
       throw err
@@ -26,6 +29,10 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
     //on select of groupLoc/s destructure all the georef keys from the groupLoc index and make a set
     //iterate the georef dictionary and update each one as visible or not
     
+
+    //remove any failed responses first
+    fetchResults = fetchResults.filter(x => x)
+
     let georefIndex = {} //it will be a and object of georefID: georefobject pairs
     
     if(fetchResults.length){
@@ -106,9 +113,22 @@ const fetchGeorefsForLoc = async (locString, index, limit) => {
   if (limit && !isNaN(limit)){
     url += `&limit=${limit}`
   }
-  let response = await fetch(url)
-  let data = await response.json()
-  return data
+
+  let response
+  try {
+    response = await fetch(url)
+  }
+  catch(err) {
+    return null
+  }
+  
+  if(response.ok){
+    let data = await response.json()
+    return data
+  }
+  else {
+    return null
+  }  
 }
 
 const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, userID, userName, datasetID, groupComplete) => {
@@ -326,11 +346,20 @@ const updateGeorefRecords = async (Firestore, FieldValue, georef, datasetID, rec
         update.datasets = {}
         if(georefRecord.datasets && georefRecord.datasets[datasetID]) {
           update.datasets[datasetID] = FieldValue.arrayUnion(...recordIDs)
+          georefRecord.datasets[datasetID] = [...georefRecord.datasets[datasetID], ...recordIDs]
         }
         else {
           update.datasets[datasetID] = recordIDs
+          georefRecord.datasets[datasetID]
         }
-        update.recordCount = georefRecord.recordCount + recordIDs.length
+
+        //it's safer to do this, since we have the object, than to increment on recordIDs, because we don't know what the result of arrayUnion will be
+        let updatedCount = 0
+        for (let recordIDs of Object.values(georefRecord.datasets)) {
+          updatedCount += recordIDs.length
+        }
+
+        update.recordCount = updatedCount
   
         transaction.update(ref, update)
       }

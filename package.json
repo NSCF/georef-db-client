@@ -40,7 +40,7 @@
     "string-similarity": "^4.0.4",
     "svelte-dropzone": "^1.0.6",
     "svelte-loading-spinners": "^0.1.4",
-    "svelte-select": "^3.8.1",
+    "svelte-select": "^4.3.0",
     "svelte-simple-modal": "^0.4.2",
     "uuid": "^8.3.2",
     "xml-js": "^1.6.11"

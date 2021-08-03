@@ -1,6 +1,7 @@
 <script>
   import {onMount, onDestroy, createEventDispatcher} from 'svelte'
   import { nanoid } from "nanoid/nanoid.js" //see https://github.com/ai/nanoid/issues/237
+  import Select from 'svelte-select';
 
   import { Firestore, Realtime as Firebase, FieldValue } from '../../firebase.js'
 
@@ -58,6 +59,12 @@
   let markersOnHold = null
   let searchingGeorefs = false
 
+  //vars for geographic filters
+  let countriesOptions = [] //array, we need to generate this with onMount so we can add 'all'
+  let selectedCountry = null
+  let stateProvOptions = []
+  let selectedStateProv = null
+
   let selectedLocGeorefRemarks
 
   let pastedDecimalCoords = null //for communication between the georef form and the movable map marker
@@ -110,6 +117,28 @@
       }
     }
 
+    //adding selectedCountry and selectedStateProv
+    if(dataset.countryProvs) {
+      countriesOptions = Object.keys(dataset.countryProvs)
+      if(countriesOptions.length > 1) {
+        countriesOptions.unshift('all')
+      }
+      
+      selectedCountry = {index: 0, value: countriesOptions[0], label: countriesOptions[0]}
+
+      //if we have only one country, we can show the first option for it's stateProvinces
+      if(dataset.hasStateProvince) {
+        if(selectedCountry.value != 'all') {
+          stateProvOptions = dataset.countryProvs[selectedCountry.value].map(x => ({value: x, label: x}))
+          selectedStateProv = stateProvOptions[0]
+        }
+        else {
+          stateProvOptions = []
+          selectedStateProv = undefined
+        }
+      }      
+    }
+
     try {
       fetchNextRecordGroup(userLastSnap)
     }
@@ -126,6 +155,8 @@
         connected = false
       }
     });
+
+    
   })
 
   onDestroy(async _ => {
@@ -342,6 +373,41 @@
     return
   }
 
+  const clearLocalityGroupQueuePosition = async _ => {
+    let message = 'Are you sure you want to start over for '
+    if(selectedCountry.value == 'all'){
+      message += 'all countries'
+    }
+    else {
+      message += selectedCountry.value
+      if(selectedStateProv.value != 'all' && selectedStateProv.value != 'none') {
+        message += ', ' + selectedStateProv.value
+      }
+    }
+    let conf = confirm(message) 
+    
+    return
+
+    //TODO make this work
+    let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}/`
+    
+    if(selectedCountry) {
+      refString += selectedCountry.value
+      if(selectedStateProv) {
+        refString += '/' + selectedStateProv.value
+      }
+      else {
+        refString += '/all'
+      }
+    }
+    else {
+      refString += 'all'
+    }
+
+    await Firebase.ref(refString).remove()
+    fetchNextRecordGroup()
+  }
+
   const handleSkipRecordGroup = async _ => {
     //TODO must lock the UI for this
     if(georefsAdded){
@@ -364,6 +430,21 @@
       georefIndexOnHold = $dataStore.georefIndex
     }
     $dataStore.georefIndex = null
+  }
+
+  const handleSelectedCountryChanged = _ => {
+    if(selectedCountry.value == 'all') {
+      stateProvOptions = []
+      selectedStateProv = undefined
+    }
+    else {
+      stateProvOptions = dataset.countryProvs[selectedCountry.value].map(x => ({value: x, label: x}))
+      selectedStateProv = stateProvOptions[0]
+    }
+  }
+
+  const handleSelectedStateProvChanged = _ => {
+    console.log('selected stateProvince is', selectedStateProv)
   }
 
   const handleCustomGeorefs = ev => {
@@ -823,6 +904,9 @@
           <button class="recordgroup-tool" title="back to datasets" on:click={handleBackToDatasets}>
             <span class="material-icons">list</span>
           </button>
+          <button class="recordgroup-tool" title="restart queue" on:click={clearLocalityGroupQueuePosition}>
+            <span class="material-icons">low_priority</span>
+          </button>
           <button class="recordgroup-tool" title="clear georefs added to this group" on:click={handleStartOver}>
             <span class="material-icons">replay</span>
           </button>
@@ -842,6 +926,22 @@
             <span class="material-icons">location_off</span>
           </button>
         </div>
+        {#if dataset.countryProvs} 
+          <div class="inline-select">
+            <span class="label">country</span>
+            <div class="inline-select-fill">
+              <Select items={countriesOptions} bind:value={selectedCountry} isClearable={false} on:select={handleSelectedCountryChanged}/>
+            </div>
+          </div>
+          {#if dataset.hasStateProvince}
+            <div class="inline-select" style="margin-top:5px;">
+              <span class="label">stateProvince</span>
+              <div class="inline-select-fill" style="--disabledBorderColor:darkgrey">
+                <Select items={stateProvOptions} bind:value={selectedStateProv} placeholder={null} isClearable={false} isDisabled={stateProvOptions.length <= 1} on:select={handleSelectedStateProvChanged} />
+              </div>
+            </div>
+          {/if}
+        {/if}
         {#if $dataStore.recordGroup}
           <div style="text-align:right;">
             <span>Localities: {locStringsCount}</span>
@@ -945,6 +1045,22 @@ h4 {
   min-height: 0;  /* NEW */
   min-width: 0;   /* NEW; needed for Firefox */
   overflow:hidden;
+}
+
+.label {
+  color:grey;
+  font-weight: bolder;
+}
+
+.inline-select {
+  display: flex;
+  width:100%;
+  align-items: center;
+}
+
+.inline-select-fill {
+  margin-left:5px;
+  flex: 1
 }
 
 .recordgroup {

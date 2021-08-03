@@ -28,7 +28,7 @@ onMount(async _ => {
     if(userDatasetsSnap.exists) {
 
       let mustReset = false //so that we can do reset() on the first load
-      if(userDatasetIDs) {
+      if(!userDatasetIDs) {
         mustReset = true
       }
 

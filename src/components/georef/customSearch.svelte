@@ -1,58 +1,58 @@
 <script>
-//a component for running custom searches against the georef database
-import { createEventDispatcher } from 'svelte'
-import { fetchCandidateGeorefs } from './georefFuncs.js'
+  //a component for running custom searches against the georef database
+  import { createEventDispatcher } from 'svelte'
+  import { fetchCandidateGeorefs } from './georefFuncs.js'
 
-const dispatch = createEventDispatcher()
+  const dispatch = createEventDispatcher()
 
-export let customSearchString = null //prop so we can reset from outside
-export let elasticindex
-export let placeholder = "Search for a custom locality here"
-let customSearchSearching = false
- 
-const getGeorefs = async _ => {
-  if(customSearchString && elasticindex) {
-    dispatch('custom-search-searching')
-    customSearchSearching = true
-    let obj = {loc:customSearchString}
-    try{
-      let georefs = await fetchCandidateGeorefs([obj], elasticindex, 20) //this usually works with groupLocalities
-      dispatch('custom-georefs', georefs.georefIndex)
-      customSearchSearching = false
-    }
-    catch(err){
-      alert('there was an error fetching georefs: ' + err.message)
-      customSearchSearching = false
-    }
-  }
-  else {
-    if(!customSearchString) {
-      alert('Please add a suitable locality to search for')
+  export let customSearchString = null //prop so we can reset from outside
+  export let elasticindex
+  export let placeholder = "Search for a custom locality here"
+  let customSearchSearching = false
+  
+  const getGeorefs = async _ => {
+    if(customSearchString && elasticindex) {
+      dispatch('custom-search-searching')
+      customSearchSearching = true
+      let obj = {loc:customSearchString}
+      try{
+        let georefs = await fetchCandidateGeorefs([obj], elasticindex, 20) //this usually works with groupLocalities
+        dispatch('custom-georefs', georefs.georefIndex)
+        customSearchSearching = false
+      }
+      catch(err){
+        alert('there was an error fetching georefs: ' + err.message)
+        customSearchSearching = false
+      }
     }
     else {
-      console.log('elastic indiex is', elasticindex)
-      alert('Please select a region and domain to search')
+      if(!customSearchString) {
+        alert('Please add a suitable locality to search for')
+      }
+      else {
+        console.log('elastic indiex is', elasticindex)
+        alert('Please select a region and domain to search')
+      }
     }
   }
-}
 
-const handlePaste = _ => {
-  if(navigator.clipboard.writeText){
-    navigator.clipboard.readText().then(text => {
-      customSearchString = text
-    })
+  const handlePaste = _ => {
+    if(navigator.clipboard.writeText){
+      navigator.clipboard.readText().then(text => {
+        customSearchString = text
+      })
+    }
+    else {
+      alert('this browser does not support programmatic paste')
+    }
   }
-  else {
-    alert('this browser does not support programmatic paste')
-  }
-}
 
-const clearCustomSearch = _ => {
-  if(!customSearchSearching) {
-    customSearchString = null
-    dispatch('custom-search-cleared')
-  }
-} 
+  const clearCustomSearch = _ => {
+    if(!customSearchSearching) {
+      customSearchString = null
+      dispatch('custom-search-cleared')
+    }
+  }   
 </script>
 
 <!-- ############################################## -->

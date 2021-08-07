@@ -1,4 +1,4 @@
-import { nanoid } from "nanoid/nanoid.js"
+import { nanoid } from "nanoid"
 
 /**
  * 

@@ -142,15 +142,6 @@
     }
   }
 
-  const clearPlaceholder = async _ => {
-    georefButton.disabled = true
-    let ref = `userDatasetLastRecordGroup/${profile.uid}/${dataset.datasetID}`
-    Realtime.ref(ref).remove().then(_ => {
-      georefButton.disabled = false
-      window.pushToast('you can start over')
-    })
-  }
-
   const handleBackToDatasets = _ => {
     dispatch('to-datasets')
   }
@@ -854,9 +845,6 @@
             <span class="material-icons">lock_open</span>
           </button>
         {/if}
-        <button class="dataset-tool" title="start from beginning" on:click={clearPlaceholder}>
-          <span class="material-icons">replay</span>
-        </button>
         <button class="dataset-tool" title="start georeferencing" on:click={handleStartGeoreferencing} bind:this={georefButton}>
           <span class="material-icons">place</span>
         </button>

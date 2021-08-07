@@ -468,7 +468,7 @@ const checkAndDispatchGeoref = _ => {
         <div>
           <label style="width:100%;text-align:right" for="protocol">protocol</label>
           <div class="inline-select">
-            <Select items={georefProtocols.map(x=> ({value:x, label:x}))} isCreatable={true} placeholder={'Select a protocol...'} hasError={protocolHasError} on:select={handleProtocolSelected} bind:selectedValue={localGeoref.protocolObject} />
+            <Select items={georefProtocols.map(x=> ({value:x, label:x}))} isCreatable={true} placeholder={'Select a protocol...'} hasError={protocolHasError} on:select={handleProtocolSelected} bind:value={localGeoref.protocolObject} />
           </div>
         </div>
       {:else}
@@ -481,7 +481,7 @@ const checkAndDispatchGeoref = _ => {
       <div>
         <label style="width:100%;text-align:right" for="sources">sources</label>
         <div class="inline-select">
-          <Select items={georefSources.map(x => ({value:x, label:x}))} isCreatable={true} isMulti={true} placeholder={'Select source/s...'} hasError={sourcesHasError} on:select={handleSourceSelected} bind:selectedValue={localGeoref.sourcesArray}/>
+          <Select items={georefSources.map(x => ({value:x, label:x}))} isCreatable={true} isMulti={true} placeholder={'Select source/s...'} hasError={sourcesHasError} on:select={handleSourceSelected} bind:value={localGeoref.sourcesArray}/>
         </div>
       </div>
       {:else}

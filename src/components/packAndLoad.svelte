@@ -40,12 +40,16 @@ const getLocGroups = async () => {
 
       if(dataset.hasStateProvince) {
         countryProvs[country] = Object.keys(obj)
-        if(countryProvs[country].includes('none')) {
+        if(countryProvs[country].includes('none') && countryProvs[country].length > 1) {
           const ind = countryProvs[country].indexOf('none')
           countryProvs[country].splice(ind, 1)
           countryProvs[country].unshift('none')
         }
 
+        if(countryProvs[country].length > 1) {
+          countryProvs[country].unshift('all')
+        }
+        
         for (let [stateProvince, val] of Object.entries(obj)) {
           proms.push(groupLocalities(val, dataset.datasetID, country, stateProvince))
         }

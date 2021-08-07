@@ -1,6 +1,6 @@
-import { nanoid } from "nanoid/nanoid.js" //see https://github.com/ai/nanoid/issues/237
+import { nanoid } from "nanoid" //see https://github.com/ai/nanoid/issues/237
 import { v4 as uuid } from 'uuid'; //because we need uuid guids as well...
-import { Firestore, Auth } from '../../firebase';
+import { Firestore, Auth } from '../../firebase.js';
 
 export default class Georef {
   constructor() {

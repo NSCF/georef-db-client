@@ -1,6 +1,6 @@
 <script>
 //generate the ID and get the dataset details
-import {nanoid} from "nanoid/nanoid.js"
+import { nanoid } from "nanoid"
 import Select from 'svelte-select'
 import ProfileSelect from './profileSelect.svelte'
 import DatasetTeam from './admin/datasetTeam.svelte'

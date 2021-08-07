@@ -1,11 +1,11 @@
 <script>
   import {onMount, onDestroy, createEventDispatcher} from 'svelte'
-  import { nanoid } from "nanoid/nanoid.js" //see https://github.com/ai/nanoid/issues/237
-  import Select from 'svelte-select';
+  import { nanoid } from "nanoid" //see https://github.com/ai/nanoid/issues/237
 
   import { Firestore, Realtime as Firebase, FieldValue } from '../../firebase.js'
 
   import {
+      getNextAvailableRecordGroup,
       updateGeorefStats,
       updateDatasetStats, 
       updateDatasetGeorefs,
@@ -15,6 +15,7 @@
 
   import { dataStore } from './dataStore.js'
 
+  import CountryProvSelect from './countryProvSelect.svelte'
   import RecordGroup from './georefRecordGroup.svelte'
   import MatchList from './georefMatchList.svelte'
   import MatchMap from './georefMatchMap.svelte'
@@ -44,6 +45,8 @@
   let selectedGeoref
 
   let connected = true //we assume this, but it could cause an issue
+  let mounted = false
+  let busy = false
   let savingGeoref = false
   let savingRecordGroup = false
 
@@ -51,18 +54,13 @@
   let newGeorefsUsed = [] //for storing georefIDs of georefs not used before, this allows undo of setting them to used when resetting a record group
   let datasetGeorefsUsed = []
 
-  let snapStart = 'startAt'
-
   //vars for custom georef searches
   let customSearchString = null
   let georefIndexOnHold = null
   let markersOnHold = null
   let searchingGeorefs = false
 
-  //vars for geographic filters
-  let countriesOptions = [] //array, we need to generate this with onMount so we can add 'all'
   let selectedCountry = null
-  let stateProvOptions = []
   let selectedStateProv = null
 
   let selectedLocGeorefRemarks
@@ -82,68 +80,100 @@
     locStringsCount = $dataStore.recordGroup.groupLocalities.filter(x => !x.georefID).length
   }
 
+  $: if(!connected && mounted) alert('There appears to be a problem with your connection. Please check before continuing')
+
+  const getUsersLastGroupID = async _ => {
+    //unfortunately we have to deal with legacy here...
+    let lastRecordGroupIDSnap
+    let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}/${selectedCountry}`
+    if(dataset.hasStateProvince) {
+      if(selectedStateProv) {
+        refString += `/${selectedStateProv}`
+      }
+      else {
+        refString += '/all'
+      }
+    }
+
+    try{
+      lastRecordGroupIDSnap = await Firebase.ref(refString).once('value')
+    }
+    catch(err) {
+      err.message = 'there was an error getting last recordgroup SNAP for this user: ' + err.message
+      throw err
+    }
+
+    if (lastRecordGroupIDSnap.exists()){
+      return lastRecordGroupIDSnap.val()
+    }
+    else { //check if any exist for this dataset, if not, try get the the legacy one
+      
+      let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}`
+      let snap
+      try {
+        snap = await Firebase.ref(refString).once('value')
+      }
+      catch(err) {
+        err.message = 'there was an error getting last recordgroup SNAP for this user: ' + err.message
+        throw err
+      }
+      if(snap.exists()) {
+        return null //this effectively triggers a search again from the beginning
+      }
+      
+      //this is different because the old system used the id for the recordGroup in the collection, whereas the new system uses recordGroup.groupID
+      let oldSnap
+      try {
+        oldSnap = await Firebase.ref(`userDatasetLastRecordGroup/${profile.uid}/${dataset.datasetID}`).once('value')
+      }
+      catch(err){
+        err.message = 'there was an error getting last recordgroup SNAP for this user: ' + err.message
+        throw err
+      }
+
+      if (oldSnap.exists()){
+        const documentID = oldSnap.val()
+        let recordGroupSnap
+        try {
+          recordGroupSnap = await Firestore.collection('recordGroups').doc(documentID).get()
+        }
+        catch(err)
+        {
+          err.message = 'there was an error getting last recordgroup for this user: ' + err.message
+          throw err
+        }
+
+        if(recordGroupSnap.exists) {
+          const recordGroup = recordGroupSnap.data()
+          return recordGroup.groupID
+        }
+      }
+    }
+    return null
+  }
+
   onMount(async _ => { 
 
     elasticindex = dataset.region.toLowerCase().replace(/\s+/g, '') + dataset.domain.toLowerCase()
 
-    let userLastSnap = null
+    
 
-    let lastRecordGroupIDSnap
+    let usersLastGroupID
     try {
-      lastRecordGroupIDSnap = await Firebase.ref(`userDatasetLastRecordGroup/${profile.uid}/${dataset.datasetID}`).once('value')
+      usersLastGroupID = await getUsersLastGroupID()
     }
     catch(err){
-      alert('there was an error getting last recordgroup SNAP for this user: ' + err.message)
+      alert(err.message)
       console.error(err)
       return
     }
 
-    if (lastRecordGroupIDSnap.exists()){
-      let recordGroupID = lastRecordGroupIDSnap.val()
-      
-      //we need the Firestore snapshot to use for the query
-      let fsSnap
-      try{
-        fsSnap = await Firestore.collection('recordGroups').doc(recordGroupID).get()
-      }
-      catch(err){
-        alert('there was an error getting last recordgroup for this user: ' + err.message)
-        console.error(err)
-        return
-      }
-
-      if(fsSnap.exists){
-        userLastSnap = fsSnap
-      }
-    }
-
-    //adding selectedCountry and selectedStateProv
-    if(dataset.countryProvs) {
-      countriesOptions = Object.keys(dataset.countryProvs)
-      if(countriesOptions.length > 1) {
-        countriesOptions.unshift('all')
-      }
-      
-      selectedCountry = {index: 0, value: countriesOptions[0], label: countriesOptions[0]}
-
-      //if we have only one country, we can show the first option for it's stateProvinces
-      if(dataset.hasStateProvince) {
-        if(selectedCountry.value != 'all') {
-          stateProvOptions = dataset.countryProvs[selectedCountry.value].map(x => ({value: x, label: x}))
-          selectedStateProv = stateProvOptions[0]
-        }
-        else {
-          stateProvOptions = []
-          selectedStateProv = undefined
-        }
-      }      
-    }
-
     try {
-      fetchNextRecordGroup(userLastSnap)
+      fetchRecordGroupsAndGeorefs('at', usersLastGroupID)
     }
     catch(err){//only if offline
       alert('there was an error getting a record group to georeference: ' + err.message)
+      console.error(err)
     }
 
     //manage connection status
@@ -156,17 +186,17 @@
       }
     });
 
-    
+    mounted = true
   })
 
   onDestroy(async _ => {
     await releaseRecordGroup()
   })
 
-  const fetchNextRecordGroup = async lastSnap => {
+  const fetchRecordGroupsAndGeorefs = async (atOrAfter, currentGroupID) => {
     if(connected){
 
-      //let try clearning the datastore here because everthing gets reset
+      //reset everything
       $dataStore.recordGroup = null
       $dataStore.recordGroupSnap = null
       $dataStore.georefIndex = null
@@ -180,102 +210,93 @@
       
       newGeorefsUsed = [] //start over
       datasetGeorefsUsed = [] //start over
+      georefsAdded = 0
+      recordsGeoreferenced = 0
+      customSearchString = null //just to clear
       
-      let query = Firestore.collection('recordGroups')
-      .where('datasetID', '==', dataset.datasetID)
-      .where('completed', '==', false)
-      .where("groupLocked", "==", false)
-      .orderBy('groupID')
-      
-      if(lastSnap) {
-        query = query[snapStart](lastSnap)
+      //get the next recordGroup
+      let nextRecordGroup = null
+      let searchCountry = null
+      if(selectedCountry) {
+        searchCountry = selectedCountry
+      }
+      let searchStateProv = null
+      if(selectedStateProv) {
+        searchStateProv = selectedStateProv
       }
 
-      query = query.limit(1)
-
-      let snap = await query.get() //nb this is a querysnapshot and hence snap.docs an array
-      if(!snap.empty) {
-        //try to lock it
-        let docRef = snap.docs[0].ref
+      while(!nextRecordGroup) {
         try {
-          let success = await Firestore.runTransaction(async transaction => {
-            let docSnap = await transaction.get(docRef)
-            let doc = await docSnap.data()
-            if(doc.groupLocked){ //it was locked since last read
-              return false
-            }
-            else {
-              await transaction.update(docRef, {groupLocked: true})
-              return true
-            }
-          })
-
-          if (!success){
-            console.log('trying for recordgroup again')
-            fetchNextRecordGroup() //recursive, I'm really hoping this is right- it would theoretically stop on snap.empty
-          }
-          else {
-            $dataStore.recordGroupSnap = snap.docs[0] 
-            $dataStore.recordGroup = snap.docs[0].data()
-
-            //add keys to the record group locs
-            for (let loc of $dataStore.recordGroup.groupLocalities){
-              if(!loc.id){
-                loc.id = nanoid()
-              }
-            }
-
-            georefsAdded = 0
-            recordsGeoreferenced = 0
-            
-            customSearchString = null //just to clear
-            try {
-              
-              let georefsPerLocString = Math.round(100/$dataStore.recordGroup.groupLocalities.length)
-              if (georefsPerLocString > 20) {
-                georefsPerLocString = 20
-              }
-              if (georefsPerLocString < 5) {
-                georefsPerLocString = 5
-              }
-
-              let candidateGeorefs = await fetchCandidateGeorefs($dataStore.recordGroup.groupLocalities, elasticindex, georefsPerLocString)
-
-              georefIndexOnHold = null //just in case custom search is still active
-              if(Object.keys(candidateGeorefs.georefIndex).length) {
-                $dataStore.georefIndex = candidateGeorefs.georefIndex
-                $dataStore.locGeorefIndex =  candidateGeorefs.locGeorefIndex
-              }              
-
-              //set the last snap on Firebase async
-              Firebase.ref(`userDatasetLastRecordGroup/${profile.uid}/${dataset.datasetID}`).set($dataStore.recordGroupSnap.id)
-              
-            }
-            catch(err) {
-              console.error('error fetching georefs:', err.message)
-              alert('fetching georeferences failed')
-            }
-          }
+          nextRecordGroup = await getNextAvailableRecordGroup(dataset.datasetID, searchCountry, searchStateProv, atOrAfter, currentGroupID)
         }
         catch(err) {
-          //Apparently this only happens if we are offline
-          throw err
+          console.error(err)
+          alert('error fetching locality group, see console')
+          return
         }
       }
-      else {
-        $dataStore.recordGroupSnap = null
-        $dataStore.recordGroup = null
-        $dataStore.candidateGeorefs = null
 
-        if(selectedGeoref) {
-          let hold = selectedGeoref
-          selectedGeoref = null
-          hold.selected = false
-        }
-
+      if(!nextRecordGroup.length) { //no more available recordGroups
         datasetComplete = true
-
+        return
       }
+
+      //else
+      $dataStore.recordGroupSnap = nextRecordGroup[0] 
+      $dataStore.recordGroup = $dataStore.recordGroupSnap.data()
+
+      //add keys to the record group locs in case they are missing....
+      for (let loc of $dataStore.recordGroup.groupLocalities){
+        if(!loc.id){
+          loc.id = nanoid()
+        }
+      }
+
+      //calculate the number of georefs to fetch per locality string in the record group
+      let georefsPerLocString = Math.round(100/$dataStore.recordGroup.groupLocalities.length)
+      if (georefsPerLocString > 20) {
+        georefsPerLocString = 20
+      }
+      if (georefsPerLocString < 5) {
+        georefsPerLocString = 5
+      }
+      
+      let candidateGeorefs
+      try {
+        candidateGeorefs = await fetchCandidateGeorefs($dataStore.recordGroup.groupLocalities, elasticindex, georefsPerLocString)
+      }
+      catch(err) {
+        console.error('error fetching georefs:', err.message)
+        alert('fetching georeferences failed')
+      }
+
+      georefIndexOnHold = null //in case custom search is still active
+      if(Object.keys(candidateGeorefs.georefIndex).length) {
+        $dataStore.georefIndex = candidateGeorefs.georefIndex
+        $dataStore.locGeorefIndex =  candidateGeorefs.locGeorefIndex
+      }              
+
+      //save the users place in the queue
+      let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}/${selectedCountry}`
+      if(dataset.hasStateProvince) {
+        if(selectedStateProv) {
+          refString += `/${selectedStateProv}`
+        }
+        else {
+          refString += '/all'
+        }
+      }
+      
+      try {
+        await Firebase.ref(refString).set($dataStore.recordGroup.groupID)
+      }
+      catch(err) {
+        console.error('error updating userLastSnap on firebase:', err.message)
+        console.error(err)
+      }
+    }
+    else {
+      alert('You are not online, please check your connection')
     }
   }
 
@@ -375,51 +396,62 @@
 
   const clearLocalityGroupQueuePosition = async _ => {
     let message = 'Are you sure you want to start over for '
-    if(selectedCountry.value == 'all'){
+    if(selectedCountry == 'all'){
       message += 'all countries'
     }
     else {
-      message += selectedCountry.value
-      if(selectedStateProv.value != 'all' && selectedStateProv.value != 'none') {
-        message += ', ' + selectedStateProv.value
+      message += selectedCountry
+      if(selectedStateProv != 'all') {
+        if(selectedStateProv == 'none') {
+          message += ' (no stateProvince)'
+        }
+        else {
+          message += ', ' + selectedStateProv
+        }
       }
     }
-    let conf = confirm(message) 
-    
-    return
+    message += '?'
 
-    //TODO make this work
-    let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}/`
+    let conf = confirm(message) 
+    if(conf) {
+      let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}/`
     
-    if(selectedCountry) {
-      refString += selectedCountry.value
-      if(selectedStateProv) {
-        refString += '/' + selectedStateProv.value
+      if(selectedCountry) {
+        refString += selectedCountry
+        if(selectedStateProv) {
+          refString += '/' + selectedStateProv
+        }
+        else {
+          refString += '/all'
+        }
       }
       else {
-        refString += '/all'
+        refString += 'all'
       }
-    }
-    else {
-      refString += 'all'
-    }
 
-    await Firebase.ref(refString).remove()
-    fetchNextRecordGroup()
+      try {
+        await Firebase.ref(refString).remove() //throws if does not exist
+      }
+      catch(err) {
+        console.log(refString, 'does not exist. No action necessary')
+      }
+      
+      fetchRecordGroupsAndGeorefs()
+    }
   }
 
   const handleSkipRecordGroup = async _ => {
     //TODO must lock the UI for this
-    if(georefsAdded){
+    busy = true
+    if(georefsAdded || recordsGeoreferenced){
       await saveRecordGroup()
     }
     else {
       await releaseRecordGroup();
     }
 
-    snapStart = 'startAfter'
-
-    fetchNextRecordGroup($dataStore.recordGroupSnap)
+    await fetchRecordGroupsAndGeorefs('after', $dataStore.recordGroup.groupID)
+    busy = false
   }
 
   const handleCustomSearchSearching = _ => {
@@ -432,19 +464,37 @@
     $dataStore.georefIndex = null
   }
 
-  const handleSelectedCountryChanged = _ => {
-    if(selectedCountry.value == 'all') {
-      stateProvOptions = []
-      selectedStateProv = undefined
+  const handleCountryProvinceChanged = async ev => {
+    selectedCountry = ev.detail.country
+    selectedStateProv = ev.detail.stateProvince
+    datasetComplete = false //in case it was this for the last group
+
+    busy = true
+    if(georefsAdded || recordsGeoreferenced){
+      await saveRecordGroup()
     }
     else {
-      stateProvOptions = dataset.countryProvs[selectedCountry.value].map(x => ({value: x, label: x}))
-      selectedStateProv = stateProvOptions[0]
+      await releaseRecordGroup();
     }
-  }
 
-  const handleSelectedStateProvChanged = _ => {
-    console.log('selected stateProvince is', selectedStateProv)
+    let usersLastGroupID
+    try {
+      usersLastGroupID = await getUsersLastGroupID()
+    }
+    catch(err){
+      alert(err.message)
+      console.error(err)
+      return
+    }
+
+    try {
+      await fetchRecordGroupsAndGeorefs('at', usersLastGroupID)
+    }
+    catch(err){//only if offline
+      alert('there was an error getting a record group to georeference: ' + err.message)
+      console.error(err)
+    }
+    busy = false
   }
 
   const handleCustomGeorefs = ev => {
@@ -586,7 +636,7 @@
       if(saveGeoref){ //we treat it as a new georef
         
         georef.used = true
-        let saveCall = georef.persist(profile, dataset, elasticindex, false) //its a promise, we don't want to slow down here
+        georef.persist(profile, dataset, elasticindex, false) //its a promise, we don't want to slow down here
         $dataStore.georefIndex = {...$dataStore.georefIndex, [georef.georefID]: georef} //svelte
 
       }
@@ -598,6 +648,7 @@
         let url = `https://us-central1-georef-745b9.cloudfunctions.net/georefused?georefID=${georef.georefID}&index=${elasticindex}`
         fetch(url) //no response needed here
         newGeorefsUsed.push(georef.georefID)
+
       }
 
       datasetGeorefsUsed.push(georef.georefID)
@@ -650,7 +701,7 @@
       let total = $dataStore.recordGroup.groupLocalities.length
       if(withGeorefs == total){
         await saveRecordGroup()
-        fetchNextRecordGroup($dataStore.recordGroupSnap)
+        fetchRecordGroupsAndGeorefs('after', $dataStore.recordGroup.groupID)
       }
     }
     else {
@@ -661,6 +712,7 @@
 
   const handleBackToDatasets =  async _ => {
     //TODO must lock the UI for this
+    busy = true
     if(georefsAdded){
       await saveRecordGroup()
     }
@@ -895,104 +947,95 @@
 
 <!-- ############################################## -->
 <svelte:window on:beforeunload={confirmUnload}  on:unload={handleUnload}/> <!--in case the user just closes-->
-{#if !datasetComplete}
-  <div class="col-flex-container">
-    <div class="grid-container">
-      <div class="recordgroup-container">
-        <h4 title={locStringsTitle}>Locality group</h4>
-        <div>
-          <button class="recordgroup-tool" title="back to datasets" on:click={handleBackToDatasets}>
-            <span class="material-icons">list</span>
+<div class="col-flex-container">
+  <div class="grid-container">
+    <div class="recordgroup-container">
+      <h4 title={locStringsTitle}>Locality group</h4>
+      <div>
+        <button class="recordgroup-tool" title="back to datasets" on:click={handleBackToDatasets}>
+          <span class="material-icons">list</span>
+        </button>
+        <button class="recordgroup-tool" title="restart queue" on:click={clearLocalityGroupQueuePosition}>
+          <span class="material-icons">low_priority</span>
+        </button>
+        <button class="recordgroup-tool" title="clear georefs added to this group" on:click={handleStartOver}>
+          <span class="material-icons">replay</span>
+        </button>
+        <button class="recordgroup-tool" title="skip this group" disabled={!$dataStore.georefIndex} on:click={handleSkipRecordGroup}>
+          <span class="material-icons">skip_next</span>
+        </button>
+        {#if !$dataStore.recordGroup || !$dataStore.recordGroup.bookmarked}
+          <button class="recordgroup-tool" title="bookmark this group" disabled={!$dataStore.georefIndex} on:click={handleBookmarkRecordGroup}>
+            <span class="material-icons">bookmark_border</span>
           </button>
-          <button class="recordgroup-tool" title="restart queue" on:click={clearLocalityGroupQueuePosition}>
-            <span class="material-icons">low_priority</span>
+        {:else}
+          <button class="recordgroup-tool" title="group is bookmarked" disabled={!$dataStore.georefIndex} on:click={handleUnbookmarkRecordGroup}>
+            <span class="material-icons">bookmark_added</span>
           </button>
-          <button class="recordgroup-tool" title="clear georefs added to this group" on:click={handleStartOver}>
-            <span class="material-icons">replay</span>
-          </button>
-          <button class="recordgroup-tool" title="skip this group" disabled={!$dataStore.georefIndex} on:click={handleSkipRecordGroup}>
-            <span class="material-icons">skip_next</span>
-          </button>
-          {#if !$dataStore.recordGroup || !$dataStore.recordGroup.bookmarked}
-            <button class="recordgroup-tool" title="bookmark this group" disabled={!$dataStore.georefIndex} on:click={handleBookmarkRecordGroup}>
-              <span class="material-icons">bookmark_border</span>
-            </button>
+        {/if}
+        <button class="recordgroup-tool" title="state selected localities cannot be georeferenced" on:click={handleNoGeoref}>
+          <span class="material-icons">location_off</span>
+        </button>
+      </div>
+      {#if dataset.countryProvs} 
+        <CountryProvSelect hasStateProvince={dataset.hasStateProvince} countryProvs={dataset.countryProvs} on:admin-selected={handleCountryProvinceChanged} />
+      {/if}
+      {#if datasetComplete}
+        {#if selectedCountry == 'all'}
+          <h5>You've reached the end of the records for this dataset</h5>
+        {:else if selectedStateProv && selectedStateProv != 'all'} 
+          {#if selectedStateProv == 'none'}
+            <h5>You've reached the end of the records for {selectedCountry}, (no stateProvince)</h5>
           {:else}
-            <button class="recordgroup-tool" title="group is bookmarked" disabled={!$dataStore.georefIndex} on:click={handleUnbookmarkRecordGroup}>
-              <span class="material-icons">bookmark_added</span>
-            </button>
+            <h5>You've reached the end of the records for {selectedCountry}, {selectedStateProv}</h5>
           {/if}
-          <button class="recordgroup-tool" title="state selected localities cannot be georeferenced" on:click={handleNoGeoref}>
-            <span class="material-icons">location_off</span>
-          </button>
+        {:else}
+          <h5>You've reached the end of the records for {selectedCountry}</h5>
+        {/if}
+      {:else}
+        <div style="text-align:right;">
+          <span>Localities: {locStringsCount || 'NA'}</span>
+          <span>Records: {recordCount || 'NA'}</span>
         </div>
-        {#if dataset.countryProvs} 
-          <div class="inline-select">
-            <span class="label">country</span>
-            <div class="inline-select-fill">
-              <Select items={countriesOptions} bind:value={selectedCountry} isClearable={false} on:select={handleSelectedCountryChanged}/>
-            </div>
-          </div>
-          {#if dataset.hasStateProvince}
-            <div class="inline-select" style="margin-top:5px;">
-              <span class="label">stateProvince</span>
-              <div class="inline-select-fill" style="--disabledBorderColor:darkgrey">
-                <Select items={stateProvOptions} bind:value={selectedStateProv} placeholder={null} isClearable={false} isDisabled={stateProvOptions.length <= 1} on:select={handleSelectedStateProvChanged} />
-              </div>
-            </div>
-          {/if}
-        {/if}
-        {#if $dataStore.recordGroup}
-          <div style="text-align:right;">
-            <span>Localities: {locStringsCount}</span>
-            <span>Records: {recordCount}</span>
-          </div>
-        {/if}
         <div class="recordgroup">
-          <RecordGroup busy={savingGeoref || savingRecordGroup} on:locality-copied={handleLocalityCopied}></RecordGroup>
+          <RecordGroup busy={busy || savingGeoref || savingRecordGroup} on:locality-copied={handleLocalityCopied}></RecordGroup>
         </div>
         <div class="recordgroup-remarks">
           <label for="slgr">Locality georef remarks</label>
           <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder="Add remarks about applying this georeference to this/these selected localities" rows="2" />
         </div>
+      {/if}
+    </div>
+    <div class="matchlist-container">
+      <h4>Candidate georeferences</h4>
+      <CustomSearch bind:customSearchString {elasticindex} on:custom-search-searching={handleCustomSearchSearching} on:custom-search-cleared={handleCustomSearchCleared} on:custom-georefs={handleCustomGeorefs} />
+      <div class="matchlist-flex">
+        <MatchList on:georef-selected={handleGeorefSelected}/>
       </div>
-      <div class="matchlist-container">
-        <h4>Candidate georeferences</h4>
-        <CustomSearch bind:customSearchString {elasticindex} on:custom-search-searching={handleCustomSearchSearching} on:custom-search-cleared={handleCustomSearchCleared} on:custom-georefs={handleCustomGeorefs} />
-        <div class="matchlist-flex">
-          <MatchList on:georef-selected={handleGeorefSelected}/>
-        </div>
-        <div class="matchlist-flex-plug" />
+      <div class="matchlist-flex-plug" />
+    </div>
+    <div class="matchmap-container">
+      <MatchMap bind:pastedDecimalCoords on:georef-selected={handleGeorefSelected}/>
+    </div>
+    <div class="georef-form-container">
+      <h4 class="georef-flex-header">Georeference</h4>
+      <div class="georef-form-flex" bind:this={formContainer}>
+        <GeorefForm 
+        georef={selectedGeoref} 
+        defaultGeorefBy={profile.formattedName}
+        defaultGeorefByORCID={profile.orcid}
+        submitButtonText={"Use this georeference"} 
+        on:clear-georef={handleClearGeoref} 
+        on:georef-flagged={handleFlagGeoref}
+        on:coords-from-paste={handleCoordsFromPaste}
+        on:set-georef={handleSetGeoref}/>
       </div>
-      <div class="matchmap-container">
-        <MatchMap bind:pastedDecimalCoords on:georef-selected={handleGeorefSelected}/>
-      </div>
-      <div class="georef-form-container">
-        <h4 class="georef-flex-header">Georeference</h4>
-        <div class="georef-form-flex" bind:this={formContainer}>
-          <GeorefForm 
-          georef={selectedGeoref} 
-          defaultGeorefBy={profile.formattedName}
-          defaultGeorefByORCID={profile.orcid}
-          submitButtonText={"Use this georeference"} 
-          on:clear-georef={handleClearGeoref} 
-          on:georef-flagged={handleFlagGeoref}
-          on:coords-from-paste={handleCoordsFromPaste}
-          on:set-georef={handleSetGeoref}/>
-        </div>
-        <div class="georef-form-plug" />
-      </div>
+      <div class="georef-form-plug" />
     </div>
   </div>
-  <div class="stopper"/>
-  <Toast />
-{:else}
-  <div style="text-align:center;margin-top:300px">
-    <h3>There are no more records in this dataset</h3>
-    <button on:click={handleBackToDatasets}>Back to datasets...</button>
-  </div>
-{/if}
-
+</div>
+<div class="stopper"/>
+<Toast />
 <!-- ############################################## -->
 <style>
 
@@ -1045,22 +1088,6 @@ h4 {
   min-height: 0;  /* NEW */
   min-width: 0;   /* NEW; needed for Firefox */
   overflow:hidden;
-}
-
-.label {
-  color:grey;
-  font-weight: bolder;
-}
-
-.inline-select {
-  display: flex;
-  width:100%;
-  align-items: center;
-}
-
-.inline-select-fill {
-  margin-left:5px;
-  flex: 1
 }
 
 .recordgroup {

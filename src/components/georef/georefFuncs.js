@@ -1,6 +1,116 @@
 //FUNCTIONS USED BY georef COMPONENT
+import convert from 'geo-coordinates-parser'
+import Georef from './Georef.js'
+import { Firestore } from '../../firebase.js'
 
-const Georef = require('./Georef.js')
+  /**
+   * Fetches and locks a record group. 
+   * Returns an array with the recordGroup SNAPSHOT if successful. 
+   * Returns an empty array if there are no more available record groups, or null if the lock fails 
+   * so we can use it in a loop.
+   * @param {string} atOrAfter - Provide 'at' or 'after', used with currentGroupID.
+  */
+ const getNextAvailableRecordGroup = async (datasetID, country, stateProvince, atOrAfter, currentGroupID) => {
+  
+  let msg = 'Fetching next record group '
+  if(country) {
+    if(country == 'all') {
+      msg += 'for all countries'
+    }
+    else {
+      msg += 'for ' + country
+    }
+  }
+
+  if (stateProvince) {
+    msg += ', ' + stateProvince + ' '
+  }
+  else {
+    msg += ' '
+  }
+
+  if(currentGroupID) {
+    if(atOrAfter == 'at') {
+      msg += 'starting at ' + currentGroupID
+    }
+    else {
+      msg += 'starting after ' + currentGroupID
+    }
+  }
+  else {
+    msg += 'starting at the beginning'
+  }
+
+  console.log(msg)
+
+  let query = Firestore.collection('recordGroups')
+  .where('datasetID', '==', datasetID)
+  .where('completed', '==', false)
+  .where("groupLocked", "==", false)
+
+  //handle country and province filters
+  if(country && country != 'all') {
+    query = query.where('country', '==', country)
+    
+    if(stateProvince && stateProvince != 'all') {
+      if(stateProvince == 'none') {
+        query = query.where('stateProvince', '==', null)
+      }
+      else {
+        query = query.where('stateProvince', '==', stateProvince)
+      }
+    }
+  }
+
+  query = query.orderBy('groupID')
+  
+  if(currentGroupID) {
+    if(atOrAfter && atOrAfter == 'at')  {
+      query = query.startAt(currentGroupID)
+    }
+    else {
+      query = query.startAfter(currentGroupID)
+    }
+  }
+
+  const qrySnap = await query.limit(1).get()
+
+  if(qrySnap.empty) {
+    return []
+  }
+  else {
+    //try lock the doc
+    let result = await Firestore.runTransaction(async transaction => {
+      let docSnap = await transaction.get(qrySnap.docs[0].ref) //get it again, in case it changed
+      let data = docSnap.data()
+      if(data.groupLocked) {
+        console.log('the recordGroup is locked')
+        return null
+      }
+      else {
+        try {
+          await transaction.update(docSnap.ref, {groupLocked: true})
+        }
+        catch(err) {
+          console.log('failed to lock the group')
+          console.error(err)
+          return null //we should never get here!
+        }
+        return docSnap
+      }
+    })
+
+    if(result) {
+      const data = result.data()
+      console.log('returning a result for', data.groupKey)
+      return [result]
+    }
+    else {
+      console.log('returning null')
+      return null
+    }
+  }
+}
 
 const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
   //groupLocalities must be a set of {id: ..., loc: ... } objects
@@ -8,8 +118,21 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
   if(groupLocalities && groupLocalities.length){
     let elasticFetches = []//promise array
 
-    for (let loc of groupLocalities){
-      elasticFetches.push(fetchGeorefsForLoc(loc.loc, elasticindex, limit))
+    for (let groupLoc of groupLocalities) {
+
+      //we need to remove elevation and coordinates so it doesn't confuse the locality search
+      let searchLoc = groupLoc.loc.replace(/(alt|elev)[:;\.]{0,1}\s+\d+(m|ft|f)/i, "").trim()
+      
+      try {
+        let coords = convert(searchLoc) //coords, this will throw if there aren't any
+        searchLoc = searchLoc.replace(coords.verbatimCoordinates, "")
+      }
+      catch(err) {
+        //do nothing
+      }
+
+      elasticFetches.push(fetchGeorefsForLoc(searchLoc, elasticindex, limit))
+
     }
 
     let fetchResults
@@ -342,7 +465,8 @@ const updateGeorefRecords = async (Firestore, FieldValue, georef, datasetID, rec
   }
 }
 
-module.exports = {
+export {
+  getNextAvailableRecordGroup,
   updateGeorefStats,
   updateDatasetStats, 
   updateDatasetGeorefs,

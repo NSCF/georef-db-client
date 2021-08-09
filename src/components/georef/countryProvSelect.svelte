@@ -7,6 +7,7 @@
 
   export let hasStateProvince
   export let countryProvs
+  export let disabled
 
   let countriesOptions = [] //array, we need to generate this with onMount so we can add 'all'
   let selectedCountry = null
@@ -97,14 +98,25 @@
   <div class="inline-select">
     <span class="label">country</span>
     <div class="inline-select-fill">
-      <Select items={countriesOptions} isClearable={false} bind:value={selectedCountry} on:select={handleSelectedCountryChanged}/>
+      <Select 
+        items={countriesOptions} 
+        isClearable={false} 
+        isDisabled={disabled}
+        bind:value={selectedCountry} 
+        on:select={handleSelectedCountryChanged}/>
     </div>
   </div>
   {#if hasStateProvince}
     <div class="inline-select" style="margin-top:5px;">
       <span class="label">stateProvince</span>
       <div class="inline-select-fill" style="--disabledBorderColor:darkgrey">
-        <Select items={stateProvOptions} placeholder={null} isClearable={false} bind:value={selectedStateProv} isDisabled={stateProvOptions.length <= 1} on:select={handleSelectedStateProvChanged} />
+        <Select 
+          items={stateProvOptions} 
+          placeholder={null} 
+          isClearable={false} 
+          bind:value={selectedStateProv} 
+          isDisabled={disabled || stateProvOptions.length <= 1} 
+          on:select={handleSelectedStateProvChanged} />
       </div>
     </div>
   {/if}

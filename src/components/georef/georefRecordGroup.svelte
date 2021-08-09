@@ -70,6 +70,9 @@ const copyLocality = loc => {
         </div>
       </div>
     {/each}
+    {#if $dataStore.recordGroup.groupLocalities.filter(x => x.georefID).length == $dataStore.recordGroup.groupLocalities.length}
+      <h5>These localities for this group [{$dataStore.recordGroup.groupKey}] have been georeferenced</h5> <!--Show this when all georeferenced, needed for viewing a bookmarked record group-->
+    {/if}
   {:else}
     <Loader />
   {/if}

@@ -1,17 +1,18 @@
 <script>
   import {onMount, onDestroy, createEventDispatcher} from 'svelte'
   import { nanoid } from "nanoid" //see https://github.com/ai/nanoid/issues/237
+  import Toggle from "svelte-toggle";
 
   import { Firestore, Realtime as Firebase, FieldValue } from '../../firebase.js'
 
   import {
-      getNextAvailableRecordGroup,
-      updateGeorefStats,
-      updateDatasetStats, 
-      updateDatasetGeorefs,
-      fetchCandidateGeorefs,
-      updateGeorefRecords
-    } from './georefFuncs.js'
+    getNextAvailableRecordGroup,
+    updateGeorefStats,
+    updateDatasetStats, 
+    updateDatasetGeorefs,
+    fetchCandidateGeorefs,
+    updateGeorefRecords
+  } from './georefFuncs.js'
 
   import { dataStore } from './dataStore.js'
 
@@ -32,7 +33,6 @@
   let formContainer
 
   let datasetRef 
-  let bookMarksRef
 
   $: if(Firestore) {
     datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
@@ -57,11 +57,15 @@
   //vars for custom georef searches
   let customSearchString = null
   let georefIndexOnHold = null
-  let markersOnHold = null
-  let searchingGeorefs = false
 
   let selectedCountry = null
   let selectedStateProv = null
+
+  let bookmarked = null //for storing the actual list of bookmarkedRecordGroups
+  let fetchBookmarked = false //bound prop for the toggle
+  let fetchBookmarkedFirstToggled = false //so we don't trigger a fetch on render
+  let bookMarksRef = null
+  let currentBookmarkIndex = 0
 
   let selectedLocGeorefRemarks
 
@@ -81,6 +85,22 @@
   }
 
   $: if(!connected && mounted) alert('There appears to be a problem with your connection. Please check before continuing')
+
+  //trigger a fetch on toggle
+  $: if(fetchBookmarked) {
+      currentBookmarkIndex = 0
+      fetchBookmarkedFirstToggled = true
+      fetchRecordGroupsAndGeorefs()
+    }
+    else if (fetchBookmarkedFirstToggled) {
+      getUsersLastGroupID().then(lastGroupID => {
+        fetchRecordGroupsAndGeorefs('at', lastGroupID)
+      })
+      .catch(err => {
+        console.error(err)
+        alert('error getting users last group ID')
+      })
+  }
 
   const getUsersLastGroupID = async _ => {
     //unfortunately we have to deal with legacy here...
@@ -156,8 +176,20 @@
 
     elasticindex = dataset.region.toLowerCase().replace(/\s+/g, '') + dataset.domain.toLowerCase()
 
-    
+    //get users bookmarks and listen for changes
+    Firestore.collection('userDatasetBookmarks')
+    .where('uid', '==', profile.uid)
+    .where('datasetID', '==', dataset.datasetID)
+    .get().then(qrySnap => {
+      if(!qrySnap.empty) {
+        const docSnap = qrySnap.docs[0]
+        const data = docSnap.data() //there can be only one!
+        bookmarked = data.recordGroupIDs
+        bookMarksRef = docSnap.ref
+      }
+    })
 
+    //get record group and georefs
     let usersLastGroupID
     try {
       usersLastGroupID = await getUsersLastGroupID()
@@ -195,7 +227,7 @@
 
   const fetchRecordGroupsAndGeorefs = async (atOrAfter, currentGroupID) => {
     if(connected){
-
+      
       //reset everything
       $dataStore.recordGroup = null
       $dataStore.recordGroupSnap = null
@@ -214,35 +246,57 @@
       recordsGeoreferenced = 0
       customSearchString = null //just to clear
       
-      //get the next recordGroup
-      let nextRecordGroup = null
-      let searchCountry = null
-      if(selectedCountry) {
-        searchCountry = selectedCountry
-      }
-      let searchStateProv = null
-      if(selectedStateProv) {
-        searchStateProv = selectedStateProv
-      }
+      //get the next recordGroup, depending on whether we are getting bookmarked or new
+      let nextRecordGroupSnap = null
 
-      while(!nextRecordGroup) {
-        try {
-          nextRecordGroup = await getNextAvailableRecordGroup(dataset.datasetID, searchCountry, searchStateProv, atOrAfter, currentGroupID)
+      if(fetchBookmarked) {
+        if(currentBookmarkIndex < bookmarked.length) {
+          const bookmarkedRecordGroupID = bookmarked[currentBookmarkIndex]
+          const docSnap = await Firestore.collection('recordGroups').doc(bookmarkedRecordGroupID).get()
+          if(docSnap.exists) { //it has to!!!
+            //this is a bit funny because getNextAvailableRecordGroup() returns an array with one item if successful so we can loop
+            nextRecordGroupSnap =  [docSnap]
+          }
+          else {
+            alert('Could not fetch bookmarked recordGroup with ID', bookmarkedRecordGroupID)
+            return
+          }
         }
-        catch(err) {
-          console.error(err)
-          alert('error fetching locality group, see console')
+        else {
+          alert('You have no more bookmarked locality groups for this dataset')
+          fetchBookmarked = false //trigger the fetch for regular record groups
           return
         }
       }
+      else {
+        let searchCountry = null
+        if(selectedCountry) {
+          searchCountry = selectedCountry
+        }
+        let searchStateProv = null
+        if(selectedStateProv) {
+          searchStateProv = selectedStateProv
+        }
 
-      if(!nextRecordGroup.length) { //no more available recordGroups
-        datasetComplete = true
-        return
+        while(!nextRecordGroupSnap) {
+          try {
+            nextRecordGroupSnap = await getNextAvailableRecordGroup(dataset.datasetID, searchCountry, searchStateProv, atOrAfter, currentGroupID)
+          }
+          catch(err) {
+            console.error(err)
+            alert('error fetching locality group, see console')
+            return
+          }
+        }
+
+        if(!nextRecordGroupSnap.length) { //no more available recordGroups
+          datasetComplete = true
+          return
+        }
       }
-
-      //else
-      $dataStore.recordGroupSnap = nextRecordGroup[0] 
+      
+      //if we have a record group...
+      $dataStore.recordGroupSnap = nextRecordGroupSnap[0] 
       $dataStore.recordGroup = $dataStore.recordGroupSnap.data()
 
       //add keys to the record group locs in case they are missing....
@@ -276,24 +330,28 @@
         $dataStore.locGeorefIndex =  candidateGeorefs.locGeorefIndex
       }              
 
-      //save the users place in the queue
-      let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}/${selectedCountry}`
-      if(dataset.hasStateProvince) {
-        if(selectedStateProv) {
-          refString += `/${selectedStateProv}`
+      //if not searching for bookmarks, save the users place in the queue
+      if(!fetchBookmarked){
+        let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}/${selectedCountry}`
+        if(dataset.hasStateProvince) {
+          if(selectedStateProv) {
+            refString += `/${selectedStateProv}`
+          }
+          else {
+            refString += '/all'
+          }
         }
-        else {
-          refString += '/all'
+        
+        try {
+          await Firebase.ref(refString).set($dataStore.recordGroup.groupID)
+        }
+        catch(err) {
+          console.error('error updating userLastSnap on firebase:', err.message)
+          console.error(err)
         }
       }
-      
-      try {
-        await Firebase.ref(refString).set($dataStore.recordGroup.groupID)
-      }
-      catch(err) {
-        console.error('error updating userLastSnap on firebase:', err.message)
-        console.error(err)
-      }
+
+      busy = false
     }
     else {
       alert('You are not online, please check your connection')
@@ -395,20 +453,26 @@
 
   const clearLocalityGroupQueuePosition = async _ => {
     let message = 'Are you sure you want to start over for '
-    if(selectedCountry == 'all'){
-      message += 'all countries'
-    }
-    else {
-      message += selectedCountry
-      if(selectedStateProv != 'all') {
-        if(selectedStateProv == 'none') {
-          message += ' (no stateProvince)'
-        }
-        else {
-          message += ', ' + selectedStateProv
+    if(dataset.countryProvs) {
+      if(selectedCountry == 'all'){
+        message += 'all countries'
+      }
+      else {
+        message += selectedCountry
+        if(selectedStateProv != 'all') {
+          if(selectedStateProv == 'none') {
+            message += ' (no stateProvince)'
+          }
+          else {
+            message += ', ' + selectedStateProv
+          }
         }
       }
     }
+    else {
+      message += 'this dataset'
+    }
+    
     message += '?'
 
     let conf = confirm(message) 
@@ -440,7 +504,6 @@
   }
 
   const handleSkipRecordGroup = async _ => {
-    //TODO must lock the UI for this
     busy = true
     if(georefsAdded || recordsGeoreferenced){
       await saveRecordGroup()
@@ -449,8 +512,20 @@
       await releaseRecordGroup();
     }
 
-    await fetchRecordGroupsAndGeorefs('after', $dataStore.recordGroup.groupID)
-    busy = false
+    //if this was while reviewing bookmarked record groups, and we have none left, back to other record groups
+    if(fetchBookmarked) {
+      currentBookmarkIndex++
+      if(currentBookmarkIndex >= bookmarked.length) {
+        alert('You have no more bookmarked locality groups for this dataset')
+        fetchBookmarked = false //this will trigger fetching a regular record group
+      }
+      else {
+        await fetchRecordGroupsAndGeorefs()
+      }
+    }
+    else { // a regular get
+      await fetchRecordGroupsAndGeorefs('after', $dataStore.recordGroup.groupID)
+    }
   }
 
   const handleCustomSearchSearching = _ => {
@@ -699,8 +774,16 @@
       let withGeorefs = $dataStore.recordGroup.groupLocalities.filter(x => x.georefID).length
       let total = $dataStore.recordGroup.groupLocalities.length
       if(withGeorefs == total){
+        
         await saveRecordGroup()
-        fetchRecordGroupsAndGeorefs('after', $dataStore.recordGroup.groupID)
+        
+        if(fetchBookmarked) {
+          currentBookmarkIndex++
+          fetchRecordGroupsAndGeorefs()
+        }
+        else {
+          fetchRecordGroupsAndGeorefs('after', $dataStore.recordGroup.groupID)
+        }
       }
     }
     else {
@@ -766,9 +849,12 @@
           recordGroupIDs: FieldValue.arrayUnion(recordGroupID)
         })
 
+        bookmarked.push(recordGroupID)
+
         await $dataStore.recordGroupSnap.ref.update({
           bookmarked: true,
           bookmarkedBy: profile.formattedName,
+          bookmarkedByUID: profile.uid,
           bookmarkedDate: Date.now()
         })
       }
@@ -779,56 +865,49 @@
       }
     }
     else {
+
+      let doc = {
+        uid: profile.uid, 
+        datasetID: dataset.datasetID,
+        recordGroupIDs: [recordGroupID]
+      }
+
       try {
-        let queryResults = await Firestore.collection('userDatasetBookmarks')
-        .where('uid', '==', profile.uid)
-        .where('datasetID', '==', dataset.datasetID)
-        .get()
-
-        if(queryResults.empty) {
-          let doc = {
-            uid: profile.uid, 
-            datasetID: dataset.datasetID,
-            recordGroupIDs: [recordGroupID]
-          }
-          //don't await
-          let docRef =  await Firestore.collection('userDatasetBookmarks').add(doc)
-          bookMarksRef = docRef
-          
-          await $dataStore.recordGroupSnap.ref.update({
-            bookmarked: true,
-            bookmarkedBy: profile.formattedName,
-            bookmarkedDate: Date.now()
-          })
-        }
-        else {
-          bookMarksRef = queryResults.docs[0].ref //there should only be one!
-
-          let bookmarkupdate = bookMarksRef.update({
-            recordGroupIDs: FieldValue.arrayUnion(recordGroupID)
-          })
-
-          let datasetupdate = $dataStore.recordGroupSnap.ref.update({
-            bookmarked: true,
-            bookmarkedBy: profile.formattedName,
-            bookmarkedDate: Date.now()
-          })
-
-          await Promise.all([bookmarkupdate, datasetupdate])
-        }
+        let docRef =  await Firestore.collection('userDatasetBookmarks').add(doc)
+        bookMarksRef = docRef
       }
       catch(err) {
         console.error(err)
-        alert('error bookmarking record group: ' + err.message )
+        alert('error adding first bookmark for user')
+        return
+      }
+
+      bookmarked = [recordGroupID]
+      
+      try {
+        await $dataStore.recordGroupSnap.ref.update({
+          bookmarked: true,
+          bookmarkedBy: profile.formattedName,
+          bookmarkedByUID: profile.uid,
+          bookmarkedDate: Date.now()
+        })
+      }
+      catch(err) {
+        console.error(err)
+        alert('error updating record group bookmark data')
         return
       }
     }
 
     //we're all good
     $dataStore.recordGroup.bookmarked = true
+    $dataStore.recordGroup.bookmarkedBy = profile.formattedName
+    $dataStore.recordGroup.bookmarkedByUID = profile.uid
+
     if(window.pushToast){
       window.pushToast('locality group bookmarked')
     }
+
   }
 
   //this is just the opposite of above
@@ -836,53 +915,46 @@
     let recordGroupID = $dataStore.recordGroupSnap.id
     ev.currentTarget.disabled = true;
 
-    if(bookMarksRef) { //it might not be if we just loaded this
-
-      try{
-        await bookMarksRef.update({
-          recordGroupIDs: FieldValue.arrayRemove(recordGroupID)
-        })
-
-        await $dataStore.recordGroupSnap.ref.update({
-          bookmarked: false,
-          bookmarkedBy: null,
-          bookmarkedDate: null
-        })
-      }
-      catch(err) {
-        console.error(err)
-        alert('error bookmarking record group: ' + err.message )
-        return
-      }
+    //this time we have to have bookMarksRef
+    try{
+      await bookMarksRef.update({
+        recordGroupIDs: FieldValue.arrayRemove(recordGroupID)
+      })
     }
-    else {
-      try {
-        let queryResults = await Firestore.collection('userDatasetBookmarks')
-        .where('uid', '==', profile.uid)
-        .where('datasetID', '==', dataset.datasetID)
-        .get()
+    catch(err) {
+      console.error(err)
+      alert('error removing bookmarked record group')
+      return
+    }
 
-        bookMarksRef = queryResults.docs[0].ref //there should one and only one!
+    try {
+      await $dataStore.recordGroupSnap.ref.update({
+        bookmarked: false,
+        bookmarkedBy: null,
+        bookmarkedByUID: null,
+        bookmarkedDate: null
+      })
+    }
+    catch(err) {
+      console.error(err)
+      alert('error updating recordgroup bookmark details')
+      return
+    }
 
-        await bookMarksRef.update({
-          recordGroupIDs: FieldValue.arrayRemove(recordGroupID)
-        })
-
-        await $dataStore.recordGroupSnap.ref.update({
-          bookmarked: false,
-          bookmarkedBy: null,
-          bookmarkedDate: null
-        })
-      }
-      catch(err) {
-        console.error(err)
-        alert('error unbookmarking record group: ' + err.message )
-        return
+    const ind = bookmarked.indexOf(recordGroupID)
+    bookmarked.splice(ind, 1)
+    
+    if(fetchBookmarked) {
+      if(currentBookmarkIndex > 0) {
+        currentBookmarkIndex--
       }
     }
 
     //we're all good
     $dataStore.recordGroup.bookmarked = false
+    $dataStore.recordGroup.bookmarkedBy = null
+    $dataStore.recordGroup.bookmarkedByUID = null
+
     if(window.pushToast){
       window.pushToast('locality group unbookmarked')
     }
@@ -954,7 +1026,7 @@
         <button class="recordgroup-tool" title="back to datasets" on:click={handleBackToDatasets}>
           <span class="material-icons">list</span>
         </button>
-        <button class="recordgroup-tool" title="restart queue" on:click={clearLocalityGroupQueuePosition}>
+        <button class="recordgroup-tool" title="restart queue" disabled={fetchBookmarked} on:click={clearLocalityGroupQueuePosition}>
           <span class="material-icons">low_priority</span>
         </button>
         <button class="recordgroup-tool" title="clear georefs added to this group" on:click={handleStartOver}>
@@ -968,16 +1040,35 @@
             <span class="material-icons">bookmark_border</span>
           </button>
         {:else}
-          <button class="recordgroup-tool" title="group is bookmarked" disabled={!$dataStore.georefIndex} on:click={handleUnbookmarkRecordGroup}>
-            <span class="material-icons">bookmark_added</span>
-          </button>
+          <button 
+            class="recordgroup-tool" 
+            title="remove bookmark" 
+            disabled={!$dataStore.georefIndex || $dataStore.recordGroup.bookmarkedByUID != profile.uid}
+            on:click={handleUnbookmarkRecordGroup}>
+              <span class="material-icons">bookmark_added</span>
+          </button> <!--note only the person who bookmarked the record can unbookmark it-->
         {/if}
         <button class="recordgroup-tool" title="state selected localities cannot be georeferenced" on:click={handleNoGeoref}>
           <span class="material-icons">location_off</span>
         </button>
       </div>
+      <div class="bookmarkToggle">
+        <span class="label">bookmarked</span>
+        <Toggle 
+          hideLabel 
+          label="Show bookmarked"
+          switchColor="#eee"
+          toggledColor="lightblue"
+          untoggledColor="lightgrey"
+          disabled={!bookmarked || bookmarked.length == 0}
+          bind:toggled={fetchBookmarked} />
+      </div>
       {#if dataset.countryProvs} 
-        <CountryProvSelect hasStateProvince={dataset.hasStateProvince} countryProvs={dataset.countryProvs} on:admin-selected={handleCountryProvinceChanged} />
+        <CountryProvSelect 
+          hasStateProvince={dataset.hasStateProvince} 
+          countryProvs={dataset.countryProvs} 
+          disabled={fetchBookmarked}
+          on:admin-selected={handleCountryProvinceChanged} />
       {/if}
       {#if datasetComplete}
         {#if selectedCountry == 'all'}
@@ -1038,141 +1129,154 @@
 <!-- ############################################## -->
 <style>
 
-h4 {
-  color:  #86afe8;
-  text-transform: uppercase;
-  font-size: 1.5em;
-	font-weight: 600;
-  text-align: center;
-  margin:0;
-}
+  h4 {
+    color:  #86afe8;
+    text-transform: uppercase;
+    font-size: 1.5em;
+    font-weight: 600;
+    text-align: center;
+    margin:0;
+  }
 
-.col-flex-container {
-  display: flex;
-  height: 100%;
-  flex-direction: column;
-  box-sizing: border-box;
-}
+  .col-flex-container {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    box-sizing: border-box;
+  }
 
-.stopper {
-  position: absolute;
-  height:0;
-  bottom:0;
-}
+  .stopper {
+    position: absolute;
+    height:0;
+    bottom:0;
+  }
 
-.grid-container {
-  display: grid;
-  flex: 1 1 auto;
-  width: 100%;
-  padding: 10px;
-  margin-top:10px;
- /* min-height: 0;   NEW */
-  /* min-width: 0;   NEW; needed for Firefox */
-  overflow:hidden;
-  box-sizing: border-box;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-  grid-column-gap:1%;
-  border-radius:4px;
-  border: 2px solid #bcd0ec;
-}
+  .grid-container {
+    display: grid;
+    flex: 1 1 auto;
+    width: 100%;
+    padding: 10px;
+    margin-top:10px;
+    /* min-height: 0;   NEW */
+    /* min-width: 0;   NEW; needed for Firefox */
+    overflow:hidden;
+    box-sizing: border-box;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    grid-column-gap:1%;
+    border-radius:4px;
+    border: 2px solid #bcd0ec;
+  }
 
-.recordgroup-container {
-  grid-column: 1/2;
-  grid-row: 1 / 3;
-  display: flex;
-  flex-flow: column;
-  height: 100%;
-  max-height: 100%;
-  min-height: 0;  /* NEW */
-  min-width: 0;   /* NEW; needed for Firefox */
-  overflow:hidden;
-}
+  .bookmarkToggle {
+    display: flex;
+    width:100%;
+    align-items: center;
+    justify-content: space-between;
+  }
 
-.recordgroup {
-  flex-grow:0;
-  flex-basis:100%;
-  overflow:auto;
-  border:1px solid #bcd0ec;
-  padding:2px;
-}
+  .label {
+    color:grey;
+    font-weight: bolder;
+  }
 
-.recordgroup-tool {
-  float:right;
-  margin-left:5px;
-  padding-bottom:0;
-}
 
-.recordgroup-remarks {
-  text-align: center;
-  flex-basis:auto;
-}
+  .recordgroup-container {
+    grid-column: 1/2;
+    grid-row: 1 / 3;
+    display: flex;
+    flex-flow: column;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;  /* NEW */
+    min-width: 0;   /* NEW; needed for Firefox */
+    overflow:hidden;
+  }
 
-.matchlist-container {
-  grid-column: 2/2; 
-  grid-row: 1 / 2;
-  max-height: 100%;
-  position:relative;
-  display: flex;
-  flex-flow: column;
-}
+  .recordgroup {
+    flex-grow:0;
+    flex-basis:100%;
+    overflow:auto;
+    border:1px solid #bcd0ec;
+    padding:2px;
+  }
 
-.matchlist-flex {
-  flex-grow: 1;
-  flex-shrink: 1;
-  flex-basis: initial;
-  overflow-y: auto;
-}
+  .recordgroup-tool {
+    float:right;
+    margin-left:5px;
+    padding-bottom:0;
+  }
 
-.matchlist-flex-plug {
-  flex: 0 0 auto;
-}
+  .recordgroup-remarks {
+    text-align: center;
+    flex-basis:auto;
+  }
 
-.matchmap-container {
-  grid-column: 2/2;
-  grid-row: 2 / 2;
-}
+  .matchlist-container {
+    grid-column: 2/2; 
+    grid-row: 1 / 2;
+    max-height: 100%;
+    position:relative;
+    display: flex;
+    flex-flow: column;
+  }
 
-.georef-form-container {
-  grid-column: 3/3;
-  grid-row: 1 / 3;
-  height:100%;
-  max-height:100%;
-  position:relative;
-  display: flex;
-  flex-flow: column;
-  overflow-x:hidden;
-} 
+  .matchlist-flex {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: initial;
+    overflow-y: auto;
+  }
 
-.georef-flex-header {
-  flex: 0 1 auto;
-}
+  .matchlist-flex-plug {
+    flex: 0 0 auto;
+  }
 
-.georef-form-flex {
-  flex-grow: 1;
-  flex-shrink: 1;
-  flex-basis: auto;
-  overflow-y: auto;
-}
+  .matchmap-container {
+    grid-column: 2/2;
+    grid-row: 2 / 2;
+  }
 
-.georef-form-plug {
-  flex: 0 0 auto;
-}
+  .georef-form-container {
+    grid-column: 3/3;
+    grid-row: 1 / 3;
+    height:100%;
+    max-height:100%;
+    position:relative;
+    display: flex;
+    flex-flow: column;
+    overflow-x:hidden;
+  } 
 
-label {
-  display: inline-block;
-  text-align: right;
-  color:grey;
-  font-weight: bolder;
-}
+  .georef-flex-header {
+    flex: 0 1 auto;
+  }
 
-button {
-  background-color: lightgray;
-}
+  .georef-form-flex {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: auto;
+    overflow-y: auto;
+  }
 
-button:hover:enabled {
-  background-color:grey;
-  color:white;
-}
+  .georef-form-plug {
+    flex: 0 0 auto;
+  }
+
+  label {
+    display: inline-block;
+    text-align: right;
+    color:grey;
+    font-weight: bolder;
+  }
+
+  button {
+    background-color: lightgray;
+  }
+
+  button:hover:enabled {
+    background-color:grey;
+    color:white;
+  }
 
 </style>

@@ -86,7 +86,6 @@
       selectedAdmins.stateProvince = null
     }
     
-    console.log('dispatching', selectedAdmins)
     dispatch('admin-selected', selectedAdmins)
   }
 

@@ -227,7 +227,7 @@
 
   const fetchRecordGroupsAndGeorefs = async (atOrAfter, currentGroupID) => {
     if(connected){
-      
+
       //reset everything
       $dataStore.recordGroup = null
       $dataStore.recordGroupSnap = null
@@ -1087,6 +1087,11 @@
           <span>Localities: {locStringsCount || 'NA'}</span>
           <span>Records: {recordCount || 'NA'}</span>
         </div>
+        {#if $dataStore.recordGroup.bookmarked && $dataStore.recordGroup.bookmarkedByUID != profile.uid}
+          <div class="warning">
+            <strong>This group was bookmarked by {$dataStore.recordGroup.bookmarkedBy}</strong>
+          </div>
+        {/if}
         <div class="recordgroup">
           <RecordGroup busy={busy || savingGeoref || savingRecordGroup} on:locality-copied={handleLocalityCopied}></RecordGroup>
         </div>
@@ -1180,6 +1185,16 @@
     font-weight: bolder;
   }
 
+  .warning {
+    width:100%;
+    max-width: 600px;
+    text-align: center;
+    background-color: #ffd47d;
+    color: rgb(73, 93, 158);
+    border-radius: 2px;
+    border-width: 20px;
+    border: 4px solid #c98f18;
+  }
 
   .recordgroup-container {
     grid-column: 1/2;
@@ -1253,10 +1268,7 @@
   }
 
   .georef-form-flex {
-    flex-grow: 1;
-    flex-shrink: 1;
-    flex-basis: auto;
-    overflow-y: auto;
+    padding-right: 5px;
   }
 
   .georef-form-plug {

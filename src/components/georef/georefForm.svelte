@@ -386,11 +386,19 @@ const checkAndDispatchGeoref = _ => {
   class:form-ambiguous={localGeoref.ambiguous}
 >
   {#if showButtons}
-    <div style="text-align:right">
-      <span class="material-icons iconbutton" title="Clear all" on:click={handleClearClick}>restore_page</span>
-      <span class="material-icons iconbutton" title="Flag this georef" class:utility-button-inactive={localGeoref.flagged} on:click={flagGeoref}>report</span>
-      <button class="json-button" title="Copy georef JSON"  on:click={copyGeorefJSON}>JSON</button>
-      <span class="material-icons iconbutton" title="Copy tab delimited" on:click={copyTabDelimited}>clear_all</span>
+    <div class="georef-tool-container">
+      <button class="georef-tool-button" title="Clear all" on:click|preventDefault={handleClearClick}>
+        <span class="material-icons">restore_page</span>
+      </button>
+      <button class="georef-tool-button" title="Flag this georef" disabled={localGeoref.flagged} on:click|preventDefault={flagGeoref}>
+        <span class="material-icons">report</span>
+      </button>
+      <button class="georef-tool-button json-button" title="Copy georef JSON" on:click|preventDefault={copyGeorefJSON}>
+        <span>JSON</span>
+      </button>
+      <button class="georef-tool-button" title="Copy tab delimited" on:click|preventDefault={copyTabDelimited}>
+        <span class="material-icons" >clear_all</span>
+      </button>
     </div>
   {/if}
   {#if localGeoref.ambiguous}
@@ -413,12 +421,12 @@ const checkAndDispatchGeoref = _ => {
       <label  for="coords">decimal coords</label>
       <DecimalCoordsInput hasError={coordsHasError} {editable} on:coords-from-paste={handleCoordsFromPaste} bind:value={localGeoref.decimalCoordinates}/> <!--VERY IMPORTANT THAT COORDINATES BE VALID BEFORE THIS HAPPENS, OTHERWISE IT BREAKS-->
     </div>
-    <fieldset disabled={!metaEditable}>
+    <fieldset class="innerfieldset" disabled={!metaEditable}>
       <div class="oneliner">
         <label for="acc">uncertainty</label>
-        <div style="display:inline-block;width:50%">
-          <input type="number" id="acc" style="width:57%" min="0" step="0.1" class:hasError={uncertaintyHasError} on:blur={handleUncertaintyBlur}  bind:value={localGeoref.uncertainty}/>
-          <select class:hasError={uncertaintyUnitHasError} id='accunit' style="width:40%" bind:value={localGeoref.uncertaintyUnit} bind:this={uncertaintySelect}>
+        <div class="uncertainty-fields">
+          <input type="number" id="acc" min="0" step="0.1" class:hasError={uncertaintyHasError} on:blur={handleUncertaintyBlur}  bind:value={localGeoref.uncertainty}/>
+          <select class:hasError={uncertaintyUnitHasError} id='accunit' bind:value={localGeoref.uncertaintyUnit} bind:this={uncertaintySelect}>
             <option selected="selected"/>
             {#each uncertaintyUnitsEnum as unit}
               <option value={unit}>{unit}</option>
@@ -443,7 +451,7 @@ const checkAndDispatchGeoref = _ => {
         <div class="oneliner">
           <label for="georefBy">georef by</label>
           {#if defaultGeorefBy}
-            <input class:hasError={georefByHasError} type="text" list="defaultGeorefBy" id="georefBy" style="width:50%" bind:value={localGeoref.by}/>
+            <input class:hasError={georefByHasError} type="text" list="defaultGeorefBy" id="georefBy" style="width:70%" bind:value={localGeoref.by}/>
             <datalist id="defaultGeorefBy">
               <option value={defaultGeorefBy}>
             </datalist>
@@ -502,12 +510,12 @@ const checkAndDispatchGeoref = _ => {
       <div class="oneliner">
         <label for="verifiedBy">verified by</label>
         {#if defaultGeorefBy}
-          <input type="text" list="defaultVerifiedBy" id="verifiedBy" style="width:50%" class:hasError={verifiedByHasError} bind:value={localGeoref.verifiedBy}/>
+          <input type="text" list="defaultVerifiedBy" id="verifiedBy" style="width:70%" class:hasError={verifiedByHasError} bind:value={localGeoref.verifiedBy}/>
           <datalist id="defaultVerifiedBy">
             <option value={defaultGeorefBy}>
           </datalist>
         {:else}
-          <input type="text" id="verifiedBy" style="width:50%" class:hasError={verifiedByHasError} bind:value={localGeoref.verifiedBy}/>
+          <input type="text" id="verifiedBy" style="width:70%" class:hasError={verifiedByHasError} bind:value={localGeoref.verifiedBy}/>
         {/if}
       </div>
       <div class="oneliner">
@@ -549,163 +557,170 @@ const checkAndDispatchGeoref = _ => {
 
 <!-- ############################################## -->
 <style>
-form {
-  width:100%;
-  height:100%;
-  max-height:100%;
-  box-sizing:border-box;
-}
 
-.form-ambiguous {
-  background-color: #ffe6b4;
-}
+  .georef-tool-container {
+    display:flex;
+    justify-content: flex-end;
+  }
 
-.ambiguous-alert-container {
-  width:100%;
-  display:flex;
-  justify-content: space-around;
-}
+  .georef-tool-button {
+    color: darkslategray;
+    margin-left:5px;
+    padding-bottom:0;
+    background-color: lightgray;
+  }
 
-.ambiguous-alert {
-  width:80%;
-  background-color: #ffd47d;
-  color: rgb(73, 93, 158);
-  border-radius: 2px;
-  border-width: 20px;
-  border: 4px solid #c98f18;
-}
+  .georef-tool-button:hover {
+    background-color:grey;
+    color:white;
+  }
 
-fieldset {
-  padding: 0;
-  border:none;
-}
+  form {
+    width:100%;
+    height:100%;
+    max-height:100%;
+  }
 
-label {
-  display: inline-block;
-  /* width: 140px; */
-  text-align: right;
-  color:grey;
-  font-weight: bolder;
-}
+  .form-ambiguous {
+    background-color: #ffe6b4;
+  }
 
-label > a {
-  color:grey;
-}
+  .ambiguous-alert-container {
+    width:100%;
+    display:flex;
+    justify-content: space-around;
+  }
 
-textarea {
-  resize: none;
-  width: 100%;
-}
+  .ambiguous-alert {
+    width:80%;
+    background-color: #ffd47d;
+    color: rgb(73, 93, 158);
+    border-radius: 2px;
+    border-width: 20px;
+    border: 4px solid #c98f18;
+  }
 
-input:disabled {
-  color:black;
-  background-color: white;
-}
+  fieldset {
+    width:100%;
+    padding: 0;
+    border:none;
+  }
 
-textarea:disabled {
-  color: black;
-  background-color: white;
-}
+  label {
+    display: inline-block;
+    /* width: 140px; */
+    color:grey;
+    font-weight: bolder;
+  }
 
-.oneliner{
-  width:100%;
-  text-align: right;
-}
+  label > a {
+    color:grey;
+  }
 
-.oneliner > .fields {
-  display:inline-block;
-  width:100%
-}
-.oneliner > .fields > .flex {
-  display: flex;
-  justify-content: flex-end;
-  align-items: baseline;
-}
+  textarea {
+    resize: none;
+    width: 100%;
+  }
 
-.inline-select {
+  input:disabled {
+    color:black;
+    background-color: white;
+  }
 
-  margin-bottom:8px;
-  --height:35px;
-  --borderRadius:2px;
-  --border: 1px solid lightgray;
-  --clearSelectTop: 8px;
-  --multiItemHeight: 25px;
-  --multiClearTop:3px;
-  --multiClearPadding: 2px;
-  --multiClearBG:none;
-  --multiClearFill:grey;
-  --multiClearHoverBG:none;
-  --multiClearHoverFill:white;
-  --disabledBackground:none;
-  --disabledColor:dimgrey;
-}
+  textarea:disabled {
+    color: black;
+    background-color: white;
+  }
 
-.hasError {
-  border: 1px solid rgb(133, 49, 34);
-  background-color: rgb(255, 155, 155)
-}
+  .oneliner {
+    display: flex;
+    width: 100%;
+    justify-content: flex-end;
+    align-items: center;
+    flex-wrap: wrap;
+  }
 
-.georefbutton {
-  background-color:lightgray;
-  border-radius: 2px;
-  padding:10px;
-  width:70%;
-}
+  .oneliner > .fields {
+    display:inline-block;
+    width:100%
+  }
+  .oneliner > .fields > .flex {
+    display: flex;
+    justify-content: flex-end;
+    align-items: baseline;
+  }
 
-.iconbutton{
-  color:grey;
-  background-color: lightgray;
-  border: 1px solid grey;
-  border-radius: 2px;
-}
+  .uncertainty-fields {
+    display: inline-flex;
+    width:50%;
+    min-width: 160px;
+  }
 
-.iconbutton:hover{
-  cursor:pointer;
-  background-color:gray;
-  color:white;
-}
+  .uncertainty-fields > input {
+    flex: 1;
+    width: 80px;
+		margin-left:5px;
+  }
 
-.utility-button-inactive:hover {
-  cursor: auto;
-  color:grey;
-  background-color: lightgray;
-  border: 1px solid grey;
-  border-radius: 2px;
-}
+  .uncertainty-fields > select {
+    width: 80px;
+  }
 
-.json-button {
-  color:grey;
-  position:relative;
-  top:-10px;
-  height: 26px;
-  width: 26px;
-  border: 1px solid grey;
-  border-radius: 2px;
-  background-color: lightgray;
-  font-family:Arial;
-  font-stretch:condensed;
-  font-size:0.4em;
-  font-weight:bold;
-}
+  .inline-select {
 
-.json-button:hover:enabled {
-  cursor:pointer;
-  background-color:gray;
-  color:white;
-}
+    margin-bottom:8px;
+    --height:35px;
+    --borderRadius:2px;
+    --border: 1px solid lightgray;
+    --clearSelectTop: 8px;
+    --multiItemHeight: 25px;
+    --multiClearTop:3px;
+    --multiClearPadding: 2px;
+    --multiClearBG:none;
+    --multiClearFill:grey;
+    --multiClearHoverBG:none;
+    --multiClearHoverFill:white;
+    --disabledBackground:none;
+    --disabledColor:dimgrey;
+  }
 
-.georefbutton:hover:enabled{
-  cursor:pointer;
-  background-color:gray;
-  color:white;
-}
+  .hasError {
+    border: 1px solid rgb(133, 49, 34);
+    background-color: rgb(255, 155, 155)
+  }
 
-.hr-break {
-  margin-bottom:10px;
-}
+  .georefbutton {
+    background-color:lightgray;
+    border-radius: 2px;
+    padding:10px;
+    width:70%;
+  }
 
-hr {
-  border: 1px solid lightgray;
-  margin:1px;
-}
+  .json-button {
+    display: inline-flex;
+    align-items: center; 
+    justify-content: center;
+    padding:0;
+    height:36.4px;
+    width:38.8px;
+    font-family:Arial;
+    font-stretch:condensed;
+    font-size:0.9em;
+    font-weight:bold;
+  }
+
+  .georefbutton:hover:enabled{
+    cursor:pointer;
+    background-color:gray;
+    color:white;
+  }
+
+  .hr-break {
+    margin-bottom:10px;
+  }
+
+  hr {
+    border: 1px solid lightgray;
+    margin:1px;
+  }
 </style>

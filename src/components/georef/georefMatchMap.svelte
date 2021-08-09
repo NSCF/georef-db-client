@@ -14,7 +14,7 @@ let container;
 let map;
 let coordsPin
 let mapReady = false
-let currentGeorefs
+let currentGeorefs //just an object pointer to the georefIndex recieved.
 let circlesOn = true
 
 let googleMapAPIExists = false
@@ -40,50 +40,43 @@ onMount(async _ => {
     await loader.load()
   }
 
-  //the circle toggle button....
-  //copied and modified from https://developers.google.com/maps/documentation/javascript/examples/control-custom 
-  function CenterControl(controlDiv, map) {
-    // Set CSS for the control border.
-    const controlUI = document.createElement("div");
-    controlUI.style.backgroundColor = "#fff";
-    controlUI.style.border = "2px solid #fff";
-    controlUI.style.borderRadius = "3px";
-    controlUI.style.boxShadow = "0 2px 6px rgba(0,0,0,.3)";
-    controlUI.style.cursor = "pointer";
-    controlUI.style.margin = "10px";
-    controlUI.style.textAlign = "center";
-    controlUI.title = "Click to toggle uncertainty circles";
-    controlDiv.appendChild(controlUI);
-    // Set CSS for the control interior.
-    const controlText = document.createElement("div");
-    controlText.style.color = "rgb(25,25,25)";
-    controlText.style.fontFamily = "Roboto,Arial,sans-serif";
-    controlText.style.fontSize = "16px";
-    controlText.style.lineHeight = "38px";
-    controlText.style.paddingLeft = "5px";
-    controlText.style.paddingRight = "5px";
-    controlText.innerHTML = "Circles";
-    controlUI.appendChild(controlText);
-    // Setup the click event listeners: simply set the map to Chicago.
-    controlUI.addEventListener("click", toggleCircles)
-  }
-
   map = new google.maps.Map(container, {
     zoom: 5,
     center: {lat: -24.321476, lng: 24.909317}, //TODO set an appropriate coordinate for the region
     disableDoubleClickZoom:true
   });
 
+  //the circle toggle button....
+  //copied and modified from https://developers.google.com/maps/documentation/javascript/examples/control-custom 
   const centerControlDiv = document.createElement("div");
-  CenterControl(centerControlDiv, map);
+  const controlUI = document.createElement("div");
+  controlUI.style.backgroundColor = "#fff";
+  controlUI.style.border = "2px solid #fff";
+  controlUI.style.borderRadius = "3px";
+  controlUI.style.boxShadow = "0 2px 6px rgba(0,0,0,.3)";
+  controlUI.style.cursor = "pointer";
+  controlUI.style.margin = "10px";
+  controlUI.style.textAlign = "center";
+  controlUI.title = "Click to toggle uncertainty circles";
+  centerControlDiv.appendChild(controlUI);
+  // Set CSS for the control interior.
+  const controlText = document.createElement("div");
+  controlText.style.color = "rgb(25,25,25)";
+  controlText.style.fontFamily = "Roboto,Arial,sans-serif";
+  controlText.style.fontSize = "16px";
+  controlText.style.lineHeight = "38px";
+  controlText.style.paddingLeft = "5px";
+  controlText.style.paddingRight = "5px";
+  controlText.innerHTML = "Circles";
+  centerControlDiv.appendChild(controlText);
+  // Setup the click event listeners: simply set the map to Chicago.
+  controlUI.addEventListener("click", toggleCircles)
+
   map.controls[google.maps.ControlPosition.TOP_RIGHT].push(centerControlDiv);
 
   const measureTool = new MeasureTool(map, {showSegmentLength: false}); //don't remove this
   mapReady = true
 
-  if($dataStore.georefIndex) {
-    setPoints()
-  }
 })
 
 $: $dataStore.georefIndex, setPoints()
@@ -99,16 +92,20 @@ const setPoints = _ => {
 
   //we only want to do this if we have georefs
   if ($dataStore.georefIndex && Object.keys($dataStore.georefIndex).length && mapReady) {
-    if(currentGeorefs == $dataStore.georefIndex) { //something has changed but we only want to respond if a georef has been added or removed
+    if(currentGeorefs == $dataStore.georefIndex) {
       //check if any georefs have been added
       for (let [georefID, georef] of Object.entries($dataStore.georefIndex)){
         if(!georef.ambiguous) { //we don't plot ambiguous georefs
-          if(!$dataStore.markers.hasOwnProperty(georefID)){
-            //add it to the map
-            let marker = createMarker(georef, map, circlesOn)
-            if(!$dataStore.markers){
-              $dataStore.markers = {}
+          if ($dataStore.markers) {
+            if(!$dataStore.markers.hasOwnProperty(georefID)){
+              //add it to the map
+              let marker = createMarker(georef, map, circlesOn)
+              $dataStore.markers[georefID] = marker
             }
+          }
+          else {
+            let marker = createMarker(georef, map, circlesOn)
+            $dataStore.markers = {}
             $dataStore.markers[georefID] = marker
           }
         }
@@ -121,117 +118,98 @@ const setPoints = _ => {
           marker.circle.setMap(null)
           marker.setMap(null)
           delete $dataStore.markers[markerID]
-          //reset the bounds and pin position
-          //set bounds and add marker
-          let bounds = new google.maps.LatLngBounds()
-          for (let georef of Object.values($dataStore.georefIndex)){
-            if(!georef.ambiguous) {
-              let coords = new google.maps.LatLng(georef.decimalLatitude, georef.decimalLongitude);
-              bounds.extend(coords);
-            }
-          }
-          map.fitBounds(bounds)
-          let boundsCenter = bounds.getCenter()
-          coordsPin.setPosition(boundsCenter)
-          if(navigator && navigator.clipboard) {
-            navigator.clipboard.writeText('') //clear it just in case
-          }
-
-          break //this should be fine as there should only be one
         }
       }
-
-      return
-
     }
-    //else
+    else { //these is a new set of georefs
 
-    //set bounds and add marker
-    let bounds = new google.maps.LatLngBounds()
-    for (let georef of Object.values($dataStore.georefIndex)){
-      if(!georef.ambiguous) {
-        let coords = new google.maps.LatLng(georef.decimalLatitude, georef.decimalLongitude);
-        bounds.extend(coords);
+      //remove the old markers if we have them
+      if($dataStore.markers && Object.keys($dataStore.markers).length){
+        for (let marker of Object.values($dataStore.markers)){
+          if(marker.circle){
+            marker.circle.setMap(null)
+          }
+          marker.setMap(null)
+        }
+        $dataStore.markers = null
       }
-    }
-    
-    map.fitBounds(bounds)
 
-    let coordsPinPos = bounds.getCenter()
-    if(coordsPin){
-      //move it
-      coordsPin.setPosition(coordsPinPos)
-      if(navigator && navigator.clipboard) {
-        navigator.clipboard.writeText('') //clear it just in case
+      //set bounds and add pin
+      let bounds = new google.maps.LatLngBounds()
+      for (let georef of Object.values($dataStore.georefIndex)){
+        if(!georef.ambiguous) {
+          let coords = new google.maps.LatLng(georef.decimalLatitude, georef.decimalLongitude);
+          bounds.extend(coords);
+        }
+      }
+      
+      map.fitBounds(bounds)
+
+      let coordsPinPos = bounds.getCenter()
+      if(coordsPin){
+        //move it
+        coordsPin.setPosition(coordsPinPos)
+        if(navigator && navigator.clipboard) {
+          navigator.clipboard.writeText('') //clear it just in case
+        } 
       } 
-    } 
-    else {
-      //make it
-      coordsPin = new google.maps.Marker({
-        position: coordsPinPos,
-        map: map,
-        draggable:true,
-        title:"Use for coordinates"
-      });
+      else {
+        //make it
+        coordsPin = new google.maps.Marker({
+          position: coordsPinPos,
+          map: map,
+          draggable:true,
+          title:"Use for coordinates"
+        });
 
-      google.maps.event.addListener(coordsPin, 'dragend', function(evt){
-        let coords = evt.latLng.toUrlValue()
-        navigator.clipboard.writeText(coords).then(_ => {
+        google.maps.event.addListener(coordsPin, 'dragend', function(evt){
+          let coords = evt.latLng.toUrlValue()
+          navigator.clipboard.writeText(coords).then(_ => {
+            if(window.pushToast) {
+              window.pushToast('coordinates copied')
+            }
+          })
+        });
+
+        google.maps.event.addListener(map, 'dblclick', function(e) {
+          var positionDoubleclick = e.latLng;
+          coordsPin.setPosition(positionDoubleclick);
+          let coords = positionDoubleclick.toUrlValue()
+          navigator.clipboard.writeText(coords)
+          map.panTo(positionDoubleclick);
           if(window.pushToast) {
             window.pushToast('coordinates copied')
           }
-        })
-      });
+        });
+      }
 
-      google.maps.event.addListener(map, 'dblclick', function(e) {
-        var positionDoubleclick = e.latLng;
-        coordsPin.setPosition(positionDoubleclick);
-        let coords = positionDoubleclick.toUrlValue()
-        navigator.clipboard.writeText(coords)
-        map.panTo(positionDoubleclick);
-        if(window.pushToast) {
-          window.pushToast('coordinates copied')
+      circlesOn = true //just to make sure
+
+      for (let [georefID, georef] of Object.entries($dataStore.georefIndex)) {
+        if(georef.ambiguous) {
+          continue
         }
-      });
-    }
 
-    //add the markers, but first remove the last ones if we already have markers
-    if($dataStore.markers && Object.keys($dataStore.markers).length){
-      for (let marker of Object.values($dataStore.markers)){
-        if(marker.circle){
-          marker.circle.setMap(null)
+        let marker
+        try {
+          marker = createMarker(georef, map, circlesOn)
         }
-        marker.setMap(null)
+        catch(err) {
+          console.log(`error creating marker for ${georefID}:`, err.message)
+          continue
+        }
+        
+        if(!$dataStore.markers){
+          $dataStore.markers = {}
+        }
+
+        $dataStore.markers[georefID] = marker
+        
       }
-      $dataStore.markers = null
+
+      currentGeorefs = $dataStore.georefIndex
+
     }
-
-    circlesOn = true //just to make sure
-
-    for (let [georefID, georef] of Object.entries($dataStore.georefIndex)) {
-      if(georef.ambiguous) {
-        continue
-      }
-
-      let marker
-      try {
-        marker = createMarker(georef, map, circlesOn)
-      }
-      catch(err) {
-        console.log(`error creating marker for ${georefID}:`, err.message)
-        continue
-      }
-      
-      if(!$dataStore.markers){
-        $dataStore.markers = {}
-      }
-
-      $dataStore.markers[georefID] = marker
-      
-    }
-
-    currentGeorefs = $dataStore.georefIndex
-
   }
 }
 

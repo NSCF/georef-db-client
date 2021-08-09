@@ -239,7 +239,8 @@ function toEmitOrNotToEmit(file){
   }
 
   .warning {
-    width: 600px;
+    width:100%;
+    max-width: 600px;
     text-align: center;
     background-color: #ffd47d;
     color: rgb(73, 93, 158);

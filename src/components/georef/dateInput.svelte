@@ -51,14 +51,13 @@ const handleInputPasteDate = ev => {
 .icon-input-container {
   display: inline-block;
   position:relative;
-  max-width: 200px;
+  max-width: 150px;
   text-align: right;
 }
 
 .icon-input {
   padding-right: 30px;
   width: 100%;
-  max-width:200px;
 }
 
 .icon-input-icon {

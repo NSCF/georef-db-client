@@ -8,6 +8,7 @@
   import GeorefMatchList from './georefMatchList.svelte'
   import GeorefMatchMap from './georefMatchMap.svelte'
   import GeorefForm from './georefForm.svelte'
+  import Toast from '../toast.svelte'
 
   const dispatch = createEventDispatcher()
   
@@ -55,8 +56,7 @@
   }
 
   const handleCustomGeorefs = ev => {
-    let georefIndex = ev.detail
-    $dataStore.georefIndex = georefIndex
+    $dataStore.georefIndex = ev.detail
   }
 
   const handleGeorefSelected = ev => {
@@ -166,17 +166,28 @@
         <GeorefMatchMap {pastedDecimalCoords} on:georef-selected={handleGeorefSelected} />
       </div>
       <div class="form-container">
+        <h4>Georeference</h4>
         <GeorefForm editable={false} showVerification={true} georef={selectedGeoref} showSubmitButton={false} />
       </div>
     </div>
     
   {/if}
-  
+  <Toast />
 </div>
 
 <!-- ############################################## -->
 <style>
+
+  h4 {
+    color:  #86afe8;
+    text-transform: uppercase;
+    font-size: 1.5em;
+    font-weight: 600;
+    text-align: center;
+    margin:0;
+  }
   .container {
+    flex: 1;
     width:100%;
   }
 
@@ -187,11 +198,6 @@
 		transform:translate(-50%);
 		transition: left 1s cubic-bezier(.08,.85,.27,.95);
     will-change: left;
-  }
-
-  .search-wrapper {
-    width:50%;
-    transition: flex 2s ease;
   }
 
   .left {
@@ -208,9 +214,9 @@
 
   .grid-container {
     display:grid;
-    height: 600px;
+    height: 100%;
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 0.5fr) minmax(0, 0.5fr);
   }
 
   .table-container {
@@ -240,6 +246,6 @@
     grid-row: 1/3;
     overflow-y: auto;
     padding-top:5px;
-    border-bottom: 2px solid #d3d3d3;
+    padding-right:10px;
   }
 </style>

@@ -132,8 +132,4 @@
   color:white;
 }
 
-.scaled {
-  transform: scale(0.1)
-}
-
 </style>

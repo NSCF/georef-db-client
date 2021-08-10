@@ -177,6 +177,7 @@ const validateCoordsString = coordsString => {
   width: 100%;
   max-width: 350px;
   box-sizing: border-box;
+  float:right;
 }
 
 .icon-input-icon {

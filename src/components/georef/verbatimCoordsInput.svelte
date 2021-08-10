@@ -86,6 +86,7 @@ const calcDecimalCoords = coordsString => {
   padding-right: 40px;
   width: 100%;
   max-width: 350px;
+  float:right;
 }
 
 .icon-input-icon {

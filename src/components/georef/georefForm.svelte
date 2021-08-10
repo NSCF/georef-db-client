@@ -126,6 +126,18 @@ const checkValidations = _ => {
 }
 */
 
+export const clear = _ => {
+  localGeoref = new Georef()
+  if (defaultGeorefBy) {
+    localGeoref.by = defaultGeorefBy
+    let now = new Date()
+    localGeoref.date = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
+    if(defaultGeorefByORCID){
+      localGeoref.byORCID = defaultGeorefByORCID
+    }
+  }
+}
+
 const setLocalGeoref = _ => {
   metaEditable = false;
   if(georef && georef instanceof Georef) {
@@ -215,23 +227,13 @@ const copyTabDelimited = _ => {
 
 //the way we handle depends on whether there is a georef prop value or not
 const handleClearClick = _ => {
-  if(georef){ //we got the original as a prop
-    dispatch('clear-georef') //tell the parent to clear the prop
+  if(georef && georef instanceof Georef) { //we got a georef from the parent
+    dispatch('clear-georef') //tell the parent to clear any selected georeferences
   }
-  else {
-    localGeoref = new Georef()
-    if (defaultGeorefBy) {
-      localGeoref.by = defaultGeorefBy
-      let now = new Date()
-      localGeoref.date = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
-      if(defaultGeorefByORCID){
-        localGeoref.byORCID = defaultGeorefByORCID
-      }
-    }
+  clear()
 
-    if(window.pushToast) {
-      window.pushToast('new georef')
-    }
+  if(window.pushToast) {
+    window.pushToast('new georef')
   }
 }
 
@@ -366,10 +368,6 @@ const checkAndDispatchGeoref = _ => {
 
     dispatch('set-georef', localGeoref)
 
-    //we have to reset locally if we didnt get a georef from the parent
-    if(!georef) {
-      setLocalGeoref()
-    }
   }
   catch(err) {
     alert('error checking georefs are equal: ' + err.message)

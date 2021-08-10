@@ -68,7 +68,7 @@ onMount(async _ => {
   controlText.style.paddingLeft = "5px";
   controlText.style.paddingRight = "5px";
   controlText.innerHTML = "Circles";
-  centerControlDiv.appendChild(controlText);
+  controlUI.appendChild(controlText);
   // Setup the click event listeners: simply set the map to Chicago.
   controlUI.addEventListener("click", toggleCircles)
 

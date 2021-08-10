@@ -31,6 +31,7 @@
   export let profile
 
   let formContainer
+  let georefForm
 
   let datasetRef 
 
@@ -234,11 +235,7 @@
       $dataStore.georefIndex = null
       $dataStore.locGeorefIndex = null
 
-      if(selectedGeoref) {
-        let hold = selectedGeoref
-        selectedGeoref = null
-        hold.selected = false
-      }
+      clearSelectedGeorefAndForm()
       
       newGeorefsUsed = [] //start over
       datasetGeorefsUsed = [] //start over
@@ -587,6 +584,15 @@
     }
   }
 
+  const clearSelectedGeorefAndForm = _ => {
+    if(selectedGeoref) {
+      let hold = selectedGeoref //we need this so we don't pass down to the form again
+      selectedGeoref = null
+      hold.selected = false
+    }
+    georefForm.clear()
+  }
+
   const handleClearGeoref = _ => {
     if($dataStore.selectedGeorefID) {
       resetTableAndMap($dataStore.selectedGeorefID)
@@ -594,6 +600,9 @@
   }
 
   const handleFlagGeoref = async ev => {
+
+    clearSelectedGeorefAndForm()
+
     let georefID = ev.detail
     delete $dataStore.georefIndex[georefID]
     $dataStore.georefIndex = $dataStore.georefIndex //svelte
@@ -610,6 +619,11 @@
       let body = await res.json()
       console.error(body)
       alert('Failed to flag georef:' + JSON.stringify(body, null, 2))
+    }
+    else {
+      if(window.pushToast) {
+        window.pushToast('georef flagged')
+      }
     }
   }
 
@@ -669,12 +683,6 @@
       $dataStore.georefIndex[georefID].selected = false
     }
     $dataStore.selectedGeorefID = null
-
-    if(selectedGeoref) {
-      let hold = selectedGeoref
-      selectedGeoref = null
-      hold.selected = false
-    }
   }
 
   //this is the heavy lifting
@@ -762,11 +770,7 @@
       } 
       
       //we need to clear the georef
-      if(selectedGeoref) {
-        let hold = selectedGeoref
-        selectedGeoref = null
-        hold.selected = false
-      }
+      clearSelectedGeorefAndForm()
 
       georefsAdded += selectedLocs.length
     
@@ -793,8 +797,9 @@
   }
 
   const handleBackToDatasets =  async _ => {
-    //TODO must lock the UI for this
+    
     busy = true
+
     if(georefsAdded){
       await saveRecordGroup()
     }
@@ -804,12 +809,6 @@
     
     $dataStore.recordGroupSnap = null
     $dataStore.recordGroup = null
-    if(selectedGeoref){
-      let temp = selectedGeoref
-      selectedGeoref = null
-      temp.selected = false
-    }
-    
     $dataStore.georefIndex = null
 
     dispatch('back-to-datasets')
@@ -1087,7 +1086,7 @@
           <span>Localities: {locStringsCount || 'NA'}</span>
           <span>Records: {recordCount || 'NA'}</span>
         </div>
-        {#if $dataStore.recordGroup.bookmarked && $dataStore.recordGroup.bookmarkedByUID != profile.uid}
+        {#if $dataStore.recordGroup && $dataStore.recordGroup.bookmarked && $dataStore.recordGroup.bookmarkedByUID != profile.uid}
           <div class="warning">
             <strong>This group was bookmarked by {$dataStore.recordGroup.bookmarkedBy}</strong>
           </div>
@@ -1120,6 +1119,7 @@
         defaultGeorefBy={profile.formattedName}
         defaultGeorefByORCID={profile.orcid}
         submitButtonText={"Use this georeference"} 
+        bind:this={georefForm}
         on:clear-georef={handleClearGeoref} 
         on:georef-flagged={handleFlagGeoref}
         on:coords-from-paste={handleCoordsFromPaste}

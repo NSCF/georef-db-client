@@ -1,6 +1,6 @@
 <script>
 
-  import {onMount, onDestroy, afterUpdate, createEventDispatcher} from 'svelte'
+  import {onMount, afterUpdate, createEventDispatcher} from 'svelte'
   import {fly } from 'svelte/transition';
   import {Realtime} from '../../firebase'
   import { dataStore } from './dataStore.js'
@@ -170,7 +170,6 @@
         <GeorefForm editable={false} showVerification={true} georef={selectedGeoref} showSubmitButton={false} />
       </div>
     </div>
-    
   {/if}
   <Toast />
 </div>
@@ -187,7 +186,9 @@
     margin:0;
   }
   .container {
-    flex: 1;
+    display:flex;
+    flex-direction: column;
+    height:100%;
     width:100%;
   }
 
@@ -195,7 +196,7 @@
     position:relative;
 		width:50%;
 		left: 50%;
-		transform:translate(-50%);
+		transform: translate(-50%);
 		transition: left 1s cubic-bezier(.08,.85,.27,.95);
     will-change: left;
   }
@@ -214,22 +215,22 @@
 
   .grid-container {
     display:grid;
-    height: 100%;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 0.5fr) minmax(0, 0.5fr);
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    min-height:0;
   }
 
   .table-container {
     grid-column: 1/2;
     grid-row: 1/2;
     display: flex;
+    min-height: 0;
   }
 
   .table-flex {
-    flex-grow: 1;
-    flex-shrink: 1;
-    flex-basis: initial;
+    /*apparently nothing else needed! */
     overflow-y: auto;
+    width: 100%;
   }
 
   .table-plug {
@@ -239,6 +240,7 @@
   .map-container {
     grid-column: 1/2;
     grid-row: 2/3;
+    
   }
 
   .form-container {

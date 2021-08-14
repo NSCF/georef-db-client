@@ -89,14 +89,24 @@ function toEmitOrNotToEmit(file){
 <!--
   based on https://codepen.io/MSEdgeDev/pen/KzzNaZ
 -->
-<div class="container">
+<div class="home-container">
   {#if !searching}
     <h1>Welcome to the NSCF Georeferencer</h1>
+    {#if !profile}
+      <p class="warning"><strong>The NSCF Georeferencer is built for collaboration first.<br/>Please visit the 
+        <span class="fake-link" on:click={_ => dispatch('to-about')}>About page</span> 
+        for more information on using this tool or contact us on 
+        <a href="mailto:data@nscf.origin.za">data@nscf.org.za</a>. 
+        Alternatively you can search the georeference database manually below.</strong>
+      </p>
+    {/if}
   {:else}
     <div style="margin-top:20px" />
   {/if}
   <h3 style="color: darkslategray;">Single georeference lookup</h3>
-  <ManualGeoref  on:custom-search-searching={_ => searching = true} on:custom-search-cleared={_ => searching = false} />
+  <div class="manual-georef" class:manual-georef-searching={searching}>
+    <ManualGeoref  on:custom-search-searching={_ => searching = true} on:custom-search-cleared={_ => searching = false} />
+  </div>
   {#if !searching}  
     {#if profile}
       <h2 style="color:gray">OR</h2>
@@ -124,11 +134,7 @@ function toEmitOrNotToEmit(file){
         </div>
         <div class='warning'><strong>Please remember that georeferencing must be done separately for terrestrial, freshwater, and coastal/marine datasets</strong></div>
         <input type="file" bind:this={hiddenInput} style="visibility:hidden" on:change={onFileSelected}>
-      {:else}
-        <div class='warning warning-lower'><strong>To use this tool for collaborative georeferencing please contact the NSCF on <a href="mailto:data@nscf.origin.za">data@nscf.org.za</a></strong></div>
       {/if}
-    {:else}
-      <div class='warning warning-lower'><strong>To use this tool for collaborative georeferencing please contact the NSCF on <a href="mailto:data@nscf.origin.za">data@nscf.org.za</a></strong></div>
     {/if}
     <div class="madewith">
       <span>made with</span>
@@ -144,26 +150,43 @@ function toEmitOrNotToEmit(file){
         <img src="images/elasticsearch.png" title="ElasticSearch" alt="ElasticSearch" class="madewithimg"/>
       </a>
     </div> 
-  {/if}
-    
+  {/if}   
 </div>
 <!--##############################################-->
 <style>
 
-.container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  overflow-y: auto;
-}
+  .home-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    overflow-y: auto;
+  }
+
 	h1 {
 		color: rgb(72, 72, 148);
 		text-transform: uppercase;
 		font-size: 4em;
 		font-weight: 100;
 	}
+
+  .fake-link {
+    color: royalblue;
+  }
+
+  .fake-link:hover {
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .manual-georef {
+    width: 100%;
+  }
+
+  .manual-georef-searching {
+    overflow-y: hidden;
+  }
 
  .wrapper {
     position:relative;
@@ -247,10 +270,6 @@ function toEmitOrNotToEmit(file){
     border-radius: 2px;
     border-width: 20px;
     border: 4px solid #c98f18;
-  }
-
-  .warning-lower {
-    margin-top:100px;
   }
 
   .madewith {

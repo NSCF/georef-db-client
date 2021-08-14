@@ -15,7 +15,6 @@
 	import PackAndLoad from './packAndLoad.svelte'
 	import WellDone from './welldone.svelte'
 
-	import DatasetList from './datasetsListPage.svelte'
 	import DatasetsList from './admin/datasetsList.svelte'
 	import DatasetDetail from './admin/datasetDetail.svelte'
 
@@ -33,9 +32,6 @@
 	let fbUser //the firebase user object
 	let userID
 	let firstAuth = false
-
-	//the stats we want to show
-	let statsRefStrings
 
 	//for 'page navigation'
 	// do we need a router??????
@@ -136,6 +132,15 @@
 		}
 		else {
 			currentPage = "Home"
+		}
+	}
+
+	function handleAboutClick() {
+		if (currentPage == 'About'){
+			return //do nothing
+		}
+		else {
+			currentPage = 'About'
 		}
 	}
 
@@ -244,7 +249,7 @@
 <svelte:window on:unload={async _ => await Firestore.collection('usersSignedIn').doc('users').update({uids: FieldValue.arrayRemove(profile.uid)})} />
 <main>
 	<Modal>
-		<div class="flex-container">
+		<div class="main-flex-container">
 			<div class="header">
 				<div class="header-flex" style="height:100%" on:click={handleHomeClick}>
 					<img src="images/NSCF logo no text transparent.png" alt="NSCF logo"  style="height:100%" />
@@ -253,7 +258,7 @@
 				<div class="header-right">
 					<div class="menu">
 						<span class="menuitem" on:click={handleHomeClick}>Home</span>
-						<span class="menuitem" on:click='{_ => currentPage = 'About'}'>About</span>
+						<span class="menuitem" on:click={handleAboutClick}>About</span>
 					</div>
 					{#if !firstAuth}
 						<Circle size="1.5" color="#1d4a9c" unit="em" />
@@ -300,6 +305,7 @@
 				{#if currentPage == 'Home'}
 				<Home 
 					{profile}
+					on:to-about={handleAboutClick}
 					on:file-selected={handleFileSelected} 
 					on:to-datasets={handleToDatasets}
 					fileMIMETypes={['text/csv', 'application/vnd.ms-excel']}/>
@@ -350,7 +356,7 @@
 		height:100%;
 	}
 
-	.flex-container {
+	.main-flex-container {
 		display: flex;
 		position: relative;
 		flex-direction: column;
@@ -390,7 +396,7 @@
 
 	.content-container {
 		flex: 1;
-		overflow:hidden;
+		overflow: hidden;
 	}
 
 	button {

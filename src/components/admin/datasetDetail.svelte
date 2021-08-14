@@ -189,14 +189,16 @@
 
     //compare localities, but we need to make this backwards compatible
     let localitySimilarity
-    if(dataset.localityField && record[dataset.localityField] && georef.locality) {
-      localitySimilarity = stringSimilarity.compareTwoStrings(record[dataset.localityField], georef.locality)
-    }
-    else {
-      let candidates = [record.locality, record['dwc:locality'], record.verbatimLocality, record['dwc:verbatimLocality']].filter(x=>x).map(x => x.trim()).filter(x=>x)
-      if(candidates.length){
-        let loc = candidates.pop()//prefer verbatim over non-verbatim if it's there
-        localitySimilarity = stringSimilarity.compareTwoStrings(loc, georef.locality)
+    if (georef.locality && georef.locality.trim()) { //apparently sometimes it's not!
+      if(dataset.localityField && record[dataset.localityField]) {
+        localitySimilarity = stringSimilarity.compareTwoStrings(record[dataset.localityField], georef.locality)
+      }
+      else {
+        let candidates = [record.locality, record['dwc:locality'], record.verbatimLocality, record['dwc:verbatimLocality']].filter(x=>x).map(x => x.trim()).filter(x=>x)
+        if(candidates.length){
+          let loc = candidates.pop()//prefer verbatim over non-verbatim if it's there
+          localitySimilarity = stringSimilarity.compareTwoStrings(loc, georef.locality)
+        }
       }
     }
 
@@ -305,7 +307,7 @@
       if(err.length) {
         console.error('errors fetching original dataset:')
         for (let e of err){
-          console.log(e)
+          console.error(e)
         }
         alert('error fetching original dataset, see console')
         downloadProgessMessage = null
@@ -601,6 +603,7 @@
       fetch(url).then(res => res.blob()).then(blob => blob.text()).then(file => {
         Papa.parse(file, {
           header: true,
+          skipEmptyLines: true,
           complete: function(results) {
             if(results.errors.length){
               reject(results.errors)

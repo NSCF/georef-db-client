@@ -21,6 +21,7 @@ export let editable = true
 export let showButtons = true
 export let showSubmitButton = true
 export let showWKT = false
+export let showGeorefBy = true
 export let showVerification = false
 export let submitButtonText = ""
 
@@ -445,7 +446,7 @@ const checkAndDispatchGeoref = _ => {
           <option value="WGS84">
         </datalist>
       </div>
-      {#if !showVerification}
+      {#if showGeorefBy}
         <div class="oneliner">
           <label for="georefBy">georef by</label>
           {#if defaultGeorefBy}
@@ -458,7 +459,7 @@ const checkAndDispatchGeoref = _ => {
           {/if}
         </div>
         <div class="oneliner">
-          <label for="georefByORCID">georef by ORCID</label>
+          <label for="georefByORCID">georef by ID</label>
           <input type="text" id="georefByORCID" style="width:100%;max-width:300px" bind:value={localGeoref.byORCID}/>
         </div>
       {/if}
@@ -493,7 +494,7 @@ const checkAndDispatchGeoref = _ => {
       {:else}
         <div class="oneliner" >
           <label for="sources">sources</label>
-          <input type="text" style="width:100%;max-width:300px" bind:value={localGeoref.sources} />
+          <textarea style="width:100%;max-width:300px;rows:2;resize:vertical;" bind:value={localGeoref.sources} />
         </div>
       {/if}
     </fieldset>
@@ -517,7 +518,7 @@ const checkAndDispatchGeoref = _ => {
         {/if}
       </div>
       <div class="oneliner">
-        <label for="verifiedByORCID">verified by ORCID</label>
+        <label for="verifiedByORCID">verified by ID</label>
         <input type="text" id="verifiedByORCID" style="width:100%;max-width:300px" bind:value={localGeoref.verifiedByORCID}/>
       </div>
       <div class="oneliner">

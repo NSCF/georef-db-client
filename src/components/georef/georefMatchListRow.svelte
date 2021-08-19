@@ -35,8 +35,15 @@ const qualityColor = _ => {
 
   let count = 0
   for (let qVar of qualityVars){
-    if(Boolean(georef[qVar])) {
-      count++
+    if(qVar == 'uncertainty') {
+      if(georef[qVar] && georef[qVar] > 0) {
+        count++
+      }
+    }
+    else {
+      if(georef[qVar] && georef[qVar].trim()) {
+        count++
+      }
     }
   }
 
@@ -69,8 +76,15 @@ const hidden = _ => {
       let qualityVars = ['uncertainty', 'datum', 'sources', 'protocol']
       let count = 0
       for (let qVar of qualityVars){
-        if(Boolean(georef[qVar])) {
-          count++
+        if(qVar == 'uncertainty') {
+          if(georef[qVar] && georef[qVar] > 0) {
+            count++
+          }
+        }
+        else {
+          if(georef[qVar] && georef[qVar].trim()) {
+            count++
+          }
         }
       }
 

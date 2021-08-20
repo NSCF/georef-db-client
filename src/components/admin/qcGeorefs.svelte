@@ -9,6 +9,9 @@
 
   let dispatch = createEventDispatcher()
 
+  const FirestoreGeorefRecords = Firestore.collection('georefRecords')
+  const FirestoreGeorefs = Firestore.collection('georefBackup')
+
   export let profile
   export let dataset
 
@@ -32,7 +35,6 @@
     elasticindex = (dataset.region + dataset.domain).toLowerCase().replace(/\s+/g, '')
   }
 
-  
   //when current georef changes...
   $: if(currentGeoref) {
     if(currentGeoref != prevGeoref) {
@@ -62,105 +64,69 @@
   //This populates georefQueue and gives a currentGeoref if we don't have one
   const getGeorefsToVerify = async _ => {
     console.log('fetching georefs to verify')
-    noMoreGeorefs = false
-    let searchIndStart = 0
-    let batchSize = 10 //This is the limit for 'in' searches in Firestore
-    while (searchIndStart < datasetGeorefsIDs.length && georefQueue.length < desiredQueueLength) {
-      //get unlocked, unverified georefs used in this dataset
+
+    while (!noMoreGeorefs && georefQueue.length < desiredQueueLength) {
+       
       
-      let searchIDs = datasetGeorefsIDs.slice(searchIndStart, searchIndStart + batchSize)
-      let querySnap = await Firestore.collection('georefRecords')
-      .where('georefID', 'in', searchIDs)
-      .where('verified', '==', false)
-      .where('locked', '==', false) 
-      .get()
+      let querySnap
+      try {
+        querySnap = await FirestoreGeorefRecords
+        .where('datasetIDs', 'array-contains', dataset.datasetID)
+        .where('verified', '==', false)
+        .where('locked', '==', false)
+        .limit(1)
+        .get()
+      }
+      catch(err) {
+        console.error('Error reading georefRecords:')
+        console.error(err)
+        return
+      }
 
-      //try to lock and queue some
-      if(!querySnap.empty) {
-        for (let docSnap of querySnap.docs) {
-          try {
-            await Firestore.runTransaction(async transaction => {
-              let snap = await transaction.get(docSnap.ref)
-              if(snap.data().locked) { //it might have been locked between query time and now
-                return
-              }
-              else {
-                await transaction.update(docSnap.ref, {locked: true})
-                return
-              }
-            })
-            
-            //if it doesn't lock it throws before we get here
-            try {
-              let georef = await fetchGeoref(docSnap.id)
-              
-              if(currentGeoref) {
-                georefQueue = [...georefQueue, georef]
-              }
-              else {
-                currentGeoref = georef
-              }
+      if(querySnap.empty) {
+        noMoreGeorefs = true
+        continue;
+      }
+      else {
+        const docSnap = querySnap.docs.pop() //only one remember!
+        try {
+          await Firestore.runTransaction(async transaction => {
+            let snap = await transaction.get(docSnap.ref)
+            if(snap.data().locked) { //it might have been locked between query time and now
+              throw new Error()
             }
-            catch(err) {
-              console.error('error fetching georef from elastic:', err.message)
-              await docSnap.ref.update({locked: true})//unlock it again
+            else {
+              await transaction.update(docSnap.ref, {locked: true})
+              return
             }
+          })
+        }
+        catch(err) { //the transaction failed or it got locked!
+          continue;
+        }
+
+        let georefSnap
+        try {
+          georefSnap = await FirestoreGeorefs.doc(docSnap.id).get()
+        }
+        catch(err) {
+          console.error('Error reading georefBackup')
+          console.error(err)
+          return
+        }
+ 
+        if(georefSnap.exists) { //it should
+          const georef = georefSnap.data()
+          if(currentGeoref){
+            georefQueue.push(georef)
+            console.log('added a georef to the queue')
           }
-          catch(err) { //this is a failed transaction, so we try next
-            console.error('transaction failed:', err.message)
-            continue //not needed but just for clarity
-          }
-          
-          //break the loop if we have enough
-          if(georefQueue.length >= desiredQueueLength){ //we have two plus a currentGeoref
-            break
+          else {
+            currentGeoref = georef
+            console.log('set currentGeoref')
           }
         }
-        
-        //we may not have three so let's try again
-        if(georefQueue.length < desiredQueueLength) {
-          searchIndStart += batchSize
-        }
       }
-      else { //This will happen if all locked and/or verified
-        searchIndStart += batchSize
-      }
-    }
-
-    //if we get here and there is nothing in the queue then we've looked at them all
-    //but it may be possible that some will be unlocked later...
-    if(georefQueue.length == 0) {
-      noMoreGeorefs = true
-    }
-  }
-
-  const fetchGeoref = async georefID => {
-    let url = 'https://us-central1-georef-745b9.cloudfunctions.net/getgeorefsbyid'
-    let body = {
-      index: elasticindex, 
-      georefIDs: [georefID]
-    }
-
-    let token = await Auth.currentUser.getIdToken(true);
-    let res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': token,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body) 
-    });
-
-    if(res.ok) {
-      let georefs = await res.json()
-      let georef = new Georef()
-      //there can only be one, and yes, it seems we're returning the elastic object here still... :-/
-      georef = Object.assign(georef, georefs[0]._source)
-      return georef 
-    }
-    else {
-      let resbody = await res.text()
-      throw new Error(resbody)
     }
   }
 
@@ -292,7 +258,7 @@
       </div>
       <div class="form">
         <GeorefForm georef={currentGeoref} 
-          showButtons={false}
+          showResetButton={false}
           submitButtonText="Confirm this georeference" 
           showVerification={true}
           defaultGeorefBy={profile.formattedName}
@@ -308,6 +274,7 @@
       </div>
     {/if}
   {/if}
+  <Toast />
 </div>
 
 <!-- ############################################## -->

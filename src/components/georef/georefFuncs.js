@@ -449,6 +449,7 @@ const updateGeorefRecords = async (Firestore, FieldValue, georef, datasetID, rec
           locked: false,
           verified: false,
           datasets: {[datasetID]: recordIDs},
+          datasetIDs: [datasetID],
           recordCount: recordIDs.length,
         }
   
@@ -459,6 +460,7 @@ const updateGeorefRecords = async (Firestore, FieldValue, georef, datasetID, rec
         let georefRecord = docSnap.data()
         
         let update = {}
+        update.datasetIDs = FieldValue.arrayUnion(datasetID)
         update.datasets = {}
         if(georefRecord.datasets && georefRecord.datasets[datasetID]) {
           update.datasets[datasetID] = FieldValue.arrayUnion(...recordIDs)

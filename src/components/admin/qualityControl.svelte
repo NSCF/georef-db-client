@@ -1,7 +1,7 @@
 <script>
 
   import {createEventDispatcher} from 'svelte'
-  import QCGeoref from './qcGeoref.svelte'
+  import QCGeorefs from './qcGeorefs.svelte'
 
   const dispatch = createEventDispatcher()
   
@@ -40,7 +40,7 @@
   </div>
   <div class="working-area">
     {#if selectedTab == 'georefs'}
-      <QCGeoref {profile} {dataset} />
+      <QCGeorefs {profile} {dataset} />
     {:else if selectedTab == 'localitygroups'}
       <div>nothing here yet</div>
     {:else}

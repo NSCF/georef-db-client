@@ -1,24 +1,24 @@
 <script>
   import {afterUpdate} from 'svelte'
-import { dataStore } from './dataStore.js'
-import MatchListRow from './georefMatchListRow.svelte'
-import Loader from '../loader.svelte'
+  import { dataStore } from './dataStore.js'
+  import MatchListRow from './georefMatchListRow.svelte'
+  import Loader from '../loader.svelte'
 
-let filterBest = false
-let tableRows = 0
-let table
+  let filterBest = false
+  let tableRows = 0
+  let table
 
-afterUpdate(_ => {
-  if(table) {
-    let count = 0
-    for (let i = 0; i < table.rows.length; i++) {
-      if(getComputedStyle(table.rows[i]).display != 'none'){
-        count++
+  afterUpdate(_ => {
+    if(table) {
+      let count = 0
+      for (let i = 0; i < table.rows.length; i++) {
+        if(getComputedStyle(table.rows[i]).display != 'none'){
+          count++
+        }
       }
+      tableRows = count
     }
-    tableRows = count
-  }
-})
+  })
 
 </script>
 

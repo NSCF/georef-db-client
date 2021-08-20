@@ -23,6 +23,7 @@ export let showSubmitButton = true
 export let showWKT = false
 export let showGeorefBy = true
 export let showVerification = false
+export let showResetButton = true
 export let submitButtonText = ""
 
 export let requiredFields = ['uncertainty', 'datum', 'by', 'date'] //for on form validation
@@ -386,9 +387,11 @@ const checkAndDispatchGeoref = _ => {
 >
   {#if showButtons}
     <div class="georef-tool-container">
-      <button class="georef-tool-button" title="Clear all" on:click|preventDefault={handleClearClick}>
-        <span class="material-icons">restore_page</span>
-      </button>
+      {#if showResetButton}
+        <button class="georef-tool-button" title="Clear all" on:click|preventDefault={handleClearClick}>
+          <span class="material-icons">restore_page</span>
+        </button>
+      {/if}
       <button class="georef-tool-button" title="Flag this georef" disabled={localGeoref.flagged} on:click|preventDefault={flagGeoref}>
         <span class="material-icons">report</span>
       </button>

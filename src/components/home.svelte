@@ -1,26 +1,29 @@
 <script>
 import {createEventDispatcher } from 'svelte';
+import { dataStore } from './georef/dataStore'
 import ManualGeoref from './georef/manualGeoref.svelte'
 import Alert from './Alert.svelte'
 
 const dispatch = createEventDispatcher();
 //const { open } = getContext('simple-modal');
 
-//PROPS
 export let profile
 export let fileMIMETypes
 
-//LOCALS
+let searching = false
 let hiddenInput
 let hovering = false
 let box
-let searching = false
 
-//COMPUTED
+//because we need to switch off the manual search from App...
+$: if(!searching) {
+  $dataStore.georefIndex = null
+}
 
-//WATCHERS
+export const closeSearching = _ => {
+  searching = false
+}
 
-//METHODS
 function darkBox() {
   box.style.borderColor = '#bcd0ec'
   box.querySelector('.ico-up').style.color = '#bcd0ec'

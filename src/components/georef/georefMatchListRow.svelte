@@ -1,115 +1,105 @@
 <script>
-import { dataStore } from './dataStore.js'
-import  {createEventDispatcher} from 'svelte'
+  import { dataStore } from './dataStore.js'
+  import  {onMount, createEventDispatcher} from 'svelte'
 
-const dispatch = createEventDispatcher()
+  const dispatch = createEventDispatcher()
 
-export let filterBest
-export let georefKey
-let rowindex = 0
-let showThisRow = true
+  export let filterBest
+  export let georefKey
 
-$: if(georefKey){
-  if($dataStore.georefIndex) {
-    let keys = Object.keys($dataStore.georefIndex)
-    rowindex = keys.indexOf(georefKey)
-  }
-  
-}
+  let rowindex = 0
+  let qualityColor
+  let qualityVal
+  let showThisRow = true
 
-$: filterBest, hidden()
-
-const qualityColor = _ => {
-  let georef = $dataStore.georefIndex[georefKey]
-
-  if(georef.ambiguous) {
-    if(georef.verified) {
-      return '#0066ff' //blue
+  //this is basically the onMount...
+  $: if(georefKey){
+    if($dataStore.georefIndex) {
+      let keys = Object.keys($dataStore.georefIndex)
+      rowindex = keys.indexOf(georefKey)
+      qualityVal = getQualityVal()
+      qualityColor = getQualityColor()
     }
-    else {
+  }
+
+  $: filterBest, hidden()
+
+  const getQualityVal = _ => {
+    let georef = $dataStore.georefIndex[georefKey]
+    let qualityVars = ['uncertainty', 'datum', 'sources', 'protocol']
+
+    let count = 0
+    for (let qVar of qualityVars){
+      if(qVar == 'uncertainty') {
+        if(georef[qVar] && georef[qVar] > 0) {
+          count++
+        }
+      }
+      else {
+        if(georef[qVar] && georef[qVar].trim()) {
+          count++
+        }
+      }
+    }
+
+    return count
+  }
+
+  const getQualityColor = _ => {
+    let georef = $dataStore.georefIndex[georefKey]
+
+    if(georef.ambiguous) {
+      if(georef.verified) {
+        return '#0066ff' //blue
+      }
+      else {
+        return '#00CC66' //green
+      }
+    }
+
+    if(qualityVal == 4) {
+      if(georef.verified) {
+        return '#0066ff' //blue
+      }
+      //else
       return '#00CC66' //green
     }
-  }
 
-  let qualityVars = ['uncertainty', 'datum', 'sources', 'protocol']
-
-  let count = 0
-  for (let qVar of qualityVars){
-    if(qVar == 'uncertainty') {
-      if(georef[qVar] && georef[qVar] > 0) {
-        count++
-      }
+    if (qualityVal >= 2) {
+      return '#FF9966' //orange
     }
-    else {
-      if(georef[qVar] && georef[qVar].trim()) {
-        count++
-      }
-    }
+
+    return '#D3D3D3' //grey
+
   }
 
-  if( count == 4) {
-    if(georef.verified) {
-      return '#0066ff' //blue
-    }
-    //else
-    return '#00CC66' //green
-  }
+  const hidden = _ => {
+    if ($dataStore.georefIndex && $dataStore.georefIndex[georefKey]) {
+      let georef = $dataStore.georefIndex[georefKey]
+      if(filterBest) {
 
-  if (count >= 2) {
-    return '#FF9966' //orange
-  }
-
-  return '#D3D3D3' //grey
-
-}
-
-const hidden = _ => {
-  if ($dataStore.georefIndex && $dataStore.georefIndex[georefKey]) {
-    let georef = $dataStore.georefIndex[georefKey]
-    if(filterBest) {
-
-      if(georef.ambiguous) {
-        showThisRow = true
-        return
-      }
-
-      let qualityVars = ['uncertainty', 'datum', 'sources', 'protocol']
-      let count = 0
-      for (let qVar of qualityVars){
-        if(qVar == 'uncertainty') {
-          if(georef[qVar] && georef[qVar] > 0) {
-            count++
-          }
-        }
-        else {
-          if(georef[qVar] && georef[qVar].trim()) {
-            count++
-          }
-        }
-      }
-
-      if( count == 4) {
-        if(georef.verified) {
+        if(georef.ambiguous) {
           showThisRow = true
           return
         }
-        //else
-        showThisRow = true
-        return 
-      }
 
-      //else
-      showThisRow = false
-    }
-    else {
-      showThisRow = true
+        if(qualityVal == 4) {
+          showThisRow = true
+          return 
+        }
+
+        //else
+        showThisRow = false
+      }
+      else {
+        showThisRow = true
+      }
     }
   }
-}
 
-const handleRowClick = _ => {
-  dispatch('georef-selected', georefKey)
-}
+  const handleRowClick = _ => {
+    dispatch('georef-selected', georefKey)
+  }
 
 </script>
 
@@ -123,7 +113,7 @@ class:hidden={!showThisRow}
 on:click={handleRowClick}>
   {#if $dataStore.georefIndex}
     <td>
-      <span class="material-icons" style="color:{qualityColor()};">stop</span>
+      <span class="material-icons" style="color:{qualityColor};">stop</span>
     </td>
     <td>{$dataStore.georefIndex[georefKey].locality}</td>
     <td class='indicator'>

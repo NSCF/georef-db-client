@@ -487,12 +487,34 @@ const updateGeorefRecords = async (Firestore, FieldValue, georef, datasetID, rec
   }
 }
 
+const flagGeoref = async (georefID, elasticIndex) => {
+  let url = `https://us-central1-georef-745b9.cloudfunctions.net/flaggeoref?georefID=${georefID}&index=${elasticIndex}`
+  let res
+  try {
+    res = await fetch(url)
+  }
+  catch(err) {
+    alert('Failed to flag georef:' + err.message)
+  }
+  if(res.status != 200){
+    let body = await res.json()
+    console.error(body)
+    alert('Failed to flag georef:' + JSON.stringify(body, null, 2))
+  }
+  else {
+    if(window.pushToast) {
+      window.pushToast('georef flagged')
+    }
+  }
+}
+
 export {
   getNextAvailableRecordGroup,
   updateGeorefStats,
   updateDatasetStats, 
   updateDatasetGeorefs,
   fetchCandidateGeorefs,
-  updateGeorefRecords
+  updateGeorefRecords, 
+  flagGeoref
 }
 

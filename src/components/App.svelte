@@ -43,6 +43,7 @@
 	let pwdResetCode
 
 	//locals
+	let homePage //to bind:this to control the manual georef
 	let fileForGeoref
 	let requiredFields
 	let datasetSummary
@@ -127,8 +128,8 @@
 		if(currentPage == 'Georeferencer') {
 			alert('Please click \'Done\' above the locality group to return')
 		}
-		else if (currentPage == 'Home'){
-			return //do nothing
+		else if (currentPage == 'Home') { //we presume the user is trying to escape the manual georef
+			homePage.closeSearching()
 		}
 		else {
 			currentPage = "Home"
@@ -308,6 +309,7 @@
 					on:to-about={handleAboutClick}
 					on:file-selected={handleFileSelected} 
 					on:to-datasets={handleToDatasets}
+					bind:this={homePage}
 					fileMIMETypes={['text/csv', 'application/vnd.ms-excel']}/>
 				{/if}
 				{#if currentPage == 'ConfirmFields'}

@@ -10,6 +10,8 @@
   import GeorefForm from './georefForm.svelte'
   import Toast from '../toast.svelte'
 
+  import { flagGeoref } from './georefFuncs.js'
+
   const dispatch = createEventDispatcher()
   
   let regionOptions
@@ -120,6 +122,14 @@
     dispatch('custom-search-cleared')
   }
 
+  const handleFlagGeoref = async ev => {
+    const georefID = ev.detail
+    const conf = confirm("Are you certain you want to flag this georeference?")
+    if(conf) {
+      await flagGeoref(georefID, elasticIndex)
+    }
+  }
+
 </script>
 
 <!-- ############################################## -->
@@ -167,7 +177,14 @@
       </div>
       <div class="form-container">
         <h4>Georeference</h4>
-        <GeorefForm editable={false} showVerification={true} georef={selectedGeoref} showSubmitButton={false} />
+        <GeorefForm 
+          editable={false} 
+          showVerification={true} 
+          georef={selectedGeoref} 
+          showResetButton={false}
+          showSubmitButton={false} 
+          on:georef-flagged={handleFlagGeoref}
+        />
       </div>
     </div>
   {/if}

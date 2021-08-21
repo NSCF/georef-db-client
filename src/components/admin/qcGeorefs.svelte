@@ -24,8 +24,11 @@
 
   let datasetGeorefsIDs = []
 
+  let georefMap
+  let mapReady = false
+
   let currentGeoref
-  let currentGeorefMapVals //for storing change history
+  let currentMapData //for storing change history
   let prevGeoref = null //for checking if the georef object has changed or now
   let history = [] //just so we hand handle accidental pin moves
 
@@ -36,17 +39,11 @@
   }
 
   //when current georef changes...
-  $: if(currentGeoref) {
-    if(currentGeoref != prevGeoref) {
-      history = []
-      prevGeoref = currentGeoref
-    }
-    currentGeorefMapVals = {
-      decimalCoordinates: currentGeoref.decimalCoordinates,
-      uncertainty: currentGeoref.uncertainty,
-      uncertaintyUnit: currentGeoref.uncertaintyUnit
-    }
+  $: if(currentGeoref && mapReady) {
+    georefMap.setMapWithNewGeoref(currentGeoref)
   }
+
+  $: georefQueue, georefQueue.length? console.log('georef queue has', georefQueue.length, 'georefs') : console.log('no georefs in georef queue')
 
   onMount(async _ => {
     let datasetGeorefsSnap = await Firestore.collection('datasetGeorefs').doc(dataset.datasetID).get()
@@ -63,11 +60,8 @@
   
   //This populates georefQueue and gives a currentGeoref if we don't have one
   const getGeorefsToVerify = async _ => {
-    console.log('fetching georefs to verify')
-
     while (!noMoreGeorefs && georefQueue.length < desiredQueueLength) {
-       
-      
+            
       let querySnap
       try {
         querySnap = await FirestoreGeorefRecords
@@ -116,14 +110,14 @@
         }
  
         if(georefSnap.exists) { //it should
-          const georef = georefSnap.data()
+          const data = georefSnap.data()
+          const georef = Object.assign(new Georef(), data)
+
           if(currentGeoref){
-            georefQueue.push(georef)
-            console.log('added a georef to the queue')
+            georefQueue = [...georefQueue, georef]
           }
           else {
             currentGeoref = georef
-            console.log('set currentGeoref')
           }
         }
       }
@@ -139,19 +133,29 @@
     }
   }
 
-  const handleNewCoordsFromMap = _ => {
-    history.push(currentGeorefMapVals)
-    currentGeoref = currentGeoref
+  const handleNewCoordsFromMap = ev => {
+    const temp = {
+      decimalCoordinates: ev.detail, 
+    }
+    history.push(currentMapData)
+    currentMapData = temp
+    currentGeoref.decimalCoordinates = ev.detail
   }
 
-  const handleNewCoordsFromGeoref = _ => {
-    history.push(currentGeorefMapVals)
-    currentGeoref = currentGeoref //svelte, to update the map
+  const handleNewCoordsFromGeoref = ev => {
+    const temp = {
+      decimalCoordinates: ev.detail, 
+    }
+    history.push(currentMapData)
+    currentMapData = temp
+    georefMap.updateGeorefDetails(currentMapData)
   }
 
   const handleUncertaintyChanged = ev => {
-    history.push(currentGeorefMapVals)
-    currentGeoref = currentGeoref //svelte, to update the map
+    let temp = ev.detail
+    history.push(currentMapData)
+    currentMapData = temp
+    georefMap.updateGeorefDetails(currentMapData)
   }
 
   //save the verified georef
@@ -254,7 +258,11 @@
   {:else}
     {#if currentGeoref}
       <div class="map">
-        <VerifyMap {currentGeoref} on:new-coords={handleNewCoordsFromMap}/>
+        <VerifyMap 
+          on:new-coords={handleNewCoordsFromMap} 
+          on:map-ready={_ => mapReady = true}
+          bind:this={georefMap} 
+        />
       </div>
       <div class="form">
         <GeorefForm georef={currentGeoref} 
@@ -293,6 +301,7 @@
   .form {
     width: 30%;
     height: 100%;
+    padding-right: 15px;
     overflow-y: auto;
   }
 

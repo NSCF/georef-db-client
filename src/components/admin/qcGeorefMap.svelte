@@ -2,32 +2,31 @@
   import {onMount, createEventDispatcher} from 'svelte'
   import { Loader as MapsAPILoader } from '@googlemaps/js-api-loader';
   import MeasureTool from 'measuretool-googlemaps-v3'; //https://www.npmjs.com/package/measuretool-googlemaps-v3
-  import {mapsAPIKey} from '../../keys'
+  import { mapsAPIKey } from '../../keys.js'
 
   const dispatch = createEventDispatcher()
 
-  export let subGeoref //note is just the coords and the uncertainty which we need here, not the whole georef...
-  let prevGeoref = null //This is just a pointer to the georef so we can manage changes
+  //we need these to store the current uncertainty vals because they get used again
+  let georefUncertainty
+  let georefUncertaintyUnit
 
   let container
   let map
   let mapReady = false
-  let originalGeorefMarker, newGeorefCircle, coordsPin
+  let mapGeoref //the point and it's uncertainty circle on the map for the original georef coordinates and uncertainty
+  let coordsPin //used for updated georef coordinates
+  let newUncertaintyCircle //for updated uncertainty around the coordsPin
 
   onMount(async _ => {
-    try {
-      if (typeof google == 'undefined' || typeof google.maps == 'undefined'){
-        const loader = new MapsAPILoader({
-          apiKey: mapsAPIKey,
-          version: "weekly",
-          libraries: ["geometry"]
-        }); 
-        await loader.load()
-      }
-    }
-    catch(err) {
-      console.error('error loading google maps:', err)
-      return
+    const googleMapsAPIExists = checkGoogleMapAPIExists()
+    if (!googleMapsAPIExists){
+      const loader = new MapsAPILoader({
+        apiKey: mapsAPIKey,
+        version: "weekly",
+        libraries: ["geometry"]
+      }); 
+      await loader.load()
+      dispatch('map-ready')
     }
     
     map = new google.maps.Map(container, {
@@ -40,118 +39,155 @@
     mapReady = true
   })
 
-  //lets set everything we need on the map
-  //note this differs for a new georef vs changes to a previous georef
-  $: if(subGeoref && mapReady) {
-    if(subGeoref == prevGeoref) {
-      console.log('this is the same georef')
-      //something has changed so we update
-      let newUncertainty = getRadiusM(subGeoref.uncertainty, subGeoref.uncertaintyUnit)
-      
-      //check if it's different
-      if(newUncertainty > 0) {
-        //do we work with the current new circle or create one?
-        if(newGeorefCircle) {
-          if(newGeorefCircle.getRadius() != newUncertainty) {
-            newGeorefCircle.setRadius(newUncertainty)
-          }
-        }
-        else if (originalGeorefMarker.circle) {
-          if(originalGeorefMarker.circle.getRadius() != newUncertainty) {
-            //make a new one
-            newGeorefCircle = makeCircle(subGeoref.decimalCoordinates, subGeoref.uncertainty, subGeoref.uncertaintyUnit, map, 'blue')
-          }
-        }
-        else {
-          //we just make the new circle
-          newGeorefCircle = makeCircle(subGeoref.decimalCoordinates, subGeoref.uncertainty, subGeoref.uncertaintyUnit, map, 'blue')
-        }
+  export const setMapWithNewGeoref = georef => {
+    
+    if(mapGeoref) {
+      removeMapGeoref()
+    }
+
+    if(newUncertaintyCircle) {
+      removeUncertaintyCircle()
+    }
+
+    if(georef.decimalCoordinates) {
+      addMapGeoref(georef)
+
+      if(coordsPin) {
+        moveCoordsPin(georef.decimalCoordinates)
       }
       else {
-        console.log('there was an error calcuating the uncertainty')
+        addCoordsPin(georef.decimalCoordinates)
+      }
+    }
+    else { //TODO when we have regional coords, use these here
+      map.setCenter({lat: -24.321476, lng: 24.909317})
+      map.setZoom(6)
+    }
+
+    georefUncertainty = georef.uncertainty
+    georefUncertaintyUnit = georef.uncertaintyUnit
+
+  }
+
+  //for responding to changes in the coords or uncertainty
+  export const updateGeorefDetails = data => {
+    if(data.decimalCoordinates) {
+      moveCoordsPin(data.decimalCoordinates)
+      if(newUncertaintyCircle) {
+        moveUncertaintyCircle(data.decimalCoordinates)
+      }
+      else if (georefUncertainty && !data.uncertainty) { //ie we create the circle using the original uncertainty if we don't have a new uncertainty here, otherwise it is handled below
+        addUncertaintyCircle(data.decimalCoordinates)
+      }
+    }
+    
+    if(data.uncertainty && data.uncertainty > 0 && data.uncertaintyUnit) {
+      georefUncertainty = data.uncertainty
+      georefUncertaintyUnit = data.uncertaintyUnit
+      if(newUncertaintyCircle) {
+        updateUncertaintyCircle()
+      }
+      else {
+        const coords = coordsPin.getPosition().toUrlValue() //we might not have a data.decimalCoordinates value here
+        addUncertaintyCircle(coords)
+      }
+    }
+  }
+
+  const addCoordsPin = coordsString => {
+    const coords = coordsString.split(',').map(x => Number(Number(x.trim()).toFixed(8)))
+    const pinLocation = {lat: coords[0], lng: coords[1]}
+    coordsPin = new google.maps.Marker({
+      position: pinLocation,
+      map: map,
+      draggable: true,
+      color: 'blue',
+      title: "Move to update coordinates"
+    });
+
+    google.maps.event.addListener(coordsPin, 'dragend', function(evt){
+      let coords = evt.latLng.toUrlValue()
+      
+      if(newUncertaintyCircle) {
+        moveUncertaintyCircle(evt.latLng)
+      }
+      else {
+        
+        addUncertaintyCircle(coords)
       }
 
-      //and if coords change
-      //we use 8 decimal places
-      let originalCoords = coordsPin.getPosition().toUrlValue().split(',').map(x => Number(Number(x.trim()).toFixed(8)))
-      let newCoords = subGeoref.decimalCoordinates.split(',').map(x => Number(Number(x.trim()).toFixed(8)))
-      if(originalCoords[0] != newCoords[0] || originalCoords[1] != newCoords[1]) {
-        //coords have changed
-        let latlng = {lat: newCoords[0], lng: newCoords[1]}
-        coordsPin.setPosition(latlng)
+      dispatch('new-coords', coords)
+    });
+  }
 
-        if(newGeorefCircle) {
-          newGeorefCircle.setCenter(latlng)
-        }
-        else {
-          newGeorefCircle = makeCircle(subGeoref.decimalCoordinates, subGeoref.uncertainty, subGeoref.uncertaintyUnit, map, 'blue')
-        }
+  const moveCoordsPin = coordsString => {
+    const coords = coordsString.split(',').map(x => Number(Number(x.trim()).toFixed(8)))
+    let pinLocation = {lat: coords[0], lng: coords[1]}
+    coordsPin.setPosition(pinLocation)
+  }
+
+  const addUncertaintyCircle = coordsString => {
+    if(georefUncertainty) {
+      newUncertaintyCircle = makeCircle(coordsString, georefUncertainty, georefUncertaintyUnit, map, 'blue')
+    }
+  }
+
+  const moveUncertaintyCircle = latLng => {
+    newUncertaintyCircle.setCenter(latLng)
+  }
+
+  const removeUncertaintyCircle = _ => {
+    newUncertaintyCircle.setMap(null)
+    newUncertaintyCircle = null
+  }
+
+  //this is for changes to the size of the uncertainty
+  const updateUncertaintyCircle = _ => {
+    let newUncertainty = getRadiusM(georefUncertainty, georefUncertaintyUnit)
+  
+    if(newUncertainty > 0) {
+      //do we work with the current new circle or create one?
+      if(newUncertaintyCircle.getRadius() != newUncertainty) {
+        newUncertaintyCircle.setRadius(newUncertainty)
       }
     }
     else {
-      console.log('this is a NEW georef')
-      prevGeoref = subGeoref
-      
-      //remove
-      if(originalGeorefMarker) {
-        if(originalGeorefMarker.circle) {
-          originalGeorefMarker.circle.setMap(null)
-          originalGeorefMarker.circle = null
-        }
-        originalGeorefMarker.setMap(null)
-        originalGeorefMarker = null
-      }
+      removeUncertaintyCircle()
+    }
+  }
 
-      //and recreate
-      originalGeorefMarker = makeMarker(subGeoref.decimalCoordinates, map, 'green', 'Original georef location')
+  const addMapGeoref = georef => {
+    mapGeoref = makeMarker(georef.decimalCoordinates, map, 'green', 'Original georef location')
 
-      //set the circle
-      let circle = makeCircle(subGeoref.decimalCoordinates, subGeoref.uncertainty, subGeoref.uncertaintyUnit, map, 'green')
-      if(circle) {
-        originalGeorefMarker.circle = circle
-      }
+    //set the circle
+    let circle = makeCircle(georef.decimalCoordinates, georef.uncertainty, georef.uncertaintyUnit, map, 'green')
+    if(circle) {
+      mapGeoref.circle = circle
+    }
+  }
 
-      //remove the newGeorefCircle
-      if (newGeorefCircle) {
-        newGeorefCircle.setMap(null)
-        newGeorefCircle = null
-      }
-
-      //set the draggable pin
-      let coords = subGeoref.decimalCoordinates.split(',').map(x => Number(Number(x.trim()).toFixed(8)))
-
-      let pinLocation = {lat: coords[0], lng: coords[1]}
-      if (coordsPin) { 
-        coordsPin.setPosition(pinLocation)
-      }
-      else {
-        coordsPin = new google.maps.Marker({
-          position: pinLocation,
-          map: map,
-          draggable: true,
-          color: 'blue',
-          title: "Move to update coordinates"
-        });
-
-        google.maps.event.addListener(coordsPin, 'dragend', function(evt){
-          let coords = evt.latLng.toUrlValue()
-          subGeoref.decimalCoordinates = coords
-          if(newGeorefCircle) {
-            newGeorefCircle.setCenter(evt.latLng)
-          }
-          else {
-            newGeorefCircle = makeCircle(coords, subGeoref.uncertainty, subGeoref.uncertaintyUnit, map, 'blue')
-          }
-          dispatch('new-coords', coords)
-        });
-      }
-
-      map.panTo(pinLocation)
-
-    }    
+  const removeMapGeoref = _ => {
+    if(mapGeoref.circle) {
+      mapGeoref.circle.setMap(null)
+      mapGeoref.circle = null
+    }
+    mapGeoref.setMap(null)
+    mapGeoref = null
   }
 
   //helpers
+
+  const checkGoogleMapAPIExists = _ => {
+    if(window.google && typeof window.google == 'object') {
+      if(window.google.maps && typeof window.google.maps == 'object') {
+        if(window.google.maps.Map && typeof window.google.maps.Map == 'function') {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
   const getRadiusM = (accuracy, unit) => {
     if (!isNaN(accuracy) && 
       accuracy > 0 &&
@@ -173,6 +209,7 @@
   }
 
   const makeMarker = (coords, map, color, title) => {
+    console.log('adding marker')
     let coordsParts = coords.split(',').map(x => Number(Number(x.trim()).toFixed(8)))
     let center = new google.maps.LatLng(...coordsParts)
 
@@ -197,7 +234,7 @@
   const makeCircle = (coords, uncertainty, uncertaintyUnit, map, color) => {
     let coordsParts = coords.split(',').map(x => Number(Number(x.trim()).toFixed(8)))
     let center = new google.maps.LatLng(...coordsParts)
-    if( uncertainty && uncertaintyUnit){
+    if(uncertainty && uncertaintyUnit){
       let accuracy = getRadiusM(uncertainty, uncertaintyUnit)
       if(accuracy){
         let circle = new google.maps.Circle({

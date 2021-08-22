@@ -13,6 +13,7 @@ const Firestore = firebase.firestore()
 const Auth = firebase.auth()
 const Storage = firebase.storage()
 const FieldValue = firebase.firestore.FieldValue
+const ServerValue = firebase.database.ServerValue
 //const Functions = firebase.app().functions('europe-west1')
 
 export { 
@@ -21,5 +22,6 @@ export {
   FieldValue,
   Auth, 
   //Functions, 
-  Storage 
+  Storage,
+  ServerValue 
 }

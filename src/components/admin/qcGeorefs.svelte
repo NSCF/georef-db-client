@@ -1,10 +1,13 @@
 <script>
+  import html2canvas from 'html2canvas'
   import {onMount, onDestroy, createEventDispatcher} from 'svelte'
-  import {Firestore, Auth} from '../../firebase'
+  import Select from 'svelte-select'
+  import {Firestore, Realtime as Firebase, ServerValue, Auth, Storage} from '../../firebase'
   import GeorefForm from '../georef/georefForm.svelte'
   import Loader from '../loader.svelte'
   import VerifyMap from './qcGeorefMap.svelte'
   import Georef from '../georef/Georef'
+  import { flagGeoref } from '../georef/georefFormFuncs.js'
   import Toast from '../toast.svelte'
 
   let dispatch = createEventDispatcher()
@@ -29,10 +32,12 @@
 
   let currentGeoref
   let currentMapData //for storing change history
-  let prevGeoref = null //for checking if the georef object has changed or now
   let history = [] //just so we hand handle accidental pin moves
 
   let changesMade = false
+
+  let georeferencersOptions = []
+  let selectedGeoreferencer
 
   $: if(dataset) {
     elasticindex = (dataset.region + dataset.domain).toLowerCase().replace(/\s+/g, '')
@@ -41,35 +46,63 @@
   //when current georef changes...
   $: if(currentGeoref && mapReady) {
     georefMap.setMapWithNewGeoref(currentGeoref)
+    changesMade = false
+    history = []
+  }
+
+  $: if(selectedGeoreferencer) {
+    unlockGeorefs()
+    currentGeoref = null
+    georefQueue = []
+    getGeorefsToVerify()
   }
 
   $: georefQueue, georefQueue.length? console.log('georef queue has', georefQueue.length, 'georefs') : console.log('no georefs in georef queue')
 
   onMount(async _ => {
-    let datasetGeorefsSnap = await Firestore.collection('datasetGeorefs').doc(dataset.datasetID).get()
-    if(datasetGeorefsSnap.exists) { //it should unless no georefs done
-      datasetGeorefsIDs = datasetGeorefsSnap.data().georefIDs
-      getGeorefsToVerify()
+    
+    const FirestoreUserProfiles = Firestore.collection('userProfiles')
+    let proms = []
+    for (let uid of dataset.georeferencers) {
+      proms.push(FirestoreUserProfiles.doc(uid).get())
     }
-    else { //this should only happen if nothing has been georeferenced in the dataset
-      //TODO handle this better
-      alert('no georefs available for this dataset')
-      dispatch('to-datasets')
+
+    for (let uid of dataset.pastGeoreferencers) {
+      proms.push(FirestoreUserProfiles.doc(uid).get())
     }
+
+    let userProfileSnaps = await Promise.all(proms)
+
+    for (let snap of userProfileSnaps) {
+      if(snap.exists) { //it should
+        const profile = snap.data()
+        let option = {value: profile.uid, label: profile.formattedName}
+        georeferencersOptions.push(option)
+      }
+    }
+
+    georeferencersOptions.unshift({value: null, label: 'all'})
+    selectedGeoreferencer = georeferencersOptions[0]
+    
   })
   
   //This populates georefQueue and gives a currentGeoref if we don't have one
   const getGeorefsToVerify = async _ => {
     while (!noMoreGeorefs && georefQueue.length < desiredQueueLength) {
             
-      let querySnap
-      try {
-        querySnap = await FirestoreGeorefRecords
+      let querySnap = FirestoreGeorefRecords
         .where('datasetIDs', 'array-contains', dataset.datasetID)
         .where('verified', '==', false)
         .where('locked', '==', false)
-        .limit(1)
-        .get()
+
+      if(selectedGeoreferencer.value) {
+        querySnap = querySnap.where('createdByID', '==', selectedGeoreferencer.value)
+      }
+
+      querySnap = querySnap.limit(1)
+
+      try {
+        querySnap.get()
       }
       catch(err) {
         console.error('Error reading georefRecords:')
@@ -128,7 +161,7 @@
   const handleKeyUp = ev => {
     if (ev.code == 'KeyZ' && (ev.ctrlKey || ev.metaKey)) {
       if(history.length) {
-        currentGeoref.decimalCoordinates = history.pop()
+        georefMap.updateGeorefDetails(history.pop())
       }
     }
   }
@@ -140,6 +173,7 @@
     history.push(currentMapData)
     currentMapData = temp
     currentGeoref.decimalCoordinates = ev.detail
+    changesMade = true
   }
 
   const handleNewCoordsFromGeoref = ev => {
@@ -149,6 +183,7 @@
     history.push(currentMapData)
     currentMapData = temp
     georefMap.updateGeorefDetails(currentMapData)
+    changesMade = true
   }
 
   const handleUncertaintyChanged = ev => {
@@ -156,37 +191,75 @@
     history.push(currentMapData)
     currentMapData = temp
     georefMap.updateGeorefDetails(currentMapData)
+    changesMade = true
   }
 
-  //save the verified georef
-  //update firebase
-  //if remarks save the map and feedback for the georeferencer
-  const handleSetGeoref = async ev => {
+  //promisify canvas.toBlob
+  const canvasToBlob = (canvas, fileType, fileQuality) => {
+    return new Promise(resolve => {
+      canvas.toBlob(blob => {
+        resolve(blob)
+      }, fileType, fileQuality)
+    })
+  }
 
-    //lets get the next one to work on (because of some async stuff below)...
-    currentGeoref = null
-    setTimeout(async _ => {
-      if(georefQueue.length){
-        currentGeoref = georefQueue.shift() 
-      }
-      
-      await getGeorefsToVerify()
+  const saveFeedback = async (georef, mapCanvas) => {
 
-      //handle the case where we have nothing left
-      if(noMoreGeorefs) {
-        showNoMoreGeorefs = true
-      }
-    }, 500)
+    const blob = await canvasToBlob(mapCanvas, 'image/jpeg', 0.95)
 
-    //handle the updated georef
-    let georef = ev.detail.georef
-
-    //TODO this must be queued for feedback to the georeferencer -- still need to work that out 
-    if(georef.verificationRemarks) {
-
+    let snap
+    try {
+      snap = await Storage.ref().child(`verificationImages/${georef.georefID}.jpg`).put(blob)
+    }
+    catch(err) {
+      console.error(err)
+      alert('Error saving map image file, see console')
+      return
     }
 
-    let url = 'https://us-central1-georef-745b9.cloudfunctions.net/updategeoref'
+    const imageURL = await snap.ref.getDownloadURL()
+
+    const verificationRecord = {
+      datasetID: dataset.datasetID,
+      georefID: georef.georefID,
+      georeferencerID: georef.createdByID,
+      imageURL,
+      reviewerID: profile.uid
+    }
+
+    try {
+      await Firestore.collection('verificationFeedback').doc(georef.georefID).set(verificationRecord)
+    }
+    catch(err) {
+      console.error(err)
+      alert('Error saving feedback record for previous georef, see console')
+      return
+    }
+
+    const countUpdates = {}
+    countUpdates[`georefVerificationFeedback/${dataset.datasetID}/${profile.uid}/all`] = ServerValue.increment(1)
+    countUpdates[`georefVerificationFeedback/${dataset.datasetID}/${profile.uid}/${georef.createdByID}`] = ServerValue.increment(1)
+    try {
+      await Firebase.ref().update(countUpdates)
+    }
+    catch(err) {
+      console.error(err)
+      alert('error updating feedback counts, see console')
+      return
+    }
+    
+    if(window.pushToast) {
+      window.pushToast('feedback saved')
+    }
+    else {
+      console.log('feedback saved')
+    }
+  }
+
+  const updateGeoref = async georef => {
+    //this has to update on elastic and two collections in firestore
+
+    const url = 'https://us-central1-georef-745b9.cloudfunctions.net/updategeoref'
     
     //send it off async and hope for the best, we don't want to slow down!!
     let res
@@ -203,20 +276,87 @@
       })
     }
     catch(err) {
-      alert('Oops, something went wrong while trying to save georef with ID ' + georef.georefID + ': ' + err.message)
+      console.error(err)
+      alert('Oops, something went wrong while trying to save georef with ID ' + georef.georefID + ', see the console')
       return
     }
-    
-    //if successful above
+
     if(res.ok) {
       try {
-        Firestore.collection('georefRecords').doc(georef.georefID).update({verified: true, locked: false})
+        const georefRecordUpdate = FirestoreGeorefRecords.doc(georef.georefID).update({verified: true, locked: false})
+        const georefBackupsUpdate = FirestoreGeorefs.doc(georef.georefID).set(goeoref)
+
+        await Promise.all([georefRecordUpdate, georefBackupsUpdate])
+        console.log('georef', georef.georefID, 'successfully verified')
       }
       catch(err) {
         alert('Oops, something went wrong with the georef verification update to Firestore for georef with ID ' + georef.georefID + ': ' + err.message)
       }
     }
+    else {
+      alert('Oops, something went wrong while trying to save georef with ID' + georef.georefID + ': ' + res.statusText)
+    }
+  }
+
+  //save the verified georef
+  //update firebase
+  //if remarks save the map and feedback for the georeferencer
+  const handleSetGeoref = async ev => {
+
+    let georef = ev.detail.georef
+
+    if(!georef.verifiedBy || !georef.verifiedDate || !georef.verifierRole) {
+      alert('verifiedBy, verifiedDate, and verifierRole must be added in order to verify this georeference')
+      return
+    }
+
+    let savingFeedback
+    if(changesMade && georef.sendVerificationFeedback && georef.verificationRemarks) {
+      //grab the map image
+      const mapCanvas = await html2canvas(georefMap)
+      savingFeedback = saveFeedback(georef, mapCanvas) //this is now a promise...
+    }
+
+    let savingGeorefVerification = updateGeoref(georef)
     
+    //get the next one
+    if(georefQueue.length) {
+      currentGeoref = georefQueue.shift()
+      getGeorefsToVerify() //get another one...
+    }
+
+    let proms = []
+    if(savingFeedback) {
+      proms.push(savingFeedback)
+    }
+    proms.push(savingGeorefVerification)
+
+    try {
+      await Promise.all(proms)
+    }
+    catch(err) {
+      console.error(err)
+      alert('There was an error saving feedback or verification, see the console')
+      return
+    }
+
+    if(window.pushToast) {
+      window.pushToast('last georef updated')
+    }
+    else {
+      console.log('last georef verification updated successfully')
+    }
+    
+  }
+
+  const handleFlagGeoref = async ev => {
+    const georefID = ev.detail
+    await flagGeoref(georefID, elasticindex)
+  }
+
+  const sendFeedback = _ => {
+    //TODO
+    alert('feedback functionality needs to be added')
   }
 
   const unlockGeorefs = _ => {
@@ -251,6 +391,10 @@
 <!-- HTML -->
 <svelte:window on:beforeunload={confirmUnload} on:unload={handleUnload} /> <!--in case the user just closes-->
 <div on:keyup={handleKeyUp} class="container">
+  <div class="header-items">
+    <Select  items= {georeferencersOptions} bind:value={selectedGeoreferencer} />
+    <button class="feedback-button" on:click={sendFeedback}>Send feedback</button>
+  </div>
   {#if showNoMoreGeorefs}
     <div class="center">
       <h4>No more georeferences to verify for this dataset</h4>
@@ -274,6 +418,7 @@
           requiredFields={['verifiedBy', 'verifiedDate', 'verifierRole']}
           on:coords-from-paste={handleNewCoordsFromGeoref}
           on:uncertainty-changed={handleUncertaintyChanged}
+          on:georef-flagged={handleFlagGeoref}
           on:set-georef={handleSetGeoref} />
       </div>
     {:else}
@@ -291,6 +436,15 @@
     display:flex;
     width:100%;
     height:100%;
+  }
+
+  .feedback-button {
+    font-weight:bolder;
+		color:darkslategrey;
+    background-color:lightskyblue;
+    border-radius: 2px;
+    padding:10px;
+    width: 200px;
   }
 
   .map {

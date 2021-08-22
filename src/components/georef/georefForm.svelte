@@ -5,6 +5,7 @@ import DecimalCoordsInput from './decimalCoordsInput.svelte'
 import VerbatimCoordsInput from './verbatimCoordsInput.svelte'
 import DateInput from './dateInput.svelte'
 import Georef from './Georef.js'
+import Checkbox from '../Checkbox.svelte'
 
 import {onMount, createEventDispatcher} from 'svelte'
 let dispatch = createEventDispatcher();
@@ -544,6 +545,9 @@ const checkAndDispatchGeoref = _ => {
       <div>
         <label for="veriremarks" style="width:100%;text-align:right">verification remarks</label>
         <textarea id="veriremarks" rows="3" bind:value={localGeoref.verificationRemarks}/>
+      </div>
+      <div>
+        <Checkbox label={"Send feedback"} bind:checked={localGeoref.sendVerificationFeedback} />
       </div>
       <div class="hr-break">
         <hr/><hr/>

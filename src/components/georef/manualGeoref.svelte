@@ -124,10 +124,7 @@
 
   const handleFlagGeoref = async ev => {
     const georefID = ev.detail
-    const conf = confirm("Are you certain you want to flag this georeference?")
-    if(conf) {
-      await flagGeoref(georefID, elasticIndex)
-    }
+    await flagGeoref(georefID, elasticIndex)
   }
 
 </script>

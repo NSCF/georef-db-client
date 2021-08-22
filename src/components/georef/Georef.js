@@ -28,6 +28,7 @@ export default class Georef {
     this.verifiedDate = null
     this.verifiedByRole = null
     this.verificationRemarks = null
+    this.sendVerificationFeedback = null
     this.createdBy = null
     this.createdByID = null
     this.dateCreated = Date.now()

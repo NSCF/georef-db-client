@@ -1,6 +1,6 @@
 <script>
   import html2canvas from 'html2canvas'
-  import {onMount, onDestroy, createEventDispatcher} from 'svelte'
+  import {onMount, onDestroy, createEventDispatcher, getContext} from 'svelte'
   import Select from 'svelte-select'
   import {Firestore, Realtime as Firebase, ServerValue, Auth, Storage} from '../../firebase'
   import GeorefForm from '../georef/georefForm.svelte'
@@ -9,8 +9,11 @@
   import Georef from '../georef/Georef'
   import { flagGeoref } from '../georef/georefFormFuncs.js'
   import Toast from '../toast.svelte'
+  import Dialog from '../Dialog.svelte'
+import { validateCountries } from '../../dwcUtilities/validateCountries';
 
   let dispatch = createEventDispatcher()
+  const { open } = getContext('simple-modal');
 
   const FirestoreGeorefRecords = Firestore.collection('georefRecords')
   const FirestoreGeorefs = Firestore.collection('georefBackup')
@@ -36,8 +39,11 @@
 
   let changesMade = false
 
+  let georeferencersDictionary = {}
   let georeferencersOptions = []
   let selectedGeoreferencer
+  let disableFeedbackButton = false
+  let georeferencerFeedbackCounts = null
 
   $: if(dataset) {
     elasticindex = (dataset.region + dataset.domain).toLowerCase().replace(/\s+/g, '')
@@ -55,6 +61,12 @@
     currentGeoref = null
     georefQueue = []
     getGeorefsToVerify()
+
+    updateFeedbackButtonDisabledOnCountsOrSelectionChanged()
+  }
+
+  $: if (georeferencerFeedbackCounts) {
+    updateFeedbackButtonDisabledOnCountsOrSelectionChanged()
   }
 
   $: georefQueue, georefQueue.length? console.log('georef queue has', georefQueue.length, 'georefs') : console.log('no georefs in georef queue')
@@ -78,13 +90,41 @@
         const profile = snap.data()
         let option = {value: profile.uid, label: profile.formattedName}
         georeferencersOptions.push(option)
+        georeferencersDictionary[profile.uid] = profile
       }
     }
 
     georeferencersOptions.unshift({value: null, label: 'all'})
     selectedGeoreferencer = georeferencersOptions[0]
-    
+
+    //set the listener on the feedback record counts
+
+    Firebase.ref(`georefVerificationFeedback/${dataset.datasetID}/${profile.uid}`)
+    .on('value', snap => {
+      if(snap.exists()) {
+        georeferencerFeedbackCounts = snap.value()
+      }
+      else {
+        disableFeedbackButton = true
+      }
+    })
   })
+
+  const updateFeedbackButtonDisabledOnCountsOrSelectionChanged = _ => {
+    if(selectedGeoreferencer.value) {
+      if(georeferencerFeedbackCounts[selectedGeoreferencer.value]) { 
+        disableFeedbackButton = false
+      }
+      else {
+        disableFeedbackButton = true
+      }
+    }
+    else {
+      if(georeferencerFeedbackCounts.all) {
+        disableFeedbackButton = false
+      }
+    }
+  }
   
   //This populates georefQueue and gives a currentGeoref if we don't have one
   const getGeorefsToVerify = async _ => {
@@ -354,9 +394,76 @@
     await flagGeoref(georefID, elasticindex)
   }
 
+  const onDialogOkay = async message => {
+    //we need this so the user can't enable it again with a quick switch back in the Select
+    if(selectedGeoreferencer.value) {
+      georeferencerFeedbackCounts[selectedGeoreferencer.value] = 0
+    }
+    else {
+      georeferencerFeedbackCounts.all = 0
+    }
+    disableFeedbackButton = true
+
+    //from there the server does the work...
+    let url = 'https://us-central1-georef-745b9.cloudfunctions.net/sendfeedback?'
+
+    if(selectedGeoreferencer.value) {
+      url += `userid=${selectedGeoreferencer.value}&`
+    }
+
+    url += `reviewerid=${profile.uid}`
+    
+    
+    //send it off async and hope for the best, we don't want to slow down!!
+    let res
+    try {
+      let token = await Auth.currentUser.getIdToken(true);
+      
+      res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': token,
+        }
+      })
+    }
+    catch(err) {
+      console.error(err)
+      alert('Oops, something went wrong with calling the sendfeedback API, see the console')
+      return
+    }
+
+    if(!res.ok) {
+      alert('There was an issue calling the sendfeedback API with statusText', res.statusText)
+    }
+
+  }
+
   const sendFeedback = _ => {
-    //TODO
-    alert('feedback functionality needs to be added')
+    
+    let dialogMessage = ""
+    if(selectedGeoreferencer.value) {
+      dialogMessage = "Send a general feedback message to " + georeferencersDictionary[selectedGeoreferencer.value].firstName
+    }
+    else {
+      dialogMessage = "Send a general feedback message to all"
+    }
+
+    //note that onOkay does the rest...
+    open(
+			Dialog,
+			{
+				message: dialogMessage,
+				hasForm: true,
+				onCancel,
+				onOkay: onDialogOkay
+			},
+			{
+				closeButton: false,
+    		closeOnEsc: false,
+    		closeOnOuterClick: false,
+			}
+	  );
+
   }
 
   const unlockGeorefs = _ => {
@@ -393,7 +500,7 @@
 <div on:keyup={handleKeyUp} class="container">
   <div class="header-items">
     <Select  items= {georeferencersOptions} bind:value={selectedGeoreferencer} />
-    <button class="feedback-button" on:click={sendFeedback}>Send feedback</button>
+    <button class="feedback-button" disabled={disableFeedbackButton} on:click={sendFeedback}>Send feedback</button>
   </div>
   {#if showNoMoreGeorefs}
     <div class="center">

@@ -10,7 +10,6 @@
   import { flagGeoref } from '../georef/georefFormFuncs.js'
   import Toast from '../toast.svelte'
   import Dialog from '../Dialog.svelte'
-import { validateCountries } from '../../dwcUtilities/validateCountries';
 
   let dispatch = createEventDispatcher()
   const { open } = getContext('simple-modal');
@@ -34,6 +33,7 @@ import { validateCountries } from '../../dwcUtilities/validateCountries';
   let mapReady = false
 
   let currentGeoref
+  let currentGeorefVals //for recording the key properties of a georef for feedback
   let currentMapData //for storing change history
   let history = [] //just so we hand handle accidental pin moves
 
@@ -59,6 +59,7 @@ import { validateCountries } from '../../dwcUtilities/validateCountries';
   $: if(selectedGeoreferencer) {
     unlockGeorefs()
     currentGeoref = null
+    currentGeorefVals = null
     georefQueue = []
     getGeorefsToVerify()
 
@@ -191,10 +192,31 @@ import { validateCountries } from '../../dwcUtilities/validateCountries';
           }
           else {
             currentGeoref = georef
+            currentGeorefVals = getCurrentGeorefVals(georef)
           }
         }
       }
     }
+  }
+
+  const getCurrentGeorefVals = currentGeoref => {
+    const vals = {
+      locality: currentGeoref.locality,
+      decimalCoordinates: currentGeoref.decimalCoordinates,
+      by: currentGeoref.by,
+      date:currentGeoref.date,
+      sources: currentGeoref.sources,
+      protocol: currentGeoref.protocol
+    }
+
+    if(currentGeoref.uncertaintyUnit && currentGeoref.uncertainty) {
+      vals.uncertainty = `${currentGeoref.uncertainty}${currentGeoref.uncertaintyUnit}`
+    }
+    else {
+      vals.uncertainty = null
+    }
+
+    return vals
   }
 
   //for undoing coordinate changes on the georef being verified
@@ -245,26 +267,32 @@ import { validateCountries } from '../../dwcUtilities/validateCountries';
 
   const saveFeedback = async (georef, mapCanvas) => {
 
-    const blob = await canvasToBlob(mapCanvas, 'image/jpeg', 0.95)
+    let imageURL = null
+    if(!georef.ambiguous) {
+      const blob = await canvasToBlob(mapCanvas, 'image/jpeg', 0.95)
 
-    let snap
-    try {
-      snap = await Storage.ref().child(`verificationImages/${georef.georefID}.jpg`).put(blob)
-    }
-    catch(err) {
-      console.error(err)
-      alert('Error saving map image file, see console')
-      return
-    }
+      let snap
+      try {
+        snap = await Storage.ref().child(`verificationImages/${georef.georefID}.jpg`).put(blob)
+      }
+      catch(err) {
+        console.error(err)
+        alert('Error saving map image file, see console')
+        return
+      }
 
-    const imageURL = await snap.ref.getDownloadURL()
+      imageURL = await snap.ref.getDownloadURL()
+    }
 
     const verificationRecord = {
       datasetID: dataset.datasetID,
       georefID: georef.georefID,
+      georefAmbiguous: georef.ambiguous,
       georeferencerID: georef.createdByID,
       imageURL,
-      reviewerID: profile.uid
+      reviewerID: profile.uid,
+      georefVals: currentGeorefVals,
+      feedbackMessage: georef.verificationRemarks
     }
 
     try {
@@ -362,6 +390,7 @@ import { validateCountries } from '../../dwcUtilities/validateCountries';
     //get the next one
     if(georefQueue.length) {
       currentGeoref = georefQueue.shift()
+      currentGeorefVals = getCurrentGeorefVals(currentGeoref)
       getGeorefsToVerify() //get another one...
     }
 
@@ -395,6 +424,12 @@ import { validateCountries } from '../../dwcUtilities/validateCountries';
   }
 
   const onDialogOkay = async message => {
+
+    if(!message || !message.trim()) {
+      alert('A feedback message is required')
+      return
+    }
+
     //we need this so the user can't enable it again with a quick switch back in the Select
     if(selectedGeoreferencer.value) {
       georeferencerFeedbackCounts[selectedGeoreferencer.value] = 0
@@ -405,25 +440,28 @@ import { validateCountries } from '../../dwcUtilities/validateCountries';
     disableFeedbackButton = true
 
     //from there the server does the work...
-    let url = 'https://us-central1-georef-745b9.cloudfunctions.net/sendfeedback?'
+    let url = 'https://us-central1-georef-745b9.cloudfunctions.net/sendfeedback'
+
+    let data = {message}
 
     if(selectedGeoreferencer.value) {
-      url += `userid=${selectedGeoreferencer.value}&`
+      data.georeferencerID = selectedGeoreferencer.value
     }
 
-    url += `reviewerid=${profile.uid}`
+    data.reviewerID = profile.uid
+    data.datasetID = dataset.datasetID
     
-    
-    //send it off async and hope for the best, we don't want to slow down!!
     let res
     try {
       let token = await Auth.currentUser.getIdToken(true);
       
       res = await fetch(url, {
-        method: 'GET',
+        method: 'POST',
         headers: {
           'Authorization': token,
-        }
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
       })
     }
     catch(err) {

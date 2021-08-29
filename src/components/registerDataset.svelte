@@ -54,6 +54,8 @@ else {
   regionInvalidCountries = []
 }
 
+$: domain, contactName, email, datasetName, console.log({contactName,email, datasetName, collectionCode, region: region? region.value : null, domain: domain? domain.value : null})
+
 onMount(async _ => {
   console.log('fetch georef regions')
   let snap = await Realtime.ref('settings/georefRegions').once('value')
@@ -164,11 +166,11 @@ const handleSubmit = _ => {
   <input id="datasetname" type="text" bind:value={datasetName} placeholder="e.g. NMSA crabs 2019" />
   <label for="region">Target region</label>
   <div style="margin-bottom:0.5em">
-    <Select items={regionsSelectOptions} bind:selectedValue={region}/>
+    <Select items={regionsSelectOptions} bind:value={region}/>
   </div>
   <label for="domain">Domain</label>
   <div style="margin-bottom:0.5em">
-    <Select items={domainOptions} bind:selectedValue={domain}/>
+    <Select items={domainOptions} bind:value={domain}/>
   </div>
   {#if regionInvalidCountries.length}
   <p>The following countries in the dataset are not valid for this region and the records will be removed:

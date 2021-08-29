@@ -1147,8 +1147,6 @@
     width: 100%;
     padding: 10px;
     margin-top:10px;
-    /* min-height: 0;   NEW */
-    /* min-width: 0;   NEW; needed for Firefox */
     overflow:hidden;
     box-sizing: border-box;
     grid-template-columns: minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1fr);

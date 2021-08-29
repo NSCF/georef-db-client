@@ -157,68 +157,74 @@ function handleStartOver(){
 {#if !validationResult} 
   <Loader />
 {:else}
-  <h2>Please confirm the fields in your dataset</h2>
-  {#if darwinCoreFields && darwinCoreFields.length}
-    <h4>Darwin Core fields:</h4>
-    <p><i>{darwinCoreFields.join(', ')}</i></p>
-  {/if}
-  {#if validationResult.someFieldsNamespaced}
-    <p style="color:red"><strong>Some fields are namespaced and others not - it's best to be consistent</strong></p>
-  {/if}
-  {#if malformedDarwinCore && malformedDarwinCore.length}
-    <h4>Malformed fields:</h4>
-    <p>The following fields may be incorrectly formed Darwin Core fields. Darwin Core terms are <a href="https://en.wikipedia.org/wiki/Camel_case" target="_blank">camelCase</a> and don't include spaces, numbers or punctuation. Please see <a href="https://dwc.tdwg.org/terms/" target="_blank">the standard</a></p>
-    <p><i>{malformedDarwinCore.join(', ')}</i></p>
-  {/if}
-  {#if notDarwinCore && notDarwinCore.length}
-    <h4>Not Darwin Core:</h4>
-    <p>The following fields include namespace prefixes but don't exist in those namespaces. Make sure you're using the correct namespace prefixes for the Dublin Core terms within Darwin Core</p>
-    <p><i>{malformedDarwinCore.join(', ')}</i></p>
-  {/if}
-  {#if otherFields && otherFields.length}
-    <h4>Other fields:</h4>
-    <p>The following additional fields were found in the dataset:</p>
-    <p><i>{otherFields.join(', ')}</i></p>
-  {/if}
-  {#if requiredFieldsMissing}
-    <h3 style="color:tomato">The following required or recommended fields are missing:</h3>
-    {#each requiredFieldsList as requiredFieldsItem}
-      {#if !requiredFields[requiredFieldsItem.key]}
-        {#if requiredFieldsItem.required}
-          <p>{requiredFieldsItem.targetfields.replace(/\s*\|\|\s*/g, ' OR ')}</p>
-        {:else}
-          <p>{requiredFieldsItem.targetfields.replace(/\s*\|\|\s*/g, ' OR ')}</p>
+  <div class="confirmfield-container">
+    <h2>Please confirm the fields in your dataset</h2>
+    {#if darwinCoreFields && darwinCoreFields.length}
+      <h4>Darwin Core fields:</h4>
+      <p><i>{darwinCoreFields.join(', ')}</i></p>
+    {/if}
+    {#if validationResult.someFieldsNamespaced}
+      <p style="color:red"><strong>Some fields are namespaced and others not - it's best to be consistent</strong></p>
+    {/if}
+    {#if malformedDarwinCore && malformedDarwinCore.length}
+      <h4>Malformed fields:</h4>
+      <p>The following fields may be incorrectly formed Darwin Core fields. Darwin Core terms are <a href="https://en.wikipedia.org/wiki/Camel_case" target="_blank">camelCase</a> and don't include spaces, numbers or punctuation. Please see <a href="https://dwc.tdwg.org/terms/" target="_blank">the standard</a></p>
+      <p><i>{malformedDarwinCore.join(', ')}</i></p>
+    {/if}
+    {#if notDarwinCore && notDarwinCore.length}
+      <h4>Not Darwin Core:</h4>
+      <p>The following fields include namespace prefixes but don't exist in those namespaces. Make sure you're using the correct namespace prefixes for the Dublin Core terms within Darwin Core</p>
+      <p><i>{malformedDarwinCore.join(', ')}</i></p>
+    {/if}
+    {#if otherFields && otherFields.length}
+      <h4>Other fields:</h4>
+      <p>The following additional fields were found in the dataset:</p>
+      <p><i>{otherFields.join(', ')}</i></p>
+    {/if}
+    {#if requiredFieldsMissing}
+      <h3 style="color:tomato">The following required or recommended fields are missing:</h3>
+      {#each requiredFieldsList as requiredFieldsItem}
+        {#if !requiredFields[requiredFieldsItem.key]}
+          {#if requiredFieldsItem.required}
+            <p>{requiredFieldsItem.targetfields.replace(/\s*\|\|\s*/g, ' OR ')}</p>
+          {:else}
+            <p>{requiredFieldsItem.targetfields.replace(/\s*\|\|\s*/g, ' OR ')}</p>
+          {/if}
         {/if}
-      {/if}
-    {/each}
-  {/if}
-  {#if requiredFieldsMissing && !requiredFields['recordIDField']}
-    <h3 style="color:tomato">A unique row identifier field is required</h3>
-    <p>Please select a field that uniquely identifies rows in the dataset. Recommended Darwin Core fields are occurrenceID and catalogNumber, but other fields like can be used as long as they are unique per row</p>
-    <div style="width:500px;text-align:center">
-      <Select items={possibleIdentifierFields} on:select={handleSelect}></Select>
-    </div> 
-  {/if}
-  {#if !requiredFieldsMissing}
-    <h4>Fields to be used for georeferencing:</h4>
-    {#each requiredFieldsList as requiredFieldsItem}
-      {#if requiredFieldsItem.required}
-        <p>{requiredFieldsItem.key} (required): <i>{requiredFields[requiredFieldsItem.key]}</i></p>
-      {:else}
-        <p>{requiredFieldsItem.key} (recommended): <i>{requiredFields[requiredFieldsItem.key] || 'none'}</i></p>
-      {/if}
-    {/each}
-  {/if}
-  {#if requiredFieldsMissing}
-    <button  style="width:200px;float:right;margin-right:20px;" on:click={handleStartOver}>I'll start over</button>
-  {:else}
-    <button style="width:200px;float:right;" on:click={handleNextClick}>Next...</button>
-  {/if}
-  <div style="clear:both;"/>
+      {/each}
+    {/if}
+    {#if requiredFieldsMissing && !requiredFields['recordIDField']}
+      <h3 style="color:tomato">A unique row identifier field is required</h3>
+      <p>Please select a field that uniquely identifies rows in the dataset. Recommended Darwin Core fields are occurrenceID and catalogNumber, but other fields like can be used as long as they are unique per row</p>
+      <div style="width:500px;text-align:center">
+        <Select items={possibleIdentifierFields} on:select={handleSelect}></Select>
+      </div> 
+    {/if}
+    {#if !requiredFieldsMissing}
+      <h4>Fields to be used for georeferencing:</h4>
+      {#each requiredFieldsList as requiredFieldsItem}
+        {#if requiredFieldsItem.required}
+          <p>{requiredFieldsItem.key} (required): <i>{requiredFields[requiredFieldsItem.key]}</i></p>
+        {:else}
+          <p>{requiredFieldsItem.key} (recommended): <i>{requiredFields[requiredFieldsItem.key] || 'none'}</i></p>
+        {/if}
+      {/each}
+    {/if}
+    {#if requiredFieldsMissing}
+      <button  style="width:200px;float:right;margin-right:20px;" on:click={handleStartOver}>I'll start over</button>
+    {:else}
+      <button style="width:200px;float:right;" on:click={handleNextClick}>Next...</button>
+    {/if}
+    <div style="clear:both;"/>
+  </div>
 {/if}
 
 <!-- ############################################################# -->
 <style>
+  .confirmfield-container {
+    overflow-y: auto;
+    margin-bottom:100px;
+  }
 h2 {
 		color: #ff3e00;
 		text-transform: uppercase;

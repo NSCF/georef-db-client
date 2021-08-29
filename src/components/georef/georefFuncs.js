@@ -213,9 +213,7 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
     console.log(georeflocs)
     */
 
-    return {
-      georefIndex
-    }
+    return { georefIndex }
   }
   else {
     throw new Error('no values supplied')

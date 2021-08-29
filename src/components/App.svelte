@@ -332,19 +332,30 @@
 					/>
 				{/if}
 				{#if currentPage == 'WellDone'}
-					<WellDone />
+					<WellDone 
+					on:to-datasets={handleToDatasets}
+					on:start-georeferencing={handleStartGeoreferencing}
+					/>
 				{/if}
 				{#if currentPage == 'DatasetList'}
 					<DatasetsList {profile} on:dataset-selected={handleDatasetSelected}/>
 				{/if}
 				{#if currentPage == 'DatasetDetail'}
-					<DatasetDetail {profile} dataset={selectedDataset} on:to-datasets={handleToDatasets} on:start-georeferencing={handleStartGeoreferencing} on:quality-control={_ => currentPage = 'QualityControl'}/>
+					<DatasetDetail {profile} dataset={selectedDataset} 
+						on:to-datasets={handleToDatasets} 
+						on:start-georeferencing={handleStartGeoreferencing} 
+						on:quality-control={_ => currentPage = 'QualityControl'}
+					/>
 				{/if}
 				{#if currentPage == 'Georeferencer'}
-					<Georeferencer {profile} dataset={selectedDataset} on:back-to-datasets='{_=> currentPage = 'DatasetList'}'/>
+					<Georeferencer {profile} dataset={selectedDataset} 
+						on:back-to-datasets='{_=> currentPage = 'DatasetList'}'
+					/>
 				{/if}
 				{#if currentPage == "QualityControl"}
-					<QualityControl {profile} dataset={selectedDataset} on:to-datasets={handleBackToDatasets}/>
+					<QualityControl {profile} dataset={selectedDataset} 
+						on:to-datasets={handleBackToDatasets}
+					/>
 				{/if}
 			</div>
 		</div>

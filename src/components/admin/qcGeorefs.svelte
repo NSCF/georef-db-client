@@ -4,12 +4,16 @@
   import Select from 'svelte-select'
   import {Firestore, Realtime as Firebase, ServerValue, Auth, Storage} from '../../firebase'
   import GeorefForm from '../georef/georefForm.svelte'
+  import MatchList from '../georef/georefMatchList.svelte'
   import Loader from '../loader.svelte'
   import VerifyMap from './qcGeorefMap.svelte'
   import Georef from '../georef/Georef'
-  import { flagGeoref } from '../georef/georefFormFuncs.js'
+  import { flagGeoref } from '../georef/georefFuncs.js'
+  import { dataStore } from '../georef/dataStore.js'
   import Toast from '../toast.svelte'
   import Dialog from '../Dialog.svelte'
+
+  import { fetchCandidateGeorefs } from '../georef/georefFuncs.js'
 
   let dispatch = createEventDispatcher()
   const { open } = getContext('simple-modal');
@@ -27,8 +31,6 @@
   let noMoreGeorefs = false
   let showNoMoreGeorefs = false
 
-  let datasetGeorefsIDs = []
-
   let georefMap
   let mapReady = false
 
@@ -36,6 +38,11 @@
   let currentGeorefVals //for recording the key properties of a georef for feedback
   let currentMapData //for storing change history
   let history = [] //just so we hand handle accidental pin moves
+
+  let georefIndexQueue = []
+  let fetchingGeorefIndex = false
+  let selectedGeoref //the similar georef that is selected
+  let similarGeorefIndex
 
   let changesMade = false
 
@@ -57,6 +64,9 @@
   }
 
   $: if(selectedGeoreferencer) {
+
+    console.log('fetching georefs on selectedGeoreferencer change...')
+
     unlockGeorefs()
     currentGeoref = null
     currentGeorefVals = null
@@ -77,11 +87,15 @@
     const FirestoreUserProfiles = Firestore.collection('userProfiles')
     let proms = []
     for (let uid of dataset.georeferencers) {
-      proms.push(FirestoreUserProfiles.doc(uid).get())
+      if(uid != profile.uid) { //we can't verify our own georeferences
+        proms.push(FirestoreUserProfiles.doc(uid).get())
+      }
     }
 
-    for (let uid of dataset.pastGeoreferencers) {
-      proms.push(FirestoreUserProfiles.doc(uid).get())
+    if(dataset.pastGeoreferencers && dataset.pastGeoreferencers.length) {
+      for (let uid of dataset.pastGeoreferencers) {
+        proms.push(FirestoreUserProfiles.doc(uid).get())
+      }
     }
 
     let userProfileSnaps = await Promise.all(proms)
@@ -96,6 +110,7 @@
     }
 
     georeferencersOptions.unshift({value: null, label: 'all'})
+    console.log('setting initial selectedGeoreferencer')
     selectedGeoreferencer = georeferencersOptions[0]
 
     //set the listener on the feedback record counts
@@ -106,6 +121,7 @@
         georeferencerFeedbackCounts = snap.value()
       }
       else {
+        georeferencerFeedbackCounts = {}
         disableFeedbackButton = true
       }
     })
@@ -121,7 +137,7 @@
       }
     }
     else {
-      if(georeferencerFeedbackCounts.all) {
+      if(georeferencerFeedbackCounts && georeferencerFeedbackCounts.all) {
         disableFeedbackButton = false
       }
     }
@@ -129,21 +145,27 @@
   
   //This populates georefQueue and gives a currentGeoref if we don't have one
   const getGeorefsToVerify = async _ => {
+    console.log('running getGeorefsToVerify')
     while (!noMoreGeorefs && georefQueue.length < desiredQueueLength) {
             
-      let querySnap = FirestoreGeorefRecords
+      let query = FirestoreGeorefRecords
         .where('datasetIDs', 'array-contains', dataset.datasetID)
         .where('verified', '==', false)
         .where('locked', '==', false)
 
       if(selectedGeoreferencer.value) {
-        querySnap = querySnap.where('createdByID', '==', selectedGeoreferencer.value)
+        console.log('filtering georefs for user', selectedGeoreferencer.value)
+        query = query.where('createdByID', '==', selectedGeoreferencer.value)
+      }
+      else {
+        console.log('not filtering georefs for any user')
       }
 
-      querySnap = querySnap.limit(1)
+      query = query.limit(1)
 
+      let querySnap
       try {
-        querySnap.get()
+        querySnap = await query.get()
       }
       catch(err) {
         console.error('Error reading georefRecords:')
@@ -152,6 +174,7 @@
       }
 
       if(querySnap.empty) {
+        console.log('no more georefs')
         noMoreGeorefs = true
         continue;
       }
@@ -189,13 +212,29 @@
 
           if(currentGeoref){
             georefQueue = [...georefQueue, georef]
+            georefIndexQueue = [...georefIndexQueue, getSimilarGeoreferences(georef.locality)]
           }
           else {
             currentGeoref = georef
             currentGeorefVals = getCurrentGeorefVals(georef)
+            fetchingGeorefIndex = true
+            similarGeorefIndex = await getSimilarGeoreferences(georef.locality)
+            fetchingGeorefIndex = false
+            $dataStore.georefIndex = similarGeorefIndex
           }
         }
       }
+    }
+  }
+
+  const getSimilarGeoreferences = async locality => {
+    try {
+      let { georefIndex } = await fetchCandidateGeorefs([currentGeoref.locality], elasticindex, 20)
+      return georefIndex
+    }
+    catch(err) {
+      console.error(err)
+      alert('error fetching similar georeferences, see console')
     }
   }
 
@@ -392,6 +431,14 @@
       currentGeoref = georefQueue.shift()
       currentGeorefVals = getCurrentGeorefVals(currentGeoref)
       getGeorefsToVerify() //get another one...
+
+      let similarGeorefIndexProm = georefIndexQueue.shift()
+      fetchingGeorefIndex = true
+      setTimeout(async _ => {
+        similarGeorefIndex = await similarGeorefIndexProm
+        $dataStore.georefIndex = similarGeorefIndex
+        fetchingGeorefIndex = false
+      }, 100)
     }
 
     let proms = []
@@ -528,6 +575,61 @@
     unlockGeorefs()
   }
 
+  //COPIED EXACTLY FROM georef.svelte :-/
+
+  const handleGeorefSelected = ev => {
+
+    if($dataStore.selectedGeorefID){
+      resetTableAndMap($dataStore.selectedGeorefID)
+    }
+
+    if(ev && ev.detail){
+      let georefID = ev.detail
+      
+      $dataStore.georefIndex[georefID].selected = true
+      selectedGeoref = $dataStore.georefIndex[georefID]
+      if(selectedGeoref.ambiguous) {
+        formContainer.scrollTop = 0 //to make sure the user sees the message!
+      }
+
+      let selectedMarker = $dataStore.markers[georefID]
+      if(selectedMarker) {
+        selectedMarker.setIcon({
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 5, 
+          fillColor: 'blue', 
+          fillOpacity: 1,
+          strokeColor: 'blue'
+        })
+        
+        selectedMarker.setZIndex(1)
+        selectedMarker.panToMe()
+      }
+      
+      $dataStore.selectedGeorefID = georefID
+      $dataStore.georefIndex = $dataStore.georefIndex //svelte
+    } 
+  }
+
+  const resetTableAndMap = georefID => {
+    let selectedMarker = $dataStore.markers[georefID]
+    if(selectedMarker) {
+      selectedMarker.setIcon({
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 5, 
+        fillColor: 'lightgrey', 
+        fillOpacity: 1,
+        strokeColor: 'lightgrey'
+      })
+      selectedMarker.setZIndex(0)
+    }
+    
+    if($dataStore.georefIndex[georefID]) {
+      $dataStore.georefIndex[georefID].selected = false
+    }
+    $dataStore.selectedGeorefID = null
+  }
+
   onDestroy(unlockGeorefs)
 
 </script>
@@ -535,9 +637,11 @@
 <!-- ############################################## -->
 <!-- HTML -->
 <svelte:window on:beforeunload={confirmUnload} on:unload={handleUnload} /> <!--in case the user just closes-->
-<div on:keyup={handleKeyUp} class="container">
+<div on:keyup={handleKeyUp} class="qcgeoref-container">
   <div class="header-items">
-    <Select  items= {georeferencersOptions} bind:value={selectedGeoreferencer} />
+    <div class="svelte-select">
+      <Select  items={georeferencersOptions} bind:value={selectedGeoreferencer} />
+    </div>
     <button class="feedback-button" disabled={disableFeedbackButton} on:click={sendFeedback}>Send feedback</button>
   </div>
   {#if showNoMoreGeorefs}
@@ -545,42 +649,90 @@
       <h4>No more georeferences to verify for this dataset</h4>
     </div>
   {:else}
-    {#if currentGeoref}
-      <div class="map">
+    <div class="grid-container">
+      <div class="georef-form-container current-georef-container">
+        {#if currentGeoref}
+          <h4>Verification</h4>
+          <GeorefForm georef={currentGeoref} 
+            showResetButton={false}
+            submitButtonText="Confirm this georeference" 
+            showVerification={true}
+            defaultGeorefBy={profile.formattedName}
+            defaultGeorefByORCID={profile.orcid}
+            requiredFields={['verifiedBy', 'verifiedDate', 'verifierRole']}
+            on:coords-from-paste={handleNewCoordsFromGeoref}
+            on:uncertainty-changed={handleUncertaintyChanged}
+            on:georef-flagged={handleFlagGeoref}
+            on:set-georef={handleSetGeoref} />
+        {:else}
+          <div class="center">
+            <Loader />
+          </div>
+        {/if}
+      </div>
+      <div class="matchlist-container">
+        <h4>Similar georeferences</h4>
+        <div class="matchlist-flex">
+          <MatchList on:georef-selected={handleGeorefSelected}/>
+        </div>
+        <div class="matchlist-flex-plug" />
+      </div>
+      <div class="matchmap-container">
         <VerifyMap 
           on:new-coords={handleNewCoordsFromMap} 
           on:map-ready={_ => mapReady = true}
+          on:georef-selected={handleGeorefSelected}
           bind:this={georefMap} 
         />
       </div>
-      <div class="form">
-        <GeorefForm georef={currentGeoref} 
+      <div class="georef-form-container similar-georef-container">
+        <h4>Georeference</h4>
+        <GeorefForm 
+          editable={false} 
+          showVerification={true} 
+          georef={selectedGeoref} 
           showResetButton={false}
-          submitButtonText="Confirm this georeference" 
-          showVerification={true}
-          defaultGeorefBy={profile.formattedName}
-          defaultGeorefByORCID={profile.orcid}
-          requiredFields={['verifiedBy', 'verifiedDate', 'verifierRole']}
-          on:coords-from-paste={handleNewCoordsFromGeoref}
-          on:uncertainty-changed={handleUncertaintyChanged}
+          showSubmitButton={false} 
           on:georef-flagged={handleFlagGeoref}
-          on:set-georef={handleSetGeoref} />
+        />
       </div>
-    {:else}
-      <div class="center">
-        <Loader />
-      </div>
-    {/if}
+    </div>
   {/if}
   <Toast />
 </div>
 
 <!-- ############################################## -->
 <style>
-  .container {
+
+  h4 {
+    color:  #86afe8;
+    text-transform: uppercase;
+    font-size: 1.5em;
+    font-weight: 600;
+    text-align: center;
+    margin:0;
+  }
+
+  .qcgeoref-container {
+    position:relative;
     display:flex;
+    flex-direction: column;
     width:100%;
     height:100%;
+  }
+
+  .header-items {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+    position: absolute;
+    top: -50px;
+    z-index: 5;
+  }
+
+  .svelte-select {
+    flex: 0 0 20%;
+    min-width:300px;
   }
 
   .feedback-button {
@@ -590,18 +742,73 @@
     border-radius: 2px;
     padding:10px;
     width: 200px;
+    margin-left:20px;
   }
 
-  .map {
-    width:70%;
+  .feedback-button:disabled {
+    color: grey;
+    background-color:lightgrey;
+  }
+
+  .grid-container {
+    display: grid;
+    flex: 1 1 auto;
+    width: 100%;
+    padding: 10px;
+    margin-top:10px;
+    overflow:hidden;
+    box-sizing: border-box;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    grid-column-gap:1%;
+    border-radius:4px;
+    border: 2px solid #bcd0ec;
+  }
+
+  .current-georef-container {
+    grid-column: 1/2;
+    grid-row: 1 / 3;
+  }
+
+  .georef-form-container {
     height:100%;
-  }
-
-  .form {
-    width: 30%;
-    height: 100%;
+    max-height:100%;
+    width: 100%;
+    position:relative;
+    display: flex;
+    flex-flow: column;
     padding-right: 15px;
     overflow-y: auto;
+  }
+
+  .matchlist-container {
+    grid-column: 2/2; 
+    grid-row: 1 / 2;
+    max-height: 100%;
+    position:relative;
+    display: flex;
+    flex-flow: column;
+  }
+
+  .matchlist-flex {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: initial;
+    overflow-y: auto;
+  }
+
+  .matchlist-flex-plug {
+    flex: 0 0 auto;
+  }
+
+  .matchmap-container {
+    grid-column: 2/2;
+    grid-row: 2 / 2;
+  }
+
+  .similar-georef-container {
+    grid-column: 3/3;
+    grid-row: 1 / 3;
   }
 
   .center {

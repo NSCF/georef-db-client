@@ -1,7 +1,6 @@
 <script>
   import html2canvas from 'html2canvas'
-  import {onMount, onDestroy, createEventDispatcher, getContext} from 'svelte'
-  import Select from 'svelte-select'
+  import {onDestroy, createEventDispatcher, getContext} from 'svelte'
   import {Firestore, Realtime as Firebase, ServerValue, Auth, Storage} from '../../firebase'
   import GeorefForm from '../georef/georefForm.svelte'
   import MatchList from '../georef/georefMatchList.svelte'
@@ -11,9 +10,8 @@
   import { flagGeoref } from '../georef/georefFuncs.js'
   import { dataStore } from '../georef/dataStore.js'
   import Toast from '../toast.svelte'
-  import Dialog from '../Dialog.svelte'
 
-  import { fetchCandidateGeorefs } from '../georef/georefFuncs.js'
+  import { fetchGeorefsForLoc } from '../georef/georefFuncs.js'
 
   let dispatch = createEventDispatcher()
   const { open } = getContext('simple-modal');
@@ -23,6 +21,7 @@
 
   export let profile
   export let dataset
+  export let selectedGeoreferencer
 
   let elasticindex
 
@@ -34,6 +33,9 @@
   let georefMap
   let mapReady = false
 
+  let verifyGeorefContainer
+  let similarGeorefContainer
+
   let currentGeoref
   let currentGeorefVals //for recording the key properties of a georef for feedback
   let currentMapData //for storing change history
@@ -43,25 +45,13 @@
   let fetchingGeorefIndex = false
   let selectedGeoref //the similar georef that is selected
   let similarGeorefIndex
-
   let changesMade = false
 
-  let georeferencersDictionary = {}
-  let georeferencersOptions = []
-  let selectedGeoreferencer
-  let disableFeedbackButton = false
-  let georeferencerFeedbackCounts = null
 
   $: if(dataset) {
     elasticindex = (dataset.region + dataset.domain).toLowerCase().replace(/\s+/g, '')
   }
 
-  //when current georef changes...
-  $: if(currentGeoref && mapReady) {
-    georefMap.setMapWithNewGeoref(currentGeoref)
-    changesMade = false
-    history = []
-  }
 
   $: if(selectedGeoreferencer) {
 
@@ -69,79 +59,17 @@
 
     unlockGeorefs()
     currentGeoref = null
+    changesMade = false
+    history = []
     currentGeorefVals = null
     georefQueue = []
     getGeorefsToVerify()
 
-    updateFeedbackButtonDisabledOnCountsOrSelectionChanged()
   }
 
-  $: if (georeferencerFeedbackCounts) {
-    updateFeedbackButtonDisabledOnCountsOrSelectionChanged()
-  }
 
   $: georefQueue, georefQueue.length? console.log('georef queue has', georefQueue.length, 'georefs') : console.log('no georefs in georef queue')
 
-  onMount(async _ => {
-    
-    const FirestoreUserProfiles = Firestore.collection('userProfiles')
-    let proms = []
-    for (let uid of dataset.georeferencers) {
-      if(uid != profile.uid) { //we can't verify our own georeferences
-        proms.push(FirestoreUserProfiles.doc(uid).get())
-      }
-    }
-
-    if(dataset.pastGeoreferencers && dataset.pastGeoreferencers.length) {
-      for (let uid of dataset.pastGeoreferencers) {
-        proms.push(FirestoreUserProfiles.doc(uid).get())
-      }
-    }
-
-    let userProfileSnaps = await Promise.all(proms)
-
-    for (let snap of userProfileSnaps) {
-      if(snap.exists) { //it should
-        const profile = snap.data()
-        let option = {value: profile.uid, label: profile.formattedName}
-        georeferencersOptions.push(option)
-        georeferencersDictionary[profile.uid] = profile
-      }
-    }
-
-    georeferencersOptions.unshift({value: null, label: 'all'})
-    console.log('setting initial selectedGeoreferencer')
-    selectedGeoreferencer = georeferencersOptions[0]
-
-    //set the listener on the feedback record counts
-
-    Firebase.ref(`georefVerificationFeedback/${dataset.datasetID}/${profile.uid}`)
-    .on('value', snap => {
-      if(snap.exists()) {
-        georeferencerFeedbackCounts = snap.value()
-      }
-      else {
-        georeferencerFeedbackCounts = {}
-        disableFeedbackButton = true
-      }
-    })
-  })
-
-  const updateFeedbackButtonDisabledOnCountsOrSelectionChanged = _ => {
-    if(selectedGeoreferencer.value) {
-      if(georeferencerFeedbackCounts[selectedGeoreferencer.value]) { 
-        disableFeedbackButton = false
-      }
-      else {
-        disableFeedbackButton = true
-      }
-    }
-    else {
-      if(georeferencerFeedbackCounts && georeferencerFeedbackCounts.all) {
-        disableFeedbackButton = false
-      }
-    }
-  }
   
   //This populates georefQueue and gives a currentGeoref if we don't have one
   const getGeorefsToVerify = async _ => {
@@ -212,13 +140,19 @@
 
           if(currentGeoref){
             georefQueue = [...georefQueue, georef]
-            georefIndexQueue = [...georefIndexQueue, getSimilarGeoreferences(georef.locality)]
+            let georefIndex = await getSimilarGeoreferences(georef.locality)
+            delete georefIndex[georef.georefID] 
+            georefIndexQueue = [...georefIndexQueue, georefIndex]
           }
           else {
             currentGeoref = georef
+            georefMap.setMapWithNewGeoref(currentGeoref)
+            changesMade = false
+            history = []
             currentGeorefVals = getCurrentGeorefVals(georef)
             fetchingGeorefIndex = true
             similarGeorefIndex = await getSimilarGeoreferences(georef.locality)
+            delete similarGeorefIndex[georef.georefID] 
             fetchingGeorefIndex = false
             $dataStore.georefIndex = similarGeorefIndex
           }
@@ -228,14 +162,32 @@
   }
 
   const getSimilarGeoreferences = async locality => {
+    //remove elevation, etc
+    locality = locality.replace(/(alt|elev)[:;\.]{0,1}\s+\d+(m|ft|f)/i, "").trim()
+    let elasticgeorefs
     try {
-      let { georefIndex } = await fetchCandidateGeorefs([currentGeoref.locality], elasticindex, 20)
-      return georefIndex
+      elasticgeorefs = await fetchGeorefsForLoc(locality, elasticindex, 20)
     }
     catch(err) {
       console.error(err)
       alert('error fetching similar georeferences, see console')
+      return
     }
+
+
+
+    if(elasticgeorefs.length) {
+      let georefIndex = {}
+      for (let georefdata of elasticgeorefs) {
+        let georef = Object.assign(new Georef, georefdata._source)
+        georefIndex[georef.georefID] = georef
+      }
+      return georefIndex
+    }
+    else {
+      return {}
+    }
+
   }
 
   const getCurrentGeorefVals = currentGeoref => {
@@ -292,6 +244,7 @@
     history.push(currentMapData)
     currentMapData = temp
     georefMap.updateGeorefDetails(currentMapData)
+    Object.assign(currentGeoref, currentMapData) //a sneaky here so svelte doesnt see the update!
     changesMade = true
   }
 
@@ -391,7 +344,7 @@
     if(res.ok) {
       try {
         const georefRecordUpdate = FirestoreGeorefRecords.doc(georef.georefID).update({verified: true, locked: false})
-        const georefBackupsUpdate = FirestoreGeorefs.doc(georef.georefID).set(goeoref)
+        const georefBackupsUpdate = FirestoreGeorefs.doc(georef.georefID).set(georef)
 
         await Promise.all([georefRecordUpdate, georefBackupsUpdate])
         console.log('georef', georef.georefID, 'successfully verified')
@@ -407,148 +360,76 @@
 
   //save the verified georef
   //update firebase
-  //if remarks save the map and feedback for the georeferencer
+  //if sendVerificationFeedback save the map and feedback for the georeferencer
   const handleSetGeoref = async ev => {
 
     let georef = ev.detail.georef
 
-    if(!georef.verifiedBy || !georef.verifiedDate || !georef.verifierRole) {
+    if(!georef.ambiguous && !georef.verified) {
       alert('verifiedBy, verifiedDate, and verifierRole must be added in order to verify this georeference')
       return
     }
-
+    
     let savingFeedback
-    if(changesMade && georef.sendVerificationFeedback && georef.verificationRemarks) {
+    if(georef.sendVerificationFeedback && georef.verificationRemarks) {
       //grab the map image
-      const mapCanvas = await html2canvas(georefMap)
+      let mapCanvas = null
+      if(changesMade) {
+        mapCanvas = await html2canvas(georefMap)
+      } 
       savingFeedback = saveFeedback(georef, mapCanvas) //this is now a promise...
     }
 
-    let savingGeorefVerification = updateGeoref(georef)
-    
-    //get the next one
-    if(georefQueue.length) {
-      currentGeoref = georefQueue.shift()
-      currentGeorefVals = getCurrentGeorefVals(currentGeoref)
-      getGeorefsToVerify() //get another one...
-
-      let similarGeorefIndexProm = georefIndexQueue.shift()
-      fetchingGeorefIndex = true
-      setTimeout(async _ => {
-        similarGeorefIndex = await similarGeorefIndexProm
-        $dataStore.georefIndex = similarGeorefIndex
-        fetchingGeorefIndex = false
-      }, 100)
+    let savingGeorefVerification = null
+    if(georef.verified) {
+      savingGeorefVerification = updateGeoref(georef)
     }
+     
+    //get the next one
+    getNextForValidation() //sync because this can run already while the stuff below completes
 
     let proms = []
     if(savingFeedback) {
       proms.push(savingFeedback)
     }
-    proms.push(savingGeorefVerification)
 
-    try {
-      await Promise.all(proms)
-    }
-    catch(err) {
-      console.error(err)
-      alert('There was an error saving feedback or verification, see the console')
-      return
+    if(savingGeorefVerification) {
+      proms.push(savingGeorefVerification)
     }
 
-    if(window.pushToast) {
-      window.pushToast('last georef updated')
+    if(proms.length) {
+      try {
+        await Promise.all(proms)
+      }
+      catch(err) {
+        console.error(err)
+        alert('There was an error saving feedback or verification, see the console')
+        return
+      }
+
+      if(window.pushToast) {
+        window.pushToast('last georef updated')
+      }
+      else {
+        console.log('last georef verification updated successfully')
+      }
     }
-    else {
-      console.log('last georef verification updated successfully')
-    }
+    
+    //no else here because there is nothing to be done and the user has the next georef already
     
   }
 
   const handleFlagGeoref = async ev => {
     const georefID = ev.detail
-    await flagGeoref(georefID, elasticindex)
-  }
-
-  const onDialogOkay = async message => {
-
-    if(!message || !message.trim()) {
-      alert('A feedback message is required')
-      return
-    }
-
-    //we need this so the user can't enable it again with a quick switch back in the Select
-    if(selectedGeoreferencer.value) {
-      georeferencerFeedbackCounts[selectedGeoreferencer.value] = 0
-    }
-    else {
-      georeferencerFeedbackCounts.all = 0
-    }
-    disableFeedbackButton = true
-
-    //from there the server does the work...
-    let url = 'https://us-central1-georef-745b9.cloudfunctions.net/sendfeedback'
-
-    let data = {message}
-
-    if(selectedGeoreferencer.value) {
-      data.georeferencerID = selectedGeoreferencer.value
-    }
-
-    data.reviewerID = profile.uid
-    data.datasetID = dataset.datasetID
-    
-    let res
     try {
-      let token = await Auth.currentUser.getIdToken(true);
-      
-      res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': token,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-      })
+      await flagGeoref(georefID, elasticindex)
     }
     catch(err) {
       console.error(err)
-      alert('Oops, something went wrong with calling the sendfeedback API, see the console')
+      alert('there was an error flagging the georef, see console')
       return
     }
-
-    if(!res.ok) {
-      alert('There was an issue calling the sendfeedback API with statusText', res.statusText)
-    }
-
-  }
-
-  const sendFeedback = _ => {
     
-    let dialogMessage = ""
-    if(selectedGeoreferencer.value) {
-      dialogMessage = "Send a general feedback message to " + georeferencersDictionary[selectedGeoreferencer.value].firstName
-    }
-    else {
-      dialogMessage = "Send a general feedback message to all"
-    }
-
-    //note that onOkay does the rest...
-    open(
-			Dialog,
-			{
-				message: dialogMessage,
-				hasForm: true,
-				onCancel,
-				onOkay: onDialogOkay
-			},
-			{
-				closeButton: false,
-    		closeOnEsc: false,
-    		closeOnOuterClick: false,
-			}
-	  );
-
   }
 
   const unlockGeorefs = _ => {
@@ -576,7 +457,6 @@
   }
 
   //COPIED EXACTLY FROM georef.svelte :-/
-
   const handleGeorefSelected = ev => {
 
     if($dataStore.selectedGeorefID){
@@ -589,7 +469,7 @@
       $dataStore.georefIndex[georefID].selected = true
       selectedGeoref = $dataStore.georefIndex[georefID]
       if(selectedGeoref.ambiguous) {
-        formContainer.scrollTop = 0 //to make sure the user sees the message!
+        similarGeorefContainer.scrollTop = 0 //to make sure the user sees the message!
       }
 
       let selectedMarker = $dataStore.markers[georefID]
@@ -597,10 +477,14 @@
         selectedMarker.setIcon({
           path: google.maps.SymbolPath.CIRCLE,
           scale: 5, 
-          fillColor: 'blue', 
+          fillColor: 'grey', 
           fillOpacity: 1,
-          strokeColor: 'blue'
+          strokeColor: 'grey'
         })
+
+        if (selectedMarker.circle) {
+          selectedMarker.circle.setOptions ({strokeColor: 'grey'})
+        }
         
         selectedMarker.setZIndex(1)
         selectedMarker.panToMe()
@@ -621,6 +505,11 @@
         fillOpacity: 1,
         strokeColor: 'lightgrey'
       })
+
+      if (selectedMarker.circle) {
+        selectedMarker.circle.setOptions ({strokeColor: 'lightgrey'})
+      }
+
       selectedMarker.setZIndex(0)
     }
     
@@ -628,6 +517,44 @@
       $dataStore.georefIndex[georefID].selected = false
     }
     $dataStore.selectedGeorefID = null
+  }
+
+  
+  //exported so that it can be called from parent
+  const getNextForValidation = async _ => {
+
+    if(georefQueue.length) {
+      currentGeoref = georefQueue.shift()
+      verifyGeorefContainer.scrollTop = 0
+      georefMap.setMapWithNewGeoref(currentGeoref)
+      changesMade = false
+      history = []
+      currentGeorefVals = getCurrentGeorefVals(currentGeoref)
+
+      //georefIndexQueue is a queue of promises
+      //we want to 'fake' a database fetch so the user sees the new georefIndex
+      let similarGeorefIndexProm = georefIndexQueue.shift()
+      fetchingGeorefIndex = true
+      setTimeout(async _ => {
+        similarGeorefIndex = await similarGeorefIndexProm
+        $dataStore.georefIndex = similarGeorefIndex
+        fetchingGeorefIndex = false
+      }, 100)
+    }
+
+    getGeorefsToVerify() //get another one...
+
+  }
+
+  export const skipCurrentGeoref = _ => {
+    
+    //if it's been flagged we don't want to unlock it other verifiers, otherwise...
+    if(!currentGeoref.flagged) {
+      FirestoreGeorefRecords.doc(currentGeoref.georefID).update({locked: false})
+    }
+
+    getNextForValidation()
+
   }
 
   onDestroy(unlockGeorefs)
@@ -638,12 +565,7 @@
 <!-- HTML -->
 <svelte:window on:beforeunload={confirmUnload} on:unload={handleUnload} /> <!--in case the user just closes-->
 <div on:keyup={handleKeyUp} class="qcgeoref-container">
-  <div class="header-items">
-    <div class="svelte-select">
-      <Select  items={georeferencersOptions} bind:value={selectedGeoreferencer} />
-    </div>
-    <button class="feedback-button" disabled={disableFeedbackButton} on:click={sendFeedback}>Send feedback</button>
-  </div>
+  
   {#if showNoMoreGeorefs}
     <div class="center">
       <h4>No more georeferences to verify for this dataset</h4>
@@ -660,6 +582,7 @@
             defaultGeorefBy={profile.formattedName}
             defaultGeorefByORCID={profile.orcid}
             requiredFields={['verifiedBy', 'verifiedDate', 'verifierRole']}
+            bind:this={verifyGeorefContainer}
             on:coords-from-paste={handleNewCoordsFromGeoref}
             on:uncertainty-changed={handleUncertaintyChanged}
             on:georef-flagged={handleFlagGeoref}
@@ -671,11 +594,17 @@
         {/if}
       </div>
       <div class="matchlist-container">
-        <h4>Similar georeferences</h4>
-        <div class="matchlist-flex">
-          <MatchList on:georef-selected={handleGeorefSelected}/>
-        </div>
-        <div class="matchlist-flex-plug" />
+        {#if fetchingGeorefIndex}
+          <div class="center">
+            <Loader />
+          </div>
+        {:else}
+          <h4>Similar georeferences</h4>
+          <div class="matchlist-flex">
+            <MatchList on:georef-selected={handleGeorefSelected}/>
+          </div>
+          <div class="matchlist-flex-plug" />
+        {/if}
       </div>
       <div class="matchmap-container">
         <VerifyMap 
@@ -693,6 +622,7 @@
           georef={selectedGeoref} 
           showResetButton={false}
           showSubmitButton={false} 
+          bind:this={similarGeorefContainer}
           on:georef-flagged={handleFlagGeoref}
         />
       </div>
@@ -719,35 +649,6 @@
     flex-direction: column;
     width:100%;
     height:100%;
-  }
-
-  .header-items {
-    display: flex;
-    justify-content: flex-end;
-    width: 100%;
-    position: absolute;
-    top: -50px;
-    z-index: 5;
-  }
-
-  .svelte-select {
-    flex: 0 0 20%;
-    min-width:300px;
-  }
-
-  .feedback-button {
-    font-weight:bolder;
-		color:darkslategrey;
-    background-color:lightskyblue;
-    border-radius: 2px;
-    padding:10px;
-    width: 200px;
-    margin-left:20px;
-  }
-
-  .feedback-button:disabled {
-    color: grey;
-    background-color:lightgrey;
   }
 
   .grid-container {
@@ -777,7 +678,7 @@
     position:relative;
     display: flex;
     flex-flow: column;
-    padding-right: 15px;
+    padding-right: 5px;
     overflow-y: auto;
   }
 

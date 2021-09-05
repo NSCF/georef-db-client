@@ -17,10 +17,11 @@
   let mapGeoref //the point and it's uncertainty circle on the map for the original georef coordinates and uncertainty
   let coordsPin //used for updated georef coordinates
   let newUncertaintyCircle //for updated uncertainty around the coordsPin
+  let currentGeorefs
 
   let circlesOn = true
 
-  //CODE DUPLICATE HERE IS JUST HORRENDOUS!
+  //CODE DUPLICATION HERE IS JUST HORRENDOUS!
   onMount(async _ => {
     const googleMapsAPIExists = checkGoogleMapAPIExists()
     if (!googleMapsAPIExists){
@@ -95,10 +96,6 @@
         addCoordsPin(georef.decimalCoordinates)
       }
     }
-    else { //TODO when we have regional coords, use these here
-      map.setCenter({lat: -24.321476, lng: 24.909317})
-      map.setZoom(6)
-    }
 
     georefUncertainty = georef.uncertainty
     georefUncertaintyUnit = georef.uncertaintyUnit
@@ -108,7 +105,13 @@
   //for responding to changes in the coords or uncertainty
   export const updateGeorefDetails = data => {
     if(data.decimalCoordinates) {
-      moveCoordsPin(data.decimalCoordinates)
+      if(coordsPin) {
+        moveCoordsPin(data.decimalCoordinates)
+      }
+      else {
+        addCoordsPin(data.decimalCoordinates)
+      }
+      
       if(newUncertaintyCircle) {
         moveUncertaintyCircle(data.decimalCoordinates)
       }
@@ -121,7 +124,7 @@
       georefUncertainty = data.uncertainty
       georefUncertaintyUnit = data.uncertaintyUnit
       if(newUncertaintyCircle) {
-        updateUncertaintyCircle()
+        resizeUncertaintyCircle()
       }
       else {
         const coords = coordsPin.getPosition().toUrlValue() //we might not have a data.decimalCoordinates value here
@@ -131,10 +134,19 @@
   }
 
   const addCoordsPin = coordsString => {
-    const coords = coordsString.split(',').map(x => Number(Number(x.trim()).toFixed(8)))
-    const pinLocation = {lat: coords[0], lng: coords[1]}
+    
+    let latLng
+    try {
+      latLng = makeLatLngLiteral(coordsString)
+    }
+    catch(err) {
+      console.error(`error making latLng for ${coordsString} in addCoordsPin: ${err.message}}`)
+      alert('error moving uncertainty circle, see console')
+      return
+    }
+    
     coordsPin = new google.maps.Marker({
-      position: pinLocation,
+      position: latLng,
       map: map,
       draggable: true,
       color: 'blue',
@@ -145,10 +157,9 @@
       let coords = evt.latLng.toUrlValue()
       
       if(newUncertaintyCircle) {
-        moveUncertaintyCircle(evt.latLng)
+        moveUncertaintyCircle(coords)
       }
       else {
-        
         addUncertaintyCircle(coords)
       }
 
@@ -157,9 +168,19 @@
   }
 
   const moveCoordsPin = coordsString => {
-    const coords = coordsString.split(',').map(x => Number(Number(x.trim()).toFixed(8)))
-    let pinLocation = {lat: coords[0], lng: coords[1]}
-    coordsPin.setPosition(pinLocation)
+    let latLng
+    
+    try {
+      latLng = makeLatLngLiteral(coordsString)
+    }
+    catch(err) {
+      console.error(`error making latLng for ${coordsString} in moveCoordsPin: ${err.message}}`)
+      alert('error moving uncertainty circle, see console')
+      return
+    }
+
+    coordsPin.setPosition(latLng)
+
   }
 
   const addUncertaintyCircle = coordsString => {
@@ -168,17 +189,13 @@
     }
   }
 
-  const moveUncertaintyCircle = latLng => {
-    newUncertaintyCircle.setCenter(latLng)
-  }
-
   const removeUncertaintyCircle = _ => {
     newUncertaintyCircle.setMap(null)
     newUncertaintyCircle = null
   }
 
   //this is for changes to the size of the uncertainty
-  const updateUncertaintyCircle = _ => {
+  const resizeUncertaintyCircle = _ => {
     let newUncertainty = getRadiusM(georefUncertainty, georefUncertaintyUnit)
   
     if(newUncertainty > 0) {
@@ -190,6 +207,45 @@
     else {
       removeUncertaintyCircle()
     }
+  }
+
+  const moveUncertaintyCircle = coordsString => {
+
+    let latLng
+    try {
+      latLng = makeLatLngLiteral(coordsString)
+    }
+    catch(err) {
+      console.error(`error making latLng for ${coordsString}: ${err.message}}`)
+      alert('error moving uncertainty circle, see console')
+      return
+    }
+    newUncertaintyCircle.setCenter(latLng)
+  }
+
+  const makeLatLngLiteral = coordsString => {
+    if(!coordsString || !coordsString.trim()) {
+      throw new Error('empty coords string')
+    }
+
+    const parts = coordsString.split(',').map(x => x.trim()).filter(x => x)
+
+    if(parts.length < 2) {
+      throw new Error('incomplete coords string')
+    }
+
+    if(isNaN(parts[0])) {
+      throw new Error('invalid latitude')
+    }
+
+    if(isNaN(parts[1])) {
+      throw new Error('invalid longitude ')
+    }
+
+    const latLng = {lat: Number(parts[0]), lng: Number(parts[1])}
+
+    return latLng
+
   }
 
   const addMapGeoref = georef => {
@@ -248,6 +304,7 @@
       $dataStore.markers = null
     }
   }
+
   /**
    * Sets new map markers on change of the georefIndex
    */
@@ -320,6 +377,12 @@
     }
   }
 
+  /**
+   * For creating georef markers/dots on the map
+   * @param georef
+   * @param map
+   * @param showCircle
+   */
   const createMarker = (georef, map, showCircle) => {
     if(!georef) {
       throw new Error('georef is null')
@@ -393,7 +456,7 @@
     }
   }
 
-  //THEN THIS ONE IS DIFFERENT, BECAUSE WE DON'T HAVE A PIN TO WORRY ABOUT
+  //This one is different, because we don't add/move the coordsPin, that comes the georef to verify
   const setMarkersForNewGeorefIndex = _ => {
     if(mapReady && $dataStore.georefIndex && Object.keys($dataStore.georefIndex).length && currentGeorefs != $dataStore.georefIndex) {
       clearMapMarkers()
@@ -401,8 +464,6 @@
       setMapBounds()
     }
   }
-
-  //helpers
 
   const checkGoogleMapAPIExists = _ => {
     if(window.google && typeof window.google == 'object') {
@@ -435,13 +496,19 @@
     else return 0
   }
 
-  const makeMarker = (coords, map, color, title) => {
-    console.log('adding marker')
-    let coordsParts = coords.split(',').map(x => Number(Number(x.trim()).toFixed(8)))
-    let center = new google.maps.LatLng(...coordsParts)
+  const makeMarker = (coordsString, map, color, title) => {
+    let latLng
+    try {
+      latLng = makeLatLngLiteral(coordsString)
+    }
+    catch(err) {
+      console.error(`error making latLng for ${coordsString} in makeMarker: ${err.message}}`)
+      alert('error moving uncertainty circle, see console')
+      return
+    }
 
     let marker = new google.maps.Marker({
-      position: center,
+      position: latLng,
       map,
       icon: {
         path: google.maps.SymbolPath.CIRCLE,
@@ -458,10 +525,19 @@
 
   }
 
-  const makeCircle = (coords, uncertainty, uncertaintyUnit, map, color) => {
-    let coordsParts = coords.split(',').map(x => Number(Number(x.trim()).toFixed(8)))
-    let center = new google.maps.LatLng(...coordsParts)
+  const makeCircle = (coordsString, uncertainty, uncertaintyUnit, map, color) => {
+    
     if(uncertainty && uncertaintyUnit){
+      let latLng
+      try {
+        latLng = makeLatLngLiteral(coordsString)
+      }
+      catch(err) {
+        console.error(`error making latLng for ${coordsString} in makeCircle: ${err.message}}`)
+        alert('error moving uncertainty circle, see console')
+        return
+      }
+
       let accuracy = getRadiusM(uncertainty, uncertaintyUnit)
       if(accuracy){
         let circle = new google.maps.Circle({
@@ -470,7 +546,7 @@
           strokeWeight: 2,
           fillColor: color,
           fillOpacity: 0.2,
-          center,
+          center: latLng,
           map,
           radius: accuracy, 
           clickable: false

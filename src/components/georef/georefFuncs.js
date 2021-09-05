@@ -220,7 +220,6 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
   }
 }
 
-//just a helper for above
 const fetchGeorefsForLoc = async (locString, index, limit) => {
   let search = encodeURI(locString)
   let url = `https://us-central1-georef-745b9.cloudfunctions.net/getgeorefs?search=${search}&index=${index}&noflags`
@@ -514,6 +513,7 @@ export {
   updateDatasetStats, 
   updateDatasetGeorefs,
   fetchCandidateGeorefs,
+  fetchGeorefsForLoc,
   updateGeorefRecords, 
   flagGeoref
 }

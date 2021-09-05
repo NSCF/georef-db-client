@@ -36,9 +36,9 @@ let uncertaintySelect
 export let georefProtocols = [
   'NSCF protocol',
   'SANBI georeferencing guide', 
-  'Chapman & Weiczorek 2020',
-  'Chapman & Weiczorek 2006',
-  'Weiczorek et al. 2004'
+  'Chapman & Wieczorek 2020',
+  'Chapman & Wieczorek 2006',
+  'Wieczorek et al. 2004'
 ]
 
 //TODO make prop and must come from a database
@@ -106,6 +106,11 @@ $: if (localGeoref && showVerification && localGeoref.uncertainty && localGeoref
     uncertainty: localGeoref.uncertainty,
     uncertaintyUnit: localGeoref.uncertaintyUnit
   })
+}
+
+//update verification status
+$: if (localGeoref && localGeoref.verifiedBy && localGeoref.verifiedDate && localGeoref.verifiedByRole) {
+  localGeoref.verified = true
 }
 
 //for testing
@@ -534,21 +539,23 @@ const checkAndDispatchGeoref = _ => {
           <option value="collector">
         </datalist>
       </div>
-      <div class="oneliner">
-        <div class="fields">
-          <div class="flex">
-            <label for="verifiedDate" style="padding-right:10px">verified date</label>
-            <DateInput hasBy={localGeoref.verifiedBy && localGeoref.verifiedBy.trim()} {editable} hasError={verifiedDateHasError} bind:value={localGeoref.verifiedDate} />
+      {#if editable}
+        <div class="oneliner">
+          <div class="fields">
+            <div class="flex">
+              <label for="verifiedDate" style="padding-right:10px">verified date</label>
+              <DateInput hasBy={localGeoref.verifiedBy && localGeoref.verifiedBy.trim()} {editable} hasError={verifiedDateHasError} bind:value={localGeoref.verifiedDate} />
+            </div>
           </div>
         </div>
-      </div>
-      <div>
-        <label for="veriremarks" style="width:100%;text-align:right">verification remarks</label>
-        <textarea id="veriremarks" rows="3" bind:value={localGeoref.verificationRemarks}/>
-      </div>
-      <div>
-        <Checkbox label={"Send feedback"} bind:checked={localGeoref.sendVerificationFeedback} />
-      </div>
+        <div>
+          <label for="veriremarks" style="width:100%;text-align:right">verification remarks</label>
+          <textarea id="veriremarks" rows="3" bind:value={localGeoref.verificationRemarks}/>
+        </div>
+        <div>
+          <Checkbox label={"Send feedback"} bind:checked={localGeoref.sendVerificationFeedback} />
+        </div>
+      {/if}
       <div class="hr-break">
         <hr/><hr/>
       </div>
@@ -576,15 +583,21 @@ const checkAndDispatchGeoref = _ => {
     background-color: lightgray;
   }
 
-  .georef-tool-button:hover {
+  .georef-tool-button:disabled {
+    color: lightgray;
+    background-color: whitesmoke;
+  }
+
+  .georef-tool-button:enabled:hover {
+    cursor: pointer;
     background-color:grey;
     color:white;
   }
 
   form {
     width:100%;
-    height:100%;
-    max-height:100%;
+    /* height:100%; */
+    /* max-height:100%; */
   }
 
   .form-ambiguous {
@@ -717,7 +730,7 @@ const checkAndDispatchGeoref = _ => {
 
   .georefbutton:hover:enabled{
     cursor:pointer;
-    background-color:gray;
+    background-color:lightskyblue;
     color:white;
   }
 

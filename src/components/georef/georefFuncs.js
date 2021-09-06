@@ -108,7 +108,7 @@ import { Firestore } from '../../firebase.js'
   }
 }
 
-const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
+const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit, excludeFlagged) => {
   //groupLocalities must be a set of {id: ..., loc: ... } objects
 
   if(groupLocalities && groupLocalities.length){
@@ -127,7 +127,7 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
         //do nothing
       }
 
-      elasticFetches.push(fetchGeorefsForLoc(searchLoc, elasticindex, limit))
+      elasticFetches.push(fetchGeorefsForLoc(searchLoc, elasticindex, limit, excludeFlagged))
 
     }
 
@@ -220,9 +220,14 @@ const fetchCandidateGeorefs = async (groupLocalities, elasticindex, limit) => {
   }
 }
 
-const fetchGeorefsForLoc = async (locString, index, limit) => {
+const fetchGeorefsForLoc = async (locString, index, limit, excludeFlagged) => {
   let search = encodeURI(locString)
-  let url = `https://us-central1-georef-745b9.cloudfunctions.net/getgeorefs?search=${search}&index=${index}&noflags`
+  let url = `https://us-central1-georef-745b9.cloudfunctions.net/getgeorefs?search=${search}&index=${index}`
+  
+  if (excludeFlagged) {
+    url += '&noflags'
+  }
+
   if (limit && !isNaN(limit)){
     url += `&limit=${limit}`
   }

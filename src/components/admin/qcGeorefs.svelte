@@ -1,7 +1,7 @@
 <script>
   import html2canvas from 'html2canvas'
-  import {onDestroy, createEventDispatcher, getContext} from 'svelte'
-  import {Firestore, Realtime as Firebase, ServerValue, Auth, Storage} from '../../firebase'
+  import {onMount, onDestroy} from 'svelte'
+  import {Firestore, Realtime as Firebase, ServerValue, FieldPath, Auth, Storage} from '../../firebase'
   import GeorefForm from '../georef/georefForm.svelte'
   import MatchList from '../georef/georefMatchList.svelte'
   import Loader from '../loader.svelte'
@@ -12,9 +12,6 @@
   import Toast from '../toast.svelte'
 
   import { fetchGeorefsForLoc } from '../georef/georefFuncs.js'
-
-  let dispatch = createEventDispatcher()
-  const { open } = getContext('simple-modal');
 
   const FirestoreGeorefRecords = Firestore.collection('georefRecords')
   const FirestoreGeorefs = Firestore.collection('georefBackup')
@@ -47,6 +44,21 @@
   let similarGeorefIndex
   let changesMade = false
 
+  //and for watching our place in the georef queue
+  let verifierDatasetQueuePositions
+  let verifierDatasetQueuePath
+
+  onMount(async _ => {
+    verifierDatasetQueuePath = `verifierDatasetQueuePositions/${profile.uid}/${dataset.datasetID}`
+    const snap = await Firebase.ref(verifierDatasetQueuePath).once('value')
+    if(snap.exists()) {
+      verifierDatasetQueuePositions = snap.val()
+    }
+    else {
+      verifierDatasetQueuePositions = null
+    }
+  })
+
 
   $: if(dataset) {
     elasticindex = (dataset.region + dataset.domain).toLowerCase().replace(/\s+/g, '')
@@ -57,13 +69,7 @@
 
     console.log('fetching georefs on selectedGeoreferencer change...')
 
-    unlockGeorefs()
-    currentGeoref = null
-    changesMade = false
-    history = []
-    currentGeorefVals = null
-    georefQueue = []
-    getGeorefsToVerify()
+    resetQCGeoref()
 
   }
 
@@ -73,22 +79,44 @@
   
   //This populates georefQueue and gives a currentGeoref if we don't have one
   const getGeorefsToVerify = async _ => {
-    console.log('running getGeorefsToVerify')
+
     while (!noMoreGeorefs && georefQueue.length < desiredQueueLength) {
             
       let query = FirestoreGeorefRecords
         .where('datasetIDs', 'array-contains', dataset.datasetID)
         .where('verified', '==', false)
         .where('locked', '==', false)
+        .orderBy(FieldPath.documentId())
 
       if(selectedGeoreferencer.value) {
         console.log('filtering georefs for user', selectedGeoreferencer.value)
         query = query.where('createdByID', '==', selectedGeoreferencer.value)
       }
-      else {
-        console.log('not filtering georefs for any user')
-      }
 
+      //use the queue position
+      if(verifierDatasetQueuePositions) {
+        if(selectedGeoreferencer.value) {
+          if(verifierDatasetQueuePositions[selectedGeoreferencer.value]) {
+            if(currentGeoref) {
+              query = query.startAfter(verifierDatasetQueuePositions[selectedGeoreferencer.value])
+            }
+            else {
+              query = query.startAt(verifierDatasetQueuePositions[selectedGeoreferencer.value])
+            }
+          }
+        }
+        else {
+          if (verifierDatasetQueuePositions.all) {
+            if(currentGeoref) {
+              query = query.startAfter(verifierDatasetQueuePositions.all)
+            }
+            else {
+              query = query.startAt(verifierDatasetQueuePositions.all)
+            }
+          }
+        }
+      }
+      
       query = query.limit(1)
 
       let querySnap
@@ -140,9 +168,7 @@
 
           if(currentGeoref){
             georefQueue = [...georefQueue, georef]
-            let georefIndex = await getSimilarGeoreferences(georef.locality)
-            delete georefIndex[georef.georefID] 
-            georefIndexQueue = [...georefIndexQueue, georefIndex]
+            georefIndexQueue = [...georefIndexQueue, getSimilarGeoreferences(georef.locality)]
           }
           else {
             currentGeoref = georef
@@ -166,7 +192,7 @@
     locality = locality.replace(/(alt|elev)[:;\.]{0,1}\s+\d+(m|ft|f)/i, "").trim()
     let elasticgeorefs
     try {
-      elasticgeorefs = await fetchGeorefsForLoc(locality, elasticindex, 20)
+      elasticgeorefs = await fetchGeorefsForLoc(locality, elasticindex, 20, false)
     }
     catch(err) {
       console.error(err)
@@ -210,6 +236,16 @@
     return vals
   }
 
+  const resetQCGeoref = async _ => {
+    await unlockGeorefs()
+    currentGeoref = null
+    changesMade = false
+    history = []
+    currentGeorefVals = null
+    georefQueue = []
+    getGeorefsToVerify()
+  }
+
   //for undoing coordinate changes on the georef being verified
   const handleKeyUp = ev => {
     if (ev.code == 'KeyZ' && (ev.ctrlKey || ev.metaKey)) {
@@ -239,7 +275,7 @@
     changesMade = true
   }
 
-  const handleUncertaintyChanged = ev => {
+  const handleGeorefChanged = ev => {
     let temp = ev.detail
     history.push(currentMapData)
     currentMapData = temp
@@ -363,7 +399,8 @@
   //if sendVerificationFeedback save the map and feedback for the georeferencer
   const handleSetGeoref = async ev => {
 
-    let georef = ev.detail.georef
+    let georef = ev.detail
+    console.log(georef)
 
     if(!georef.ambiguous && !georef.verified) {
       alert('verifiedBy, verifiedDate, and verifierRole must be added in order to verify this georeference')
@@ -432,14 +469,27 @@
     
   }
 
-  const unlockGeorefs = _ => {
+  const unlockGeorefs = async _ => {
     if(georefQueue.length || currentGeoref) {
-      let ids = georefQueue.map(x => x.georefID)
+      /* let ids = georefQueue.map(x => x.georefID)
       if(currentGeoref){
         ids.push(currentGeoref.georefID)
       }
 
       navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updateVerifyGeorefLock?georefids=${ids.join(',')}`, '')
+      */
+    
+      let proms = []
+      if(currentGeoref) {
+        const update = FirestoreGeorefRecords.doc(currentGeoref.georefID).update({locked:false})
+        proms.push(update)
+      }
+      for(let georef of georefQueue) {
+        const update = FirestoreGeorefRecords.doc(georef.georefID).update({locked:false})
+        proms.push(update)
+      }
+
+      await Promise.all(proms)
 
     }
   }
@@ -531,6 +581,32 @@
       history = []
       currentGeorefVals = getCurrentGeorefVals(currentGeoref)
 
+      //update the queue positions
+      if(verifierDatasetQueuePositions) {
+        if(selectedGeoreferencer.value) {
+          verifierDatasetQueuePositions[selectedGeoreferencer.value] = currentGeoref.georefID
+          Firebase.ref(verifierDatasetQueuePath).child(selectedGeoreferencer.value).set(currentGeoref.georefID)
+        }
+        else {
+          verifierDatasetQueuePositions.all = currentGeoref.georefID
+          Firebase.ref(verifierDatasetQueuePath).child('all').set(currentGeoref.georefID)
+        }
+      }
+      else {
+        if(selectedGeoreferencer.value) {
+          verifierDatasetQueuePositions = {
+            [selectedGeoreferencer.value]: currentGeoref.georefID
+          }
+          Firebase.ref(verifierDatasetQueuePath).child(selectedGeoreferencer.value).set(currentGeoref.georefID)
+        }
+        else {
+          verifierDatasetQueuePositions = {
+            all: currentGeoref.georefID
+          }
+          Firebase.ref(verifierDatasetQueuePath).child('all').set(currentGeoref.georefID)
+        }
+      }
+
       //georefIndexQueue is a queue of promises
       //we want to 'fake' a database fetch so the user sees the new georefIndex
       let similarGeorefIndexProm = georefIndexQueue.shift()
@@ -547,14 +623,32 @@
   }
 
   export const skipCurrentGeoref = _ => {
-    
-    //if it's been flagged we don't want to unlock it other verifiers, otherwise...
-    if(!currentGeoref.flagged) {
-      FirestoreGeorefRecords.doc(currentGeoref.georefID).update({locked: false})
+    if(currentGeoref) {
+      //if it's been flagged we don't want to unlock it other verifiers, otherwise...
+      if(!currentGeoref.flagged) {
+        FirestoreGeorefRecords.doc(currentGeoref.georefID).update({locked: false})
+      }
+
+      getNextForValidation()
     }
 
-    getNextForValidation()
+  }
 
+  export const resetQueuePosition = _ => {
+    console.log('running reset queue position')
+    if(verifierDatasetQueuePositions) {
+      if(selectedGeoreferencer.value) {
+        delete verifierDatasetQueuePositions[selectedGeoreferencer.value]
+        Firebase.ref(verifierDatasetQueuePath).child(selectedGeoreferencer.value).remove()
+      }
+      else {
+        delete verifierDatasetQueuePositions.all
+        Firebase.ref(verifierDatasetQueuePath).child('all').remove()
+      }
+    }
+
+    resetQCGeoref()
+    
   }
 
   onDestroy(unlockGeorefs)
@@ -584,7 +678,8 @@
             requiredFields={['verifiedBy', 'verifiedDate', 'verifierRole']}
             bind:this={verifyGeorefContainer}
             on:coords-from-paste={handleNewCoordsFromGeoref}
-            on:uncertainty-changed={handleUncertaintyChanged}
+            on:uncertainty-changed={handleGeorefChanged}
+            on:locality-changed={handleGeorefChanged}
             on:georef-flagged={handleFlagGeoref}
             on:set-georef={handleSetGeoref} />
         {:else}
@@ -666,11 +761,6 @@
     border: 2px solid #bcd0ec;
   }
 
-  .current-georef-container {
-    grid-column: 1/2;
-    grid-row: 1 / 3;
-  }
-
   .georef-form-container {
     height:100%;
     max-height:100%;
@@ -680,6 +770,12 @@
     flex-flow: column;
     padding-right: 5px;
     overflow-y: auto;
+  }
+
+  .current-georef-container {
+    grid-column: 1/2;
+    grid-row: 1 / 3;
+    padding-right:15px;
   }
 
   .matchlist-container {

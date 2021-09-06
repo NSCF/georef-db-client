@@ -108,6 +108,13 @@ $: if (localGeoref && showVerification && localGeoref.uncertainty && localGeoref
   })
 }
 
+//for dispatching locality during verification
+$: if (localGeoref && showVerification && localGeoref.locality ) {
+  dispatch('locality-changed',  {
+    locality: localGeoref.locality
+  })
+}
+
 //update verification status
 $: if (localGeoref && localGeoref.verifiedBy && localGeoref.verifiedDate && localGeoref.verifiedByRole) {
   localGeoref.verified = true

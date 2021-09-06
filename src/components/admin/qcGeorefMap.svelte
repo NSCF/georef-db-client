@@ -96,6 +96,11 @@
         addCoordsPin(georef.decimalCoordinates)
       }
     }
+    else {
+      if(coordsPin) {
+        removeCoordsPin()
+      }
+    }
 
     georefUncertainty = georef.uncertainty
     georefUncertaintyUnit = georef.uncertaintyUnit
@@ -181,6 +186,11 @@
 
     coordsPin.setPosition(latLng)
 
+  }
+
+  const removeCoordsPin = _ => {
+    coordsPin.setMap = null
+    coordsPin = null
   }
 
   const addUncertaintyCircle = coordsString => {

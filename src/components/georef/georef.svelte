@@ -315,7 +315,7 @@
       
       let candidateGeorefs
       try {
-        candidateGeorefs = await fetchCandidateGeorefs($dataStore.recordGroup.groupLocalities, elasticindex, georefsPerLocString)
+        candidateGeorefs = await fetchCandidateGeorefs($dataStore.recordGroup.groupLocalities, elasticindex, georefsPerLocString, true)
       }
       catch(err) {
         console.error('error fetching georefs:', err.message)
@@ -669,7 +669,7 @@
     }
     $dataStore.selectedGeorefID = null
   }
-
+  
   //this is the heavy lifting
   const handleSetGeoref = async ev => {
     //confirm required fields...

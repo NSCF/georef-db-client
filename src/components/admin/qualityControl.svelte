@@ -1,13 +1,14 @@
 <script>
 
-  import {onMount, createEventDispatcher} from 'svelte'
+  import {onMount, createEventDispatcher, getContext} from 'svelte'
   import {Firestore, Realtime as Firebase} from '../../firebase'
   import Select from 'svelte-select'
   import QCGeorefs from './qcGeorefs.svelte'
   import Dialog from '../Dialog.svelte'
 
   const dispatch = createEventDispatcher()
-  
+  const { open } = getContext('simple-modal');
+
   export let profile
   export let dataset
 
@@ -56,7 +57,6 @@
     selectedGeoreferencer = georeferencersOptions[0]
 
     //set the listener on the feedback record counts
-
     Firebase.ref(`georefVerificationFeedback/${dataset.datasetID}/${profile.uid}`)
     .on('value', snap => {
       if(snap.exists()) {
@@ -172,6 +172,12 @@
     }
   }
 
+  const restartQueuePosition = _ => {
+    if(qcGeorefs) {
+      qcGeorefs.resetQueuePosition()
+    }
+  }
+
   const handleBackToDatasets = _ => {
     dispatch('to-datasets')
   }
@@ -184,6 +190,9 @@
   <div class="tools-container">
     <button class="dataset-tool" title="back to datasets" on:click={handleBackToDatasets}>
       <span class="material-icons">list</span>
+    </button>
+    <button class="dataset-tool" title="restart queue" on:click={restartQueuePosition}>
+      <span class="material-icons">low_priority</span>
     </button>
     <button class="dataset-tool" title="skip this validation" on:click={handleSkipValidation}>
       <span class="material-icons">skip_next</span>

@@ -132,7 +132,7 @@
             let data = snap.data()
             let add = userDatasets.doc(profile.uid).set(data)
             let del = userDatasets.doc(profile.searchEmail).delete()
-            await Promise.all(add, del)
+            await Promise.all([add, del])
           }
         }
         catch(err) {

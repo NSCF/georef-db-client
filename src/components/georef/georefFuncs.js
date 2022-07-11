@@ -450,9 +450,11 @@ const updateGeorefRecords = async (Firestore, FieldValue, georef, datasetID, rec
           decimalLongitude: georef.decimalLongitude || null,
           locked: false,
           verified: false,
-          datasets: {[datasetID]: recordIDs},
+          records: {[datasetID]: recordIDs},
           datasetIDs: [datasetID],
           recordCount: recordIDs.length,
+          createdByID: georef.createdByID, 
+          dateCreated: georef.dateCreated
         }
   
         transaction.set(ref, georefRecord)
@@ -463,14 +465,21 @@ const updateGeorefRecords = async (Firestore, FieldValue, georef, datasetID, rec
         
         let update = {}
         update.datasetIDs = FieldValue.arrayUnion(datasetID)
-        update.datasets = {}
-        if(georefRecord.datasets && georefRecord.datasets[datasetID]) {
-          update.datasets[datasetID] = FieldValue.arrayUnion(...recordIDs)
-          georefRecord.datasets[datasetID] = [...georefRecord.datasets[datasetID], ...recordIDs]
+        update.records = {}
+        if(georefRecord.records) {
+          if(georefRecord.records[datasetID]) {
+            update.records[datasetID] = FieldValue.arrayUnion(...recordIDs)
+            georefRecord.records[datasetID] = [...georefRecord.records[datasetID], ...recordIDs]
+          }
+          else {
+            update.records[datasetID] = recordIDs
+            georefRecord.records[datasetID] = recordIDs
+          }
         }
         else {
-          update.datasets[datasetID] = recordIDs
-          georefRecord.datasets[datasetID]
+          update.records[datasetID] = recordIDs
+          georefRecord.records = {}
+          georefRecord.records[datasetID] = recordIDs
         }
 
         //it's safer to do this, since we have the object, than to increment on recordIDs, because we don't know what the result of arrayUnion will be

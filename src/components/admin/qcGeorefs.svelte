@@ -7,9 +7,11 @@
   import Loader from '../loader.svelte'
   import VerifyMap from './qcGeorefMap.svelte'
   import Georef from '../georef/Georef'
+  import Toast from '../toast.svelte'
+
+  import {getNextGeorefToVerify} from './qcGeorefFunctions'
   import { flagGeoref } from '../georef/georefFuncs.js'
   import { dataStore } from '../georef/dataStore.js'
-  import Toast from '../toast.svelte'
 
   import { fetchGeorefsForLoc } from '../georef/georefFuncs.js'
 
@@ -44,18 +46,18 @@
   let similarGeorefIndex
   let changesMade = false
 
-  //and for watching our place in the georef queue
-  let verifierDatasetQueuePositions
-  let verifierDatasetQueuePath
+  //and for keeping our place in the georef queue
+  let queuePositions
+  let queuePath
 
   onMount(async _ => {
-    verifierDatasetQueuePath = `verifierDatasetQueuePositions/${profile.uid}/${dataset.datasetID}`
-    const snap = await Firebase.ref(verifierDatasetQueuePath).once('value')
+    queuePath = `verifierDatasetQueuePositions/${profile.uid}/${dataset.datasetID}`
+    const snap = await Firebase.ref(queuePath).once('value')
     if(snap.exists()) {
-      verifierDatasetQueuePositions = snap.val()
+      queuePositions = snap.val()
     }
     else {
-      verifierDatasetQueuePositions = null
+      queuePositions = null
     }
   })
 
@@ -81,52 +83,38 @@
   const getGeorefsToVerify = async _ => {
 
     while (!noMoreGeorefs && georefQueue.length < desiredQueueLength) {
-            
-      let query = FirestoreGeorefRecords
-        .where('datasetIDs', 'array-contains', dataset.datasetID)
-        .where('verified', '==', false)
-        .where('locked', '==', false)
-        .orderBy(FieldPath.documentId())
 
-      if(selectedGeoreferencer.value) {
-        console.log('filtering georefs for user', selectedGeoreferencer.value)
-        query = query.where('createdByID', '==', selectedGeoreferencer.value)
+      let atOrAfter = 'startAt'
+      if(currentGeoref) {
+        atOrAfter = 'startAfter'
       }
 
-      //use the queue position
-      if(verifierDatasetQueuePositions) {
-        if(selectedGeoreferencer.value) {
-          if(verifierDatasetQueuePositions[selectedGeoreferencer.value]) {
-            if(currentGeoref) {
-              query = query.startAfter(verifierDatasetQueuePositions[selectedGeoreferencer.value])
-            }
-            else {
-              query = query.startAt(verifierDatasetQueuePositions[selectedGeoreferencer.value])
-            }
-          }
+      let searchDocSnap = null
+      if(queuePositions) {
+        if(selectedGeoreferencer != null) {
+          searchDocSnap = queuePositions[selectedGeoreferencer.uid]
         }
         else {
-          if (verifierDatasetQueuePositions.all) {
-            if(currentGeoref) {
-              query = query.startAfter(verifierDatasetQueuePositions.all)
-            }
-            else {
-              query = query.startAt(verifierDatasetQueuePositions.all)
-            }
-          }
+          searchDocSnap = queuePositions.all
         }
       }
       
-      query = query.limit(1)
-
-      let querySnap
+      let georefDocSnap
       try {
-        querySnap = await query.get()
+
+        georefDocSnap = getNextGeorefToVerify(dataset.datasetID, selectedGeoreferencer?.uid, atOrAfter, searchDocSnap)
+
       }
       catch(err) {
-        console.error('Error reading georefRecords:')
-        console.error(err)
-        return
+        console.error(err.message)
+        continue
+      }
+
+      if(georefDocSnap) {
+
+      }
+      else {
+        noMoreGeorefs = true
       }
 
       if(querySnap.empty) {
@@ -582,28 +570,28 @@
       currentGeorefVals = getCurrentGeorefVals(currentGeoref)
 
       //update the queue positions
-      if(verifierDatasetQueuePositions) {
+      if(queuePositions) {
         if(selectedGeoreferencer.value) {
-          verifierDatasetQueuePositions[selectedGeoreferencer.value] = currentGeoref.georefID
-          Firebase.ref(verifierDatasetQueuePath).child(selectedGeoreferencer.value).set(currentGeoref.georefID)
+          queuePositions[selectedGeoreferencer.value] = currentGeoref.georefID
+          Firebase.ref(queuePath).child(selectedGeoreferencer.value).set(currentGeoref.georefID)
         }
         else {
-          verifierDatasetQueuePositions.all = currentGeoref.georefID
-          Firebase.ref(verifierDatasetQueuePath).child('all').set(currentGeoref.georefID)
+          queuePositions.all = currentGeoref.georefID
+          Firebase.ref(queuePath).child('all').set(currentGeoref.georefID)
         }
       }
       else {
         if(selectedGeoreferencer.value) {
-          verifierDatasetQueuePositions = {
+          queuePositions = {
             [selectedGeoreferencer.value]: currentGeoref.georefID
           }
-          Firebase.ref(verifierDatasetQueuePath).child(selectedGeoreferencer.value).set(currentGeoref.georefID)
+          Firebase.ref(queuePath).child(selectedGeoreferencer.value).set(currentGeoref.georefID)
         }
         else {
-          verifierDatasetQueuePositions = {
+          queuePositions = {
             all: currentGeoref.georefID
           }
-          Firebase.ref(verifierDatasetQueuePath).child('all').set(currentGeoref.georefID)
+          Firebase.ref(queuePath).child('all').set(currentGeoref.georefID)
         }
       }
 
@@ -636,14 +624,14 @@
 
   export const resetQueuePosition = _ => {
     console.log('running reset queue position')
-    if(verifierDatasetQueuePositions) {
+    if(queuePositions) {
       if(selectedGeoreferencer.value) {
-        delete verifierDatasetQueuePositions[selectedGeoreferencer.value]
-        Firebase.ref(verifierDatasetQueuePath).child(selectedGeoreferencer.value).remove()
+        delete queuePositions[selectedGeoreferencer.value]
+        Firebase.ref(queuePath).child(selectedGeoreferencer.value).remove()
       }
       else {
-        delete verifierDatasetQueuePositions.all
-        Firebase.ref(verifierDatasetQueuePath).child('all').remove()
+        delete queuePositions.all
+        Firebase.ref(queuePath).child('all').remove()
       }
     }
 

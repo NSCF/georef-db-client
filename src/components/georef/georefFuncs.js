@@ -441,6 +441,8 @@ const updateGeorefRecords = async (Firestore, FieldValue, georef, datasetID, rec
       let ref = Firestore.collection('georefRecords').doc(georef.georefID)
       let docSnap = await transaction.get(ref)
       if (!docSnap.exists) {
+        const records = {}
+        records[datasetID] = recordIDs
         let georefRecord = {
           georefID: georef.georefID,
           country: georef.country,
@@ -450,7 +452,7 @@ const updateGeorefRecords = async (Firestore, FieldValue, georef, datasetID, rec
           decimalLongitude: georef.decimalLongitude || null,
           locked: false,
           verified: false,
-          records: {[datasetID]: recordIDs},
+          records,
           datasetIDs: [datasetID],
           recordCount: recordIDs.length,
           createdByID: georef.createdByID, 
@@ -484,7 +486,7 @@ const updateGeorefRecords = async (Firestore, FieldValue, georef, datasetID, rec
 
         //it's safer to do this, since we have the object, than to increment on recordIDs, because we don't know what the result of arrayUnion will be
         let updatedCount = 0
-        for (let recordIDs of Object.values(georefRecord.datasets)) {
+        for (let recordIDs of Object.values(georefRecord.records)) {
           updatedCount += recordIDs.length
         }
 

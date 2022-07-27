@@ -9,7 +9,7 @@
 
   let busy = false
 
-  let first, middle, last, inst, orcid, email, pwd, confPwd
+  let first, middle, last, inst, orcid, email, pwd, confPwd = null
   let instAbbrev = ''
   let userInstAbbrev
   let noInstAbbrev = false

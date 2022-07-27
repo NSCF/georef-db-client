@@ -102,12 +102,16 @@
       let georefDocSnap
       try {
 
+<<<<<<< HEAD
         let selectedGeoreferencerID = null
         if(selectedGeoreferencer) {
           selectedGeoreferencerID = selectedGeoreferencer.uid
         }
 
         georefDocSnap = getNextGeorefToVerify(dataset.datasetID, selectedGeoreferencerID, atOrAfter, searchDocSnap)
+=======
+        georefDocSnap = getNextGeorefToVerify(dataset.datasetID, selectedGeoreferencer?.uid, atOrAfter, searchDocSnap)
+>>>>>>> ca47a9eff7d46a4e252e7a557ef4226dcf2f0923
 
       }
       catch(err) {

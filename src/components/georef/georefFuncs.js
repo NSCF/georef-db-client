@@ -452,7 +452,11 @@ const updateGeorefRecords = async (Firestore, FieldValue, georef, datasetID, rec
           decimalLongitude: georef.decimalLongitude || null,
           locked: false,
           verified: false,
+<<<<<<< HEAD
           records,
+=======
+          records: {[datasetID]: recordIDs},
+>>>>>>> ca47a9eff7d46a4e252e7a557ef4226dcf2f0923
           datasetIDs: [datasetID],
           recordCount: recordIDs.length,
           createdByID: georef.createdByID, 

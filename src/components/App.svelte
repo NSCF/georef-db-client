@@ -55,17 +55,19 @@
 	onMount(_ => {
 		//hopefully this is triggered when we open the page again and sign in is persisted
 		Auth.onAuthStateChanged(async user => {
-			//TODO wait to get it from the registration dispatch
-			fbUser = user
-			if(user){
-				//this
+
+			if(user){ //it's a sign in
+				
+				fbUser = user
+				userID = user.uid
+
 				if(window.location.href.includes('/auth/userMgmt')) {
 					window.location = window.location.href.split('/auth/userMgmt')[0]
 				} 
 				else {
 					//wait one moment for the dispatch to catch up if this is new registration
 					setTimeout( async _ => {
-						if(!profile){
+						if(!profile){ //this is a sign in
 							try {
 								let snap = await Firestore.collection('userProfiles').doc(user.uid).get()
 								if (snap.exists){
@@ -83,14 +85,46 @@
 								alert('error fetching user profile: ' + err.message) //hopefully also doesn't happen
 							}
 						}
+						else { //this is a sign up
+
+							//add the uid
+							profile.uid = user.uid
+
+							//create the profile
+							try {
+								await Firestore.collection('userProfiles').doc(profile.uid).set(profile)
+							}
+							catch(err) {
+								alert('Error saving profile: ' + err.message)
+								return
+							}
+
+							//update any invited datasets for this user
+							let userDatasets = Firestore.collection('userDatasets')
+							try {
+								let snap = await userDatasets.doc(profile.searchEmail).get()
+								if(snap.exists) {
+									let data = snap.data()
+									let add = userDatasets.doc(profile.uid).set(data)
+									let del = userDatasets.doc(profile.searchEmail).delete()
+									await Promise.all([add, del])
+								}
+							}
+							catch(err) {
+								alert('Error updating invited datasets for this user: ' + err.message)
+								return
+							}
+
+						}
 
 						//record the person as signed in
-						await Firestore.collection('usersSignedIn').doc('users').update({uids: FieldValue.arrayUnion(profile.uid)})
+						await Firestore.collection('usersSignedIn').doc('users').update({uids: FieldValue.arrayUnion(user.uid)})
+						currentPage = 'Home'// TODO this must go back to previous page the user was on
 
 					}, 100)
 				}
 			}
-			else {
+			else { //it's s sign out
 				profile = null
 				userID = null
 				firstAuth = true
@@ -146,9 +180,10 @@
 	}
 
 	function handleSignInSuccess(ev){
-		let user = ev.detail.userCredential.user
-		userID = user.uid
-		profile = ev.detail.profile
+		if(ev.detail) {
+			profile = ev.detail
+		}
+		
 	}
 
 	function signOutClick () {

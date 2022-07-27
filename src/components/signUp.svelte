@@ -9,7 +9,7 @@
 
   let busy = false
 
-  let first, middle, last, inst, orcid, email, pwd, confPwd = null
+  let first, middle, last, inst, orcid, email, pwd, confPwd
   let instAbbrev = ''
   let userInstAbbrev
   let noInstAbbrev = false
@@ -34,7 +34,6 @@
   const updateFormattedName = _ => {
     
     if(last && last.trim()) {
-      console.log('updating formatted name')
       let initials = []
       if(first && first.trim()) {
         initials.push(first[0].toUpperCase())
@@ -94,55 +93,22 @@
         }
       }
 
-      Auth.createUserWithEmailAndPassword(email, pwd)
-      .then(async userCredential => {
-        // Signed in 
-        //create the profile
-        let user = userCredential.user
-        
-        //we need the standardized search email
-        let searchEmail = email.replace(/[@\.\s]+/g, '').toLowerCase() //we don't need the @ again because we only use this for search
-        let profile = {
-          uid: user.uid,
-          firstName: first,
-          middleName: middle || null,
-          lastName: last,
-          formattedName, 
-          institution: inst || null,
-          orcid, 
-          email,
-          searchEmail, 
-          dateCreated: Date.now()
-        }
+      let searchEmail = email.replace(/[@\.\s]+/g, '').toLowerCase() //we don't need the @ again because we only use this for search
+      let profile = {
+        firstName: first,
+        middleName: middle || null,
+        lastName: last,
+        formattedName, 
+        institution: inst || null,
+        orcid: orcid || null, 
+        email,
+        searchEmail, 
+        dateCreated: Date.now()
+      }
 
-        //create the profile
-        try {
-          Firestore.collection('userProfiles').doc(profile.uid).set(profile)
-        }
-        catch(err) {
-          alert('Error saving profile: ' + err.message)
-          return
-        }
+      dispatch('user-sign-in', profile)
 
-        //update any invited datasets for this user
-        let userDatasets = Firestore.collection('userDatasets')
-        try {
-          let snap = await userDatasets.doc(profile.searchEmail).get()
-          if(snap.exists) {
-            let data = snap.data()
-            let add = userDatasets.doc(profile.uid).set(data)
-            let del = userDatasets.doc(profile.searchEmail).delete()
-            await Promise.all([add, del])
-          }
-        }
-        catch(err) {
-          alert('Error updating invited datasets for this user: ' + err.message)
-          return
-        }
-
-        dispatch('user-sign-in', {userCredential, profile})
-
-      })  
+      Auth.createUserWithEmailAndPassword(email, pwd) //this triggers onAuthStateChanged
       .catch((error) => {
         switch (error.code) {
           case 'auth/email-already-in-use':

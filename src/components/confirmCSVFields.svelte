@@ -222,10 +222,11 @@ function handleStartOver(){
 <!-- ############################################################# -->
 <style>
   .confirmfield-container {
+    height: 100%;
     overflow-y: auto;
-    margin-bottom:100px;
   }
-h2 {
+
+  h2 {
 		color: #ff3e00;
 		text-transform: uppercase;
 		font-size: 2em;

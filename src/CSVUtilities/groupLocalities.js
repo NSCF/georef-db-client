@@ -11,7 +11,8 @@ const groupLocalities = async (groupingSource, datasetID, country, stateProvince
     
     let textPackURL = 'https://us-central1-georefmaps.cloudfunctions.net/grouplocalities '
     
-    console.log(`grouping localities for ${country}${stateProvince? ':' + stateProvince : ''}`)
+    //console.log(`grouping localities for ${country}${stateProvince? ':' + stateProvince : ''}`)
+    
     let response
     
     try {

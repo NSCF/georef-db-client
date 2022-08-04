@@ -54,8 +54,6 @@ else {
   regionInvalidCountries = []
 }
 
-$: domain, contactName, email, datasetName, console.log({contactName,email, datasetName, collectionCode, region: region? region.value : null, domain: domain? domain.value : null})
-
 onMount(async _ => {
   console.log('fetch georef regions')
   let snap = await Realtime.ref('settings/georefRegions').once('value')

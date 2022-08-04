@@ -114,7 +114,7 @@ const getDatasets = async _ => {
   datasetsFetched = false //this is a reset
 
   if(focalDatasetIDs && focalDatasetIDs.length) { //we have dataset IDs
-    let searchDatasetIDs = focalDatasetIDs.slice(lastDatasetIDIndex, fetchSize)
+    let searchDatasetIDs = focalDatasetIDs.slice(lastDatasetIDIndex, lastDatasetIDIndex + fetchSize)
     if(searchDatasetIDs.length) {
       try {
         let res = await fetchDatasets(searchDatasetIDs)

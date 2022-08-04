@@ -841,7 +841,7 @@
           <button class="dataset-tool" title="download georefs only" on:click={handleDownloadGeorefs}>
             <span class="material-icons">download_for_offline</span>
           </button>
-          <button class="dataset-tool" title="quality control" on:click={_=> dispatch('quality-control')}>
+          <button class="dataset-tool" title="quality control" on:click={_=> dispatch('quality-control')} hidden>
             <span class="material-icons-outlined">inventory</span>
           </button>
           <button class="dataset-tool" title="clear locked record groups" on:click={clearLockedRecordGroups}>

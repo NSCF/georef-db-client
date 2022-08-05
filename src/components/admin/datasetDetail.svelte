@@ -505,7 +505,7 @@
     }
     let update = {
       lastDownload: {
-        downloadDate: Date.now(),
+        downloadDate: FieldValue.serverTimestamp(),
         downloadBy: profile.formattedName,
         downloadType
       }

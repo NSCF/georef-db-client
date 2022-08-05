@@ -3,6 +3,7 @@
   import { Realtime } from '../../firebase.js';
   import LineChart from '../LineChart.svelte';
   import Loader from '../loader.svelte';
+  import { getSafeTime } from '../../../src/utilities.js'
 
   export let dataset
 
@@ -20,9 +21,17 @@
     ];
 
   onMount(async _ => {
+
+    let timeNow = null
+    try {
+      timeNow = await getSafeTime()
+    }
+    catch(err) {
+      throw err
+    }
     
     //work out if we must show days or weeks to start
-    let now = Date.now()
+    let now = timeNow
     let diff = now - dataset.dateCreated
     let daysdiff = diff / (1000*60*60*24)
     if (daysdiff < 21) {

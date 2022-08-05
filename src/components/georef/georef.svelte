@@ -3,7 +3,9 @@
   import { nanoid } from "nanoid" //see https://github.com/ai/nanoid/issues/237
   import Toggle from "svelte-toggle";
 
-  import { Firestore, Realtime as Firebase, FieldValue } from '../../firebase.js'
+  import { Firestore, Realtime as Firebase, ServerValue, FieldValue } from '../../firebase.js'
+
+  import { getSafeTime } from '../../utilities.js';
 
   import {
     getNextAvailableRecordGroup,
@@ -430,7 +432,7 @@
           //if we sent this again we'd be falsely incrementing georefRecord.recordCount
         }
 
-        proms.push(updateGeorefStats(Firebase, georefsAdded, recordsGeoreferenced, profile.uid, profile.formattedName, dataset.datasetID, groupComplete))
+        proms.push(updateGeorefStats(Firebase, ServerValue, georefsAdded, recordsGeoreferenced, profile.uid, profile.formattedName, dataset.datasetID, groupComplete))
         proms.push(updateDatasetStats(Firestore, datasetRef, recordsGeoreferenced, profile.formattedName, groupComplete))
         proms.push(updateDatasetGeorefs(Firestore, FieldValue, dataset.datasetID, datasetGeorefsUsed))
         
@@ -719,6 +721,14 @@
       }
 
       datasetGeorefsUsed.push(georef.georefID)
+
+      let timeNow = null
+      try {
+        timeNow = await getSafeTime()
+      }
+      catch(err) {
+        throw err
+      }
       
       //update each locality with the georef details
       for (let loc of selectedLocs){
@@ -726,7 +736,7 @@
         loc.georefBy = profile.formattedName
         loc.georefByUID = profile.uid
         loc.georefByID = profile.orcid || null
-        loc.georefDate = Date.now()
+        loc.georefDate = timeNow
         if(selectedLocGeorefRemarks) {
           loc.georefRemarks = selectedLocGeorefRemarks
         }
@@ -823,6 +833,7 @@
   }
 
   const handleBookmarkRecordGroup = async ev => {
+  
     let recordGroupID = $dataStore.recordGroupSnap.id
     ev.currentTarget.disabled = true;
 
@@ -839,7 +850,7 @@
           bookmarked: true,
           bookmarkedBy: profile.formattedName,
           bookmarkedByUID: profile.uid,
-          bookmarkedDate: Date.now()
+          bookmarkedDate: FieldValue.serverTimestamp()
         })
       }
       catch(err) {
@@ -873,7 +884,7 @@
           bookmarked: true,
           bookmarkedBy: profile.formattedName,
           bookmarkedByUID: profile.uid,
-          bookmarkedDate: Date.now()
+          bookmarkedDate: FieldValue.serverTimestamp()
         })
       }
       catch(err) {

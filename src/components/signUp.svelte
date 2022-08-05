@@ -102,8 +102,7 @@
         institution: inst || null,
         orcid: orcid || null, 
         email,
-        searchEmail, 
-        dateCreated: Date.now()
+        searchEmail
       }
 
       dispatch('user-sign-in', profile)

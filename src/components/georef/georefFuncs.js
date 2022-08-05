@@ -1,7 +1,7 @@
 //FUNCTIONS USED BY georef COMPONENT
 import convert from 'geo-coordinates-parser'
 import Georef from './Georef.js'
-import { Firestore } from '../../firebase.js'
+import { Firestore, FieldValue } from '../../firebase.js'
 
   /**
    * Fetches and locks a record group. 
@@ -249,7 +249,7 @@ const fetchGeorefsForLoc = async (locString, index, limit, excludeFlagged) => {
   }  
 }
 
-const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, userID, userName, datasetID, groupComplete) => {
+const updateGeorefStats = async (Firebase, ServerValue, georefsAdded, recordsGeoreferenced, userID, userName, datasetID, groupComplete) => {
   let yearmonth = getYearMonth(new Date())
   let yearweek = getYearWeek(new Date())
   let now = new Date()
@@ -327,7 +327,7 @@ const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, u
   }
 
   let updateLastGeorefsAdded = Firebase.ref('stats/lastGeorefAdded').transaction(current => {
-    current = Date.now()
+    current = ServerValue.TIMESTAMP
     return current
   })
 
@@ -337,7 +337,7 @@ const updateGeorefStats = async (Firebase, georefsAdded, recordsGeoreferenced, u
   })
 
   let updateDatasetLastGeorefsAdded = Firebase.ref(`stats/perDataset/${datasetID}/lastGeorefAdded`).transaction(current => {
-    current = Date.now()
+    current = ServerValue.TIMESTAMP
     return current
   })
 
@@ -383,9 +383,9 @@ const getYearWeek = d => {
 }
 
 const getYearMonth = d => {
-let y = d.getUTCFullYear()
-let m = d.getMonth() + 1
-return `${y} ${m.toString().padStart(2, '0')}`
+  let y = d.getUTCFullYear()
+  let m = d.getMonth() + 1
+  return `${y} ${m.toString().padStart(2, '0')}`
 }
 
 const updateDatasetStats = (Firestore, datasetRef, recordsGeoreferenced, formattedName, groupComplete) => {
@@ -398,11 +398,10 @@ const updateDatasetStats = (Firestore, datasetRef, recordsGeoreferenced, formatt
 
     let dataset = datasetSnap.data()
 
-    let originalRecordsCompleted = dataset.recordsCompleted
     dataset.recordsCompleted += recordsGeoreferenced
     let datasetUpdate = {
       recordsCompleted: dataset.recordsCompleted,
-      lastGeoreference: Date.now(),
+      lastGeoreference: FieldValue.serverTimestamp(),
       lastGeoreferenceBy: formattedName
     }
 

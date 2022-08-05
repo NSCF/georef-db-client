@@ -1,4 +1,5 @@
 //just for testing small things
-import { nanoid } from "nanoid";
+import { getSafeTime } from '../src/utilities.js'
+import 'isomorphic-fetch'
 
-console.log(nanoid())
+getSafeTime().then(time => console.log('time is', time)).catch(err => console.error(err.message))

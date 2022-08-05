@@ -1,4 +1,4 @@
-import {Firestore, Realtime as Firebase, ServerValue, FieldPath, Auth, Storage} from '../../firebase'
+import {Firestore, FieldPath} from '../../firebase'
 
 const FirestoreGeorefRecords = Firestore.collection('georefRecords')
 

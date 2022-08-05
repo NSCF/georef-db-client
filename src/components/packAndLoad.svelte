@@ -4,6 +4,7 @@ import Loader from './loader.svelte'
 import {Firestore, FieldValue, Storage } from '../firebase.js'
 import arrayUnion from 'array-union'
 import groupLocalities from '../CSVUtilities/groupLocalities.js'
+import { getSafeTime } from '../../src/utilities'
 
 const dispatch = createEventDispatcher();
 
@@ -89,6 +90,16 @@ const addUserDataset = async (id, list) => {
 }
 
 const loadToDatabase = async () => {
+
+  let timeNow = null
+  try {
+    timeNow = await getSafeTime()
+  }
+  catch(err) {
+    throw err
+  }
+
+
   if(localityGroups) {
     let totalRecordCount = localityGroups.reduce((total, localityGroup) => total + localityGroup.groupRecordCount, 0)
     messageString = 'prepping for data upload'
@@ -97,7 +108,7 @@ const loadToDatabase = async () => {
     dataset.recordsCompleted = 0
     dataset.groupCount = localityGroups.length
     dataset.groupsComplete = 0
-    dataset.dateCreated = Date.now()
+    dataset.dateCreated = timeNow
     dataset.lastGeoreference = ''
     dataset.completed = false
     dataset.dateCompleted = null

@@ -2,6 +2,8 @@ import { nanoid } from "nanoid" //see https://github.com/ai/nanoid/issues/237
 import { v4 as uuid } from 'uuid'; //because we need uuid guids as well...
 import { Firestore, Auth } from '../../firebase.js';
 
+import { getSafeTime } from "../../utilities.js";
+
 export default class Georef {
   constructor() {
     this.georefID = nanoid()
@@ -31,7 +33,7 @@ export default class Georef {
     this.sendVerificationFeedback = null
     this.createdBy = null
     this.createdByID = null
-    this.dateCreated = Date.now()
+    this.dateCreated = null
     this.lastEdited = null
     this.lastEditedBy = null
     this.lastEditdByID = null
@@ -92,16 +94,6 @@ export default class Georef {
           }
         }
       }, 
-      dateOkay: {
-        value:true,
-        writable: true,
-        enumerable: false
-      }, 
-      verifiedDateOkay: {
-        value:true,
-        writable: true,
-        enumerable: false
-      }, 
       uncertaintyUnitOkay: {
         value:true,
         writable: true,
@@ -139,7 +131,6 @@ export default class Georef {
     }
     this.protocolObject = null
     this.sourcesArray = undefined
-    this.dateCreated = Date.now()
   }
 
   //indicate whether this is different to another georef, eg for checking changes
@@ -179,7 +170,7 @@ export default class Georef {
     this.verificationRemarks = null
     this.createdBy = null
     this.createdByID = null
-    this.dateCreated = Date.now()
+    this.dateCreated = null
     this.lastEdited = null
     this.lastEditedBy = null
     this.lastEditdByID = null
@@ -205,13 +196,21 @@ export default class Georef {
       throw new Error('valid profile and dataset objects and an index are required to persist a georef')
     }
 
+    let timeNow = null
+    try {
+      timeNow = await getSafeTime()
+    }
+    catch(err) {
+      throw err
+    }
+
     if(update) {
-      this.lastEdited = Date.now()
+      this.lastEdited = timeNow
       this.lastEditedB = profile.formattedName
       this.lastEditdByID = profile.uid
     }
     else {
-      this.dateCreated = Date.now()
+      this.dateCreated = timeNow
       this.createdBy = profile.formattedName
       this.createdByID = profile.uid
   
@@ -365,25 +364,6 @@ export default class Georef {
     }
     else {
       return false
-    }
-  }
-
-  get dateOkay() {
-    if(this.date && this.date.trim()) {
-      return /^(19|20)\d\d-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/.test(this.date) && new Date(this.date) < Date.now()
-    }
-    else {
-      return true //we dont' test for it being required here
-    }
-    
-  }
-
-  get verifiedDateOkay() {
-    if(this.verifiedDate && this.verifiedDate.trim()){
-      return /^(19|20)\d\d-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/.test(this.verifiedDate) && new Date(this.verifiedDate) < Date.now()
-    }
-    else {
-      return true //we dont' test if its required here
     }
   }
 

@@ -89,6 +89,9 @@
 
 							//add the uid
 							profile.uid = user.uid
+							
+							//we also need to add the date created - because we can't trust user times
+							profile.dateCreated = FieldValue.serverTimestamp()
 
 							//create the profile
 							try {

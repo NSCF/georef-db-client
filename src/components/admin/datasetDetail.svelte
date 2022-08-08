@@ -68,6 +68,10 @@
 
   const getLocalDate = timestamp => {
     if(!timestamp) return ''
+
+    if (typeof timestamp == 'object') {
+      timestamp = timestamp.seconds //to adjust for using servertimestamp
+    }
     
     let dt = new Date(timestamp)
     let dtParts = new Date(dt.getTime() - dt.getTimezoneOffset() * 60 * 1000).toISOString().split('T')
@@ -77,6 +81,10 @@
   const getLocalDateTime = timestamp => {
     
     if(!timestamp) return ''
+
+    if (typeof timestamp == 'object') {
+      timestamp = timestamp.seconds //to adjust for using servertimestamp
+    }
 
     let dt = new Date(timestamp)
     let dtAdjusted = new Date(dt.getTime() - dt.getTimezoneOffset() * 60 * 1000)

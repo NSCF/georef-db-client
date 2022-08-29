@@ -62,7 +62,7 @@ const getLocalDate = timestamp => {
   if(!timestamp) return ''
 
   if (typeof timestamp == 'object') {
-    timestamp = timestamp.seconds //to adjust for using servertimestamp
+    timestamp = timestamp.seconds * 1000 //to adjust for using servertimestamp
   }
   
   let dt = new Date(timestamp)
@@ -75,7 +75,7 @@ const getLocalDateTime = timestamp => {
   if(!timestamp) return ''
 
   if (typeof timestamp == 'object') {
-    timestamp = timestamp.seconds //to adjust for using servertimestamp
+    timestamp = timestamp.seconds * 1000 //to adjust for using servertimestamp
   }
 
   let dt = new Date(timestamp)

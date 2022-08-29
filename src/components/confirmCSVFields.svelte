@@ -90,17 +90,25 @@ function updateVars() {
     checkRequiredFields()
 
     if(!requiredFields['recordIDField']) {
-      let catNumField = null
+      let candidateIDFields = null
+
       if(darwinCoreFields) {
-        catNumField = darwinCoreFields.find(dwc => dwc == 'catalogNumber' || dwc.split(':')[1] == 'catalogNumber')
+        candidateIDFields = darwinCoreFields.find(dwc => dwc == 'catalogNumber' || dwc.split(':')[1] == 'catalogNumber')
       }
+
+      if (!candidateIDFields) {
+        candidateIDFields = []
+      }
+
       if(otherFields && otherFields.length){
-        let optionFields = [catNumField, ...otherFields].filter(field => field && field.trim())
-        possibleIdentifierFields = optionFields.map(f => ({value: f, label: f }))
+        candidateIDFields = [...candidateIDFields, ...otherFields].filter(field => field && field.trim())
       }
-      else {
-        possibleIdentifierFields = [{value: catNumField, label: catNumField }]
+
+      if(malformedDarwinCore && malformedDarwinCore.length) {
+        candidateIDFields = [...candidateIDFields, ...malformedDarwinCore].filter(field => field && field.trim())
       }
+
+      possibleIdentifierFields = candidateIDFields.map(f => ({value: f, label: f }))
       
     }
   }
@@ -195,10 +203,12 @@ function handleStartOver(){
     {/if}
     {#if requiredFieldsMissing && !requiredFields['recordIDField']}
       <h3 style="color:tomato">A unique row identifier field is required</h3>
-      <p>Please select a field that uniquely identifies rows in the dataset. Recommended Darwin Core fields are occurrenceID and catalogNumber, but other fields like can be used as long as they are unique per row</p>
-      <div style="width:500px;text-align:center">
-        <Select items={possibleIdentifierFields} on:select={handleSelect}></Select>
-      </div> 
+      {#if possibleIdentifierFields.length > 0}
+        <p>Please select a field that uniquely identifies rows in the dataset. Recommended Darwin Core fields are occurrenceID and catalogNumber, but other fields like can be used as long as they are unique per row</p>
+        <div style="width:500px;text-align:center">
+          <Select items={possibleIdentifierFields} on:select={handleSelect}></Select>
+        </div> 
+      {/if}
     {/if}
     {#if !requiredFieldsMissing}
       <h4>Fields to be used for georeferencing:</h4>

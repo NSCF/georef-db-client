@@ -73,7 +73,7 @@ const validateCountries = (datasetCountries, restCountries, regionCountries) => 
 }
 
 const getCountries = async () => {
-  let restcountriesresponse = await fetch('https://restcountries.com/rest/v2/all')
+  let restcountriesresponse = await fetch('https://restcountries.com/v2/all')
   if(restcountriesresponse.status == 200){
     
     let restcountries = await restcountriesresponse.json()

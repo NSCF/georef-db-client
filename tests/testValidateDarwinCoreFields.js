@@ -1,5 +1,5 @@
-import validateFields from '../src/svelte/validateDarwinCoreFields'
-import getDWC from '../src/svelte/parseDWCReference'
+import validateFields from '../src/dwcUtilities/validateDarwinCoreTerms.js'
+import getDWC from '../src/dwcUtilities/getDWCTerms.js'
 
 getDWC().then(dwcterms => {
   try{
@@ -22,5 +22,6 @@ let testTerms = [
   'someField',
   'dwc:sexx', 
   'typ',
-  'dc:references'
+  'dc:references', 
+  'ID'
 ]

@@ -157,8 +157,30 @@ const getCountries = async () => {
 
 const findMatchingCountries = (search, referenceCountries) => {
   let searchResult = referenceCountries.filter(rc => rc.name == search || rc.nativeName == search)
-  if (!searchResult.length){
-    searchResult = referenceCountries.filter(rc => rc.altSpellings.includes(search))
+  if (searchResult.length == 0){
+    searchResult = referenceCountries.filter(rc => {
+
+      if (rc.altSpellings && rc.altSpellings.length > 0) {
+        if(rc.altSpellings.includes(search)) {
+          return true
+        }
+      }
+
+      // if (rc.translations) {
+      //   if(Object.values(rc.translations).includes(search)) {
+      //     return true
+      //   }
+      // }
+
+      if (rc.nativeName) {
+        if(rc.nativeName == search) {
+          return true
+        }
+      }
+
+      return false
+
+    })
   }
   return searchResult
 }
@@ -179,4 +201,7 @@ const onlyUnique = (value, index, self) => {
   return self.indexOf(value) === index;
 }
 
-export {validateCountries, getCountries}
+export {
+  validateCountries, 
+  getCountries
+}

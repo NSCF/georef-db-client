@@ -166,11 +166,11 @@ const findMatchingCountries = (search, referenceCountries) => {
         }
       }
 
-      // if (rc.translations) {
-      //   if(Object.values(rc.translations).includes(search)) {
-      //     return true
-      //   }
-      // }
+      if (rc.translations) {
+        if(Object.values(rc.translations).includes(search)) {
+          return true
+        }
+      }
 
       if (rc.nativeName) {
         if(rc.nativeName == search) {

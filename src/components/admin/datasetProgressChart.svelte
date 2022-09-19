@@ -1,9 +1,11 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, createEventDispatcher } from 'svelte';
   import { Realtime } from '../../firebase.js';
   import LineChart from '../LineChart.svelte';
   import Loader from '../loader.svelte';
   import { getSafeTime } from '../../../src/utilities.js'
+
+  const dispatch = createEventDispatcher()
 
   export let dataset
 
@@ -27,7 +29,8 @@
       timeNow = await getSafeTime()
     }
     catch(err) {
-      throw err
+      dispatch('componenterror', err)
+      return
     }
     
     //work out if we must show days or weeks to start

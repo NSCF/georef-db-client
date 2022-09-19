@@ -96,7 +96,8 @@ const loadToDatabase = async () => {
     timeNow = await getSafeTime()
   }
   catch(err) {
-    throw err
+    dispatch('componenterror', err)
+    return
   }
 
 

@@ -255,6 +255,11 @@
 		currentPage = 'DatasetList'
 	}
 
+	function handleComponentError(ev) {
+		//TODO show a modal, but for now...
+		alert('Oops, something went wrong: ' + ev.detail.message) //ev is the error
+	}
+
 	//just for debugging
 	const testAuth = _ => {
 		if (fbUser) {
@@ -366,6 +371,7 @@
 						dataset={datasetDetails}
 						{fileForGeoref}
 						{userID}
+						on:componenterror={handleComponentError}
 						on:upload-complete={handleUploadComplete}
 					/>
 				{/if}

@@ -201,7 +201,8 @@ export default class Georef {
       timeNow = await getSafeTime()
     }
     catch(err) {
-      throw err
+      dispatch('componenterror', err)
+      return
     }
 
     if(update) {

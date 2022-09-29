@@ -25,6 +25,8 @@
 	import OverallStats from './stats/overallStats.svelte'
 	import DatasetStats from './stats/datasetStats.svelte'
 
+	import { getSafeTime } from '../utilities.js';
+
 	import { Circle } from 'svelte-loading-spinners'
 
 	//just for now
@@ -53,6 +55,16 @@
 
 	//LIFECYCLE
 	onMount(_ => {
+
+		//wake up the time API, just in case...
+		try {
+			getSafeTime().then(console.log) //no await, we just call it....
+		}
+		catch(err) {
+			alert('There was error with the timestamp API: ' + err.message)
+		}
+		
+
 		//hopefully this is triggered when we open the page again and sign in is persisted
 		Auth.onAuthStateChanged(async user => {
 

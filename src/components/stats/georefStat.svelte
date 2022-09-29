@@ -54,7 +54,6 @@ const handleTransitionend = _ => {
 }
 
 const getDateFromTimestamp = timestamp => {
-  console.log(timestamp)
   let dts = new Date(timestamp)// dts = date from time stamp
   let d = new Date(dts.getTime() - dts.getTimezoneOffset() * 60 * 1000) //corrected to current timezone so .toISOString will work
   return d.toISOString().split('.')[0].replace('T', ' ')

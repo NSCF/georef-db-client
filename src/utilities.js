@@ -4,11 +4,10 @@
  */
 export async function getSafeTime() {
   try {
-    let response = await fetchWithTimeout('https://worldtimeapi.org/api/ip', { timeout: 1000 })
+    let response = await fetchWithTimeout('https://us-central1-georef-745b9.cloudfunctions.net/getutctimestamp', { timeout: 5000 })
     if (response.ok) {
       let body = await response.json()
-      let date = new Date(body.utc_datetime)
-      return date.getTime()
+      return body.timestamp
     }
     else {
       throw new Error(response.statusText)
@@ -16,7 +15,7 @@ export async function getSafeTime() {
   }
   catch(err) {
     if (error.name === 'AbortError') {
-      throw new Error('worldtimeapi timed out')
+      throw new Error('timestamp API timed out')
     }
     else {
       throw err

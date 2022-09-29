@@ -93,7 +93,7 @@
       if(type == 'daily') {
         let d = new Date()
         indexPeriod = d.toISOString().split('T')[0]
-        startPeriod = startPeriod = Object.keys(data).reduce((a,b) => a < b ? a : b, indexPeriod) //we're going to step backwards from current/index to start
+        startPeriod = Object.keys(data).reduce((a,b) => a < b ? a : b, indexPeriod) //we're going to step backwards from current/index to start
       }
       else if(type == 'weekly') {
         indexPeriod = getYearWeek(new Date())
@@ -163,7 +163,9 @@
           }
         ]
       }
+
       return chartData
+
     }
     else {
       noData = true

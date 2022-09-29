@@ -506,6 +506,10 @@
 
   }
 
+  const handleCloseDataset = async _ => {
+
+  }
+
   const updateLastDownload = downloadType => {
     //this is not async because we don't want to slow things down
     if(!downloadType){
@@ -843,6 +847,9 @@
           <span class="material-icons">list</span>
         </button>
         {#if dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid))}
+          <button class="dataset-tool" title="close this dataset" on:click={handleCloseDataset}>
+            <span class="material-icons-outlined">task_alt</span>
+          </button>
           <button class="dataset-tool" title="download dataset with georefs" on:click={handleDownloadDataset}>
             <span class="material-icons">file_download</span>
           </button>
@@ -856,7 +863,7 @@
             <span class="material-icons">lock_open</span>
           </button>
         {/if}
-        <button class="dataset-tool" title="start georeferencing" on:click={handleStartGeoreferencing} bind:this={georefButton}>
+        <button class="dataset-tool" title="start georeferencing" disabled={true} on:click={handleStartGeoreferencing} bind:this={georefButton}>
           <span class="material-icons">place</span>
         </button>
       </div>
@@ -978,110 +985,108 @@
 
 <!-- ############################################## -->
 <style>
-h2 {
-  color:  rgb(73, 93, 158);
-  font-size: 2em;
-  font-weight: 400;
-}
+  h2 {
+    color:  rgb(73, 93, 158);
+    font-size: 2em;
+    font-weight: 400;
+  }
 
-.outer {
-  height:calc(100% - 3em); /* we need this because the stats take up some of the parent height */
-  width:100%;
-  overflow-y:auto
-}
+  .outer {
+    height: calc(100% - 3em); /* we need this because the stats take up some of the parent height */
+    width: 100%;
+    overflow-y: auto;
+  }
 
-.container {
-  height:100%;
-  width:50%;
-  min-width: 1000px;
-  margin: auto;
-}
+  .container {
+    height: 100%;
+    width: 50%;
+    min-width: 1000px;
+    margin: auto;
+  }
+    
+  .content {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .vertical {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    overflow-y: auto;
+  }
+
+  .loaderflex {
+    height: 300px;
+    display:flex;
+    align-items:center;
+  }
+
+  .content > div {
+    display: inline-block;
+    margin: 10px;
+    border-radius: 2px;
+    border: 1px solid lightgray;
+    padding: 5px;
+    background-color: white;
+  }
+
+  .label {
+    background-color: #bcd0ec;
+    padding: 2px;
+  }
+
+  .data-item {
+    border-radius: 2px;
+    margin-bottom: 0.5em;
+    height: 2em;
+  }
+
+  .charts {
+    margin-top: 20px;
+    margin-bottom: 20px;
+  }
+
+  .chart-title {
+    font-weight: bolder;
+    text-align: center;
+    text-decoration: underline;
+  }
+
+  .chart-loader {
+    height: 200px;
+  }
+
+  .chart-spacer {
+    margin-top: 20px;
+  }
+
+  .tools-container {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: flex-end;
+    margin-top: 20px;
+  }
+
+  /* .tools-container::after {
+    content: "";
+    display: block; 
+    clear: both;
+  } */
+
+  .dataset-tool {
+    margin-left: 5px;
+    padding-bottom: 0;
+    background-color: lightgray;
+  }
+
+  .dataset-tool:hover {
+    cursor: pointer;
+    background-color:grey;
+    color:white;
+  }
   
-.content {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.vertical {
-  display:flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  height:100%;
-  overflow-y:auto;
-}
-
-.loaderflex {
-  height: 300px;
-  display:flex;
-  align-items:center;
-}
-
-.content > div {
-  display:inline-block;
-  margin: 10px;
-  border-radius:2px;
-  border: 1px solid lightgray;
-  padding: 5px;
-  background-color: white;
-}
-
-.label {
-  background-color: #bcd0ec;
-  padding:2px;
-}
-
-.data-item {
-  border-radius: 2px;
-  margin-bottom:0.5em;
-  height:2em;
-}
-
-button:hover {
-  background-color:grey;
-  color:white;
-}
-
-.charts {
-  margin-top:20px;
-  margin-bottom:20px;
-}
-
-.chart-title {
-  font-weight:bolder;
-  text-align: center;
-  text-decoration:underline;
-}
-
-.chart-loader {
-  height:200px;
-}
-
-.chart-spacer {
-  margin-top: 20px;
-}
-
-.tools-container {
-  margin-top:20px;
-}
-
-.tools-container::after {
-  content: "";
-  display: block; 
-  clear: both;
-}
-
-.dataset-tool {
-  float:right;
-  margin-left:5px;
-  padding-bottom:0;
-  background-color: lightgray;
-}
-
-.dataset-tool:hover {
-  cursor:pointer;
-  background-color:grey;
-  color:white;
-}
 </style>

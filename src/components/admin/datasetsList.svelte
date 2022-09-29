@@ -285,7 +285,7 @@ const emitDataset = dataset => {
               <td>{dataset.region || null}</td>
               <td>{dataset.domain || null}</td>
               <td>{dataset.dateCreated ? getLocalDate(dataset.dateCreated) : ''}</td>
-              <td>{dataset.completed}</td>
+              <td>{ dataset.completed? getLocalDate(dataset.dateCompleted) : 'NA' }</td>
               <td>{dataset.recordCount}</td>
               <td>{dataset.groupCount}</td>
               <td>{dataset.recordsCompleted} ({Math.round(dataset.recordsCompleted / dataset.recordCount * 100)}%)</td>

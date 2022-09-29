@@ -507,7 +507,15 @@
   }
 
   const handleCloseDataset = async _ => {
+    await Firestore.collection('datasets').doc(dataset.datasetID).update({ completed: true, dateCompleted: new Date().getTime()})
+    dataset.dateCompleted = new Date().getTime()
+    dataset.completed = true
+  }
 
+  const handleOpenDataset = async _ => {
+    await Firestore.collection('datasets').doc(dataset.datasetID).update({ completed: false, dateCompleted: null })
+    dataset.dateCompleted = null
+    dataset.completed = false
   }
 
   const updateLastDownload = downloadType => {
@@ -847,9 +855,15 @@
           <span class="material-icons">list</span>
         </button>
         {#if dataset.createdByID == profile.uid || (dataset.admins && dataset.admins.includes(profile.uid))}
-          <button class="dataset-tool" title="close this dataset" on:click={handleCloseDataset}>
-            <span class="material-icons-outlined">task_alt</span>
-          </button>
+          {#if dataset.completed}
+            <button class="dataset-tool" title="reopen dataset" on:click={handleOpenDataset}>
+              <span class="material-icons-outlined">remove_done</span>
+            </button>
+          {:else}
+            <button class="dataset-tool" title="mark completed" on:click={handleCloseDataset}>
+              <span class="material-icons-outlined">done_all</span>
+            </button>
+          {/if}
           <button class="dataset-tool" title="download dataset with georefs" on:click={handleDownloadDataset}>
             <span class="material-icons">file_download</span>
           </button>
@@ -863,7 +877,7 @@
             <span class="material-icons">lock_open</span>
           </button>
         {/if}
-        <button class="dataset-tool" title="start georeferencing" disabled={true} on:click={handleStartGeoreferencing} bind:this={georefButton}>
+        <button class="dataset-tool" title="start georeferencing" disabled={dataset.dateCompleted} on:click={handleStartGeoreferencing} bind:this={georefButton}>
           <span class="material-icons">place</span>
         </button>
       </div>
@@ -1083,7 +1097,7 @@
     background-color: lightgray;
   }
 
-  .dataset-tool:hover {
+  .dataset-tool:hover:enabled {
     cursor: pointer;
     background-color:grey;
     color:white;

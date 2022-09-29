@@ -3,8 +3,8 @@
   import { Loader as MapsAPILoader } from '@googlemaps/js-api-loader';
   import MeasureTool from 'measuretool-googlemaps-v3'; //https://www.npmjs.com/package/measuretool-googlemaps-v3
   import { dataStore } from './dataStore.js'
-  import {onMount, createEventDispatcher} from 'svelte'
-  import {mapsAPIKey} from '../../keys.js'
+  import { onMount, createEventDispatcher } from 'svelte'
+  import { mapsAPIKey } from '../../keys.js'
 
   const dispatch = createEventDispatcher()
 

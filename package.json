@@ -9,7 +9,6 @@
   },
   "devDependencies": {
     "@babel/preset-stage-3": "^7.8.3",
-    "@sparkbox/cachebust": "^0.3.0",
     "@sveltejs/vite-plugin-svelte": "^1.0.8",
     "babel-cli": "^6.26.0",
     "babel-preset-es2015": "^6.24.1",
@@ -22,7 +21,6 @@
   },
   "dependencies": {
     "@elastic/elasticsearch": "^7.9.0",
-    "@firebase/app": "^0.7.33",
     "@googlemaps/js-api-loader": "^1.11.1",
     "array-union": "^3.0.1",
     "chart.js": "^3.1.0",
@@ -31,18 +29,14 @@
     "geo-coordinates-parser": "^1.3.2",
     "html2canvas": "^1.3.2",
     "measuretool-googlemaps-v3": "^1.0.2",
-    "meilisearch": "^0.19.0",
     "nanoid": "^3.1.23",
     "papaparse": "^5.2.0",
     "path-parse": "^1.0.7",
-    "shortid": "^2.2.15",
     "string-similarity": "^4.0.4",
-    "svelte-dropzone": "^1.0.6",
     "svelte-loading-spinners": "^0.1.4",
     "svelte-select": "^4.3.0",
     "svelte-simple-modal": "^0.4.2",
-    "uuid": "^8.3.2",
-    "xml-js": "^1.6.11"
+    "uuid": "^8.3.2"
   },
   "babel": {
     "presets": [

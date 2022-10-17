@@ -36,7 +36,7 @@ let requiredFieldsMissing = false
 //watchers
 $: validate(file)
 
-$: validationResult, updateVars()
+$: validationResult, console.log(validationResult), updateVars()
 
 //Methods
 async function validate(targetFile) {
@@ -93,7 +93,7 @@ function updateVars() {
       let candidateIDFields = null
 
       if(darwinCoreFields) {
-        candidateIDFields = darwinCoreFields.find(dwc => dwc == 'catalogNumber' || dwc.split(':')[1] == 'catalogNumber')
+        candidateIDFields = [darwinCoreFields.find(dwc => dwc == 'catalogNumber' || dwc.split(':')[1] == 'catalogNumber')]
       }
 
       if (!candidateIDFields) {

@@ -44,6 +44,8 @@
 
     targetFile = evt.dataTransfer.files[0];
     if(targetFile && (targetFile.type == 'text/csv' || targetFile.type == 'application/vnd.ms-excel')){
+
+      console.log('validating fields')
       validation = await readHeadersAndValidate(targetFile)
       
       console.log('confirming fields')

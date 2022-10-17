@@ -8,7 +8,6 @@ import getDWCTerms from '../dwcUtilities/getDWCTerms.js'
 let readHeadersAndValidate = async (targetFile) => {
 
   let p = new Promise((resolve, reject) => {
-    console.log('reading csv headers')
     Papa.parse(targetFile, {
       header: true,
       preview: 1,
@@ -16,7 +15,6 @@ let readHeadersAndValidate = async (targetFile) => {
         try{
           let fields = Object.keys(results.data[0])
 
-          console.log('fetching Darwin Core terms')
           let dwcFields = await getDWCTerms()
 
           let validationResults = validateFields(fields, dwcFields)

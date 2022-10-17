@@ -214,7 +214,6 @@
 
 	function handleFileSelected(event){
 		fileForGeoref = event.detail.file
-		console.log('we got file', fileForGeoref.name)
 		currentPage = 'ConfirmFields'
 	}
 

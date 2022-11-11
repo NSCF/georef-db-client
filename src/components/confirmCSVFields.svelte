@@ -21,7 +21,7 @@ let possibleIdentifierFields = []
 // ||s indicate options in order of preference, one is required 
 //not ideal that this is hard coded here but thats what it is for now. 
 let requiredFieldsList = [
-  {key: 'taxonField', targetfields: 'dwc:scientificName', required: true},
+  {key: 'taxonField', targetfields: 'dwc:acceptedNameUsage || dwc:scientificName', required: true},
   {key: 'recordIDField', targetfields: 'dwc:occurrenceID', required: true},
   {key: 'countryField', targetfields: 'dwc:country', required: true},
   {key: 'stateProvinceField', targetfields: 'dwc:stateProvince', required: false},

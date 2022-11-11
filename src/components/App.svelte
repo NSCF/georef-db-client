@@ -68,7 +68,7 @@
 		//hopefully this is triggered when we open the page again and sign in is persisted
 		Auth.onAuthStateChanged(async user => {
 
-			if(user){ //it's a sign in
+			if(user){ //it's a sign in for sign up
 				
 				fbUser = user
 				userID = user.uid
@@ -78,8 +78,8 @@
 				} 
 				else {
 					//wait one moment for the dispatch to catch up if this is new registration
-					setTimeout( async _ => {
-						if(!profile){ //this is a sign in
+					setTimeout(async _ => {
+						if(!profile){ //this is a sign in, fetch the profile
 							try {
 								let snap = await Firestore.collection('userProfiles').doc(user.uid).get()
 								if (snap.exists){
@@ -97,7 +97,7 @@
 								alert('error fetching user profile: ' + err.message) //hopefully also doesn't happen
 							}
 						}
-						else { //this is a sign up
+						else { //it's a sign up
 
 							//add the uid
 							profile.uid = user.uid
@@ -123,13 +123,21 @@
 									let add = userDatasets.doc(profile.uid).set(data)
 									let del = userDatasets.doc(profile.searchEmail).delete()
 									await Promise.all([add, del])
+
+									//update the datasets
+									const proms = []
+									for (let datasetID of data.invited) {
+										const removeSearchEmail = Firestore.collection('datasets').doc(datasetID).update({invitees: FieldValue.arrayRemove(profile.searchEmail)})
+										const addUserID = Firestore.collection('datasets').doc(datasetID).update({invitees: FieldValue.arrayUnion(profile.uid)})
+										proms.push(removeSearchEmail, addUserID)
+									}
+									await Promise.all(proms)
 								}
 							}
 							catch(err) {
 								alert('Error updating invited datasets for this user: ' + err.message)
 								return
 							}
-
 						}
 
 						//record the person as signed in

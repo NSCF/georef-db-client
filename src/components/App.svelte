@@ -124,12 +124,13 @@
 									let del = userDatasets.doc(profile.searchEmail).delete()
 									await Promise.all([add, del])
 
-									//update the datasets
+									//update the datasets (we need the above first to get past the security rules)
 									const proms = []
 									for (let datasetID of data.invited) {
 										const removeSearchEmail = Firestore.collection('datasets').doc(datasetID).update({invitees: FieldValue.arrayRemove(profile.searchEmail)})
 										const addUserID = Firestore.collection('datasets').doc(datasetID).update({invitees: FieldValue.arrayUnion(profile.uid)})
-										proms.push(removeSearchEmail, addUserID)
+										proms.push(removeSearchEmail)
+										proms.push(addUserID)
 									}
 									await Promise.all(proms)
 								}

@@ -99,12 +99,14 @@ const fetchDatasets = async (datasetIDs) => {
   let qry = Firestore.collection('datasets')
     .where(searchField, 'array-contains', profile.uid) //the security rule
     .where('datasetID', 'in', datasetIDs)
+    .where('completed', '==', false)
 
   let datasetSnaps
   try {
     datasetSnaps = await qry.get()
   }
   catch(err) {
+    console.log(err.message)
     throw new Error('error fetching datasets: ' + err.message)
   }
 

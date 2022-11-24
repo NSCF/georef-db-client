@@ -15,6 +15,7 @@ let userDatasetIDs = null //this is the Object of current and invited dataset ID
 let focalDatasetIDs = [] //the current or the invited datasets, we start with null
 let datasets = [] //this is the list of dataset objects to show in the ui
 let lastDatasetSnap = null
+let showCompletedDatasets = false
 
 //for keeping track of searches
 let lastDatasetIDIndex = 0
@@ -90,13 +91,21 @@ const fetchDatasets = async _ => {
   
   let qry = Firestore.collection('datasets')
     .where(searchField, 'array-contains', profile.uid) //the security rule
-    .where('completed', '==', false)
-    .orderBy('dateCreated', 'desc')
-    .limit(10)
+
+  if(showCompletedDatasets) {
+    qry = qry.where('completed', '==', true)
+  }
+  else {
+    qry = qry.where('completed', '==', false)
+  }
+
+  qry = qry.orderBy('dateCreated', 'desc')
 
   if (lastDatasetSnap) {
     qry = qry.startAfter(lastDatasetSnap)
   }
+
+  qry = qry.limit(10)
   
   console.log('fetching datasets')
   try {
@@ -117,6 +126,12 @@ const fetchDatasets = async _ => {
     console.log(err.message)
     throw new Error('error fetching datasets: ' + err.message)
   }
+}
+
+const handleShowCompleted = _ => {
+  showCompletedDatasets = !showCompletedDatasets
+  lastDatasetSnap = null
+  fetchDatasets()
 }
 
 const acceptInvitedDataset = async datasetID => {
@@ -221,12 +236,17 @@ const emitDataset = dataset => {
 <!-- ############################################## -->
 <!-- HTML -->
 <div class="datasetlist-container">
-  <div class="tabs">
-    <div class="tab" class:tab-selected={firstTab} on:click='{_ => firstTab = true}'>
-      Current datasets
+  <div class="tab-header">
+    <div class="tabs">
+      <div class="tab" class:tab-selected={firstTab} on:click='{_ => firstTab = true}'>
+        Current datasets
+      </div>
+      <div class="tab" class:tab-selected={!firstTab} on:click='{_ => firstTab = false}'>
+        Invited datasets
+      </div>
     </div>
-    <div class="tab" class:tab-selected={!firstTab} on:click='{_ => firstTab = false}'>
-      Invited datasets
+    <div title="show completed datasets" class="done-button" class:done-button-active={showCompletedDatasets} on:click={handleShowCompleted}>
+      <span class="material-icons">done_all</span>
     </div>
   </div>
   <div class="datasetslist-content">
@@ -298,6 +318,10 @@ const emitDataset = dataset => {
    padding-top:50px;
  }
 
+ .tab-header{
+  display: flex;
+ }
+
 .tabs {
   display: grid;
   grid-template-columns: auto auto;
@@ -316,6 +340,26 @@ const emitDataset = dataset => {
 .tab-selected {
   background-color:#b6d8fc;
   font-weight:500;
+}
+
+.done-button {
+  width:40px;
+  margin-left:20px;
+  color: slategray;
+  background-color: rgb(221, 221, 221);
+  border-radius: 5px;
+  display: grid;
+  place-content: center;
+}
+
+.done-button:hover {
+  cursor: pointer;
+  
+}
+
+.done-button-active {
+  color:royalblue;
+  background-color: #b6d8fc;
 }
 
 .datasetslist-content {

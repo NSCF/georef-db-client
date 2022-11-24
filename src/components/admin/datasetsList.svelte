@@ -13,7 +13,8 @@ let firstTab = true
 let datasetsFetched = false
 let userDatasetIDs = null //this is the Object of current and invited dataset IDs
 let focalDatasetIDs = [] //the current or the invited datasets, we start with null
-let datasets = [] //this is the dataset objects to show on the ui
+let datasets = [] //this is the list of dataset objects to show in the ui
+let lastDatasetSnap = null
 
 //for keeping track of searches
 let lastDatasetIDIndex = 0
@@ -42,20 +43,9 @@ onMount(async _ => {
 })
 
 const reset = _ => {
-
   datasets = []
-  lastDatasetIDIndex = 0
-  if(userDatasetIDs) {
-    if(firstTab) {
-      focalDatasetIDs = userDatasetIDs.current
-    }
-    else {
-      focalDatasetIDs = userDatasetIDs.invited
-    }
-
-    getDatasets()
-
-  }
+  lastDatasetSnap = null
+  fetchDatasets()
 }
 
 const getLocalDate = timestamp => {
@@ -86,7 +76,9 @@ const getLocalDateTime = timestamp => {
 }
 
 //this fetches a datasets from the db based on a set of datasetIDs
-const fetchDatasets = async (datasetIDs) => {
+const fetchDatasets = async _ => {
+
+  datasetsFetched = false
 
   let searchField
   if(firstTab){
@@ -98,55 +90,33 @@ const fetchDatasets = async (datasetIDs) => {
   
   let qry = Firestore.collection('datasets')
     .where(searchField, 'array-contains', profile.uid) //the security rule
-    .where('datasetID', 'in', datasetIDs)
     .where('completed', '==', false)
+    .orderBy('dateCreated', 'desc')
+    .limit(10)
 
-  let datasetSnaps
+  if (lastDatasetSnap) {
+    qry = qry.startAfter(lastDatasetSnap)
+  }
+  
+  console.log('fetching datasets')
   try {
-    datasetSnaps = await qry.get()
+    let datasetSnaps = await qry.get()
+    if(datasetSnaps.empty) {
+      datasets = []
+      lastDatasetSnap = null
+      console.log('no datasets fetched')
+    }
+    else {
+      datasets = datasetSnaps.docs.map(x => x.data())
+      lastDatasetSnap = datasetSnaps.docs[datasetSnaps.docs.length -1]
+      console.log(datasets.length, 'datasets fetched')
+    }
+    datasetsFetched = true
   }
   catch(err) {
     console.log(err.message)
     throw new Error('error fetching datasets: ' + err.message)
   }
-
-  if(datasetSnaps.empty) {
-    return []
-  }
-  else {
-    let datasets = datasetSnaps.docs.map(x => x.data())
-    return datasets
-  }
-}
-
-//this controls what datasets are fetched based on what is selected in the ui, current or invited
-const getDatasets = async _ => {
-  datasetsFetched = false //this is a reset
-
-  if(focalDatasetIDs && focalDatasetIDs.length) { //we have dataset IDs
-    let searchDatasetIDs = focalDatasetIDs.slice(lastDatasetIDIndex, lastDatasetIDIndex + fetchSize)
-    if(searchDatasetIDs.length) {
-      try {
-        let res = await fetchDatasets(searchDatasetIDs)
-        res.sort((a, b) => (a.dateCreated < b.dateCreated ? 1 : -1))
-        datasets = res
-        lastDatasetIDIndex += fetchSize
-      }
-      catch(err) {
-        alert(err.message)
-        return
-      }
-    }
-    else {
-      datasets = []
-    }
-  }
-  else {
-    datasets = []
-  }
-
-  datasetsFetched = true
-
 }
 
 const acceptInvitedDataset = async datasetID => {
@@ -272,8 +242,8 @@ const emitDataset = dataset => {
             <th>Completed</th>
             <th>Total Records</th>
             <th>Locality Groups</th>
-            <th>Records Complete</th>
-            <th>Groups Complete</th>
+            <!-- <th>Records Complete</th>
+            <th>Groups Complete</th> -->
             <th>Last Georef</th>
             {#if !firstTab}
               <th>Accept</th>
@@ -288,10 +258,10 @@ const emitDataset = dataset => {
               <td>{dataset.domain || null}</td>
               <td>{dataset.dateCreated ? getLocalDate(dataset.dateCreated) : ''}</td>
               <td>{ dataset.completed? getLocalDate(dataset.dateCompleted) : 'NA' }</td>
-              <td>{dataset.recordCount}</td>
-              <td>{dataset.groupCount}</td>
-              <td>{dataset.recordsCompleted} ({Math.round(dataset.recordsCompleted / dataset.recordCount * 100)}%)</td>
-              <td>{dataset.groupsComplete} ({Math.round(dataset.groupsComplete / dataset.groupCount * 100)}%)</td>
+              <td>{dataset.recordCount} ({Math.round(dataset.recordsCompleted / dataset.recordCount * 100)}% complete)</td>
+              <td>{dataset.groupCount} ({Math.round(dataset.groupsComplete / dataset.groupCount * 100)}% complete)</td>
+              <!-- <td>{dataset.recordsCompleted} ({Math.round(dataset.recordsCompleted / dataset.recordCount * 100)}%)</td>
+              <td>{dataset.groupsComplete} ({Math.round(dataset.groupsComplete / dataset.groupCount * 100)}%)</td> -->
               <td>{dataset.lastGeoreference? getLocalDateTime(dataset.lastGeoreference) : null}</td>
               {#if !firstTab}
                 <td class="table-button"><button on:click|stopPropagation='{_ => acceptInvitedDataset(dataset.datasetID)}'>Accept</button></td>
@@ -309,7 +279,7 @@ const emitDataset = dataset => {
       {/if}
       <div>
         <button on:click={reset} >Start over</button>
-        <button disabled={!datasets || !datasets.length} on:click={getDatasets} >Show next</button>
+        <button disabled={!datasets || !datasets.length} on:click={fetchDatasets} >Show next</button>
       </div>
     {:else}
       <Loader />

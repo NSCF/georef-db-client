@@ -354,7 +354,6 @@ const emitDataset = dataset => {
 
 .done-button:hover {
   cursor: pointer;
-  
 }
 
 .done-button-active {

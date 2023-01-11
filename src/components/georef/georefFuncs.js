@@ -225,7 +225,7 @@ const fetchGeorefsForLoc = async (locString, index, limit, excludeFlagged) => {
   let url = `https://us-central1-georef-745b9.cloudfunctions.net/getgeorefs?search=${search}&index=${index}`
   
   if (excludeFlagged) {
-    url += '&noflags'
+    url += '&flagged=false'
   }
 
   if (limit && !isNaN(limit)){

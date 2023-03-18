@@ -32,8 +32,8 @@ const clearCustomSearch = _ => {
 <div>
   <GeorefStat stat={23} isGeoref={false} labelText={'georef count'} />
   <GeorefStat stat={stat} isGeoref={true} labelText={'record count'} />
-  <!-- <GeorefStats {Firebase} userID={'iansuserid'} datasetID={'9jp8aFSneKuDjjfOuJhR'}/>
-  <div class="stuff">
+  <GeorefStats {Firebase} userID={'iansuserid'} datasetID={'9jp8aFSneKuDjjfOuJhR'}/>
+  <!-- <div class="stuff">
     <div class="form-container" style="width:500px">
       <div class="form-flex">
         <GeorefForm/>

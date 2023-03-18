@@ -24,10 +24,13 @@
 
 	import OverallStats from './stats/overallStats.svelte'
 	import DatasetStats from './stats/datasetStats.svelte'
+	
+	import workshop from './workshop/workshop.svelte'
 
 	import { getSafeTime } from '../utilities.js';
 
 	import { Circle } from 'svelte-loading-spinners'
+    import Workshop from './workshop/workshop.svelte';
 
 	//just for now
 	let profile
@@ -37,7 +40,7 @@
 
 	//for 'page navigation'
 	// do we need a router??????
-	let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'About', 'Home', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeferencer', 'QualityControl' ]
+	let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'About', 'Home', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeferencer', 'QualityControl', 'Workshop' ]
 	let datasetPages = ['DatasetList', 'DatasetDetail']
 	let georeferencePage = 'Georeferencer' //just the one
 
@@ -323,6 +326,9 @@
 					<div class="menu">
 						<span class="menuitem" on:click={handleHomeClick}>Home</span>
 						<span class="menuitem" on:click={handleAboutClick}>About</span>
+						{#if profile && profile.isAdmin && currentPage != 'Georeferencer'}
+							<span class="menuitem" on:click={_ => currentPage = 'Workshop'}>Workshop</span>
+						{/if}
 					</div>
 					{#if !firstAuth}
 						<Circle size="1.5" color="#1d4a9c" unit="em" />
@@ -367,14 +373,14 @@
 					<About/>
 				{/if}
 				{#if currentPage == 'Home'}
-				<Home 
-					{profile}
-					on:to-about={handleAboutClick}
-					on:file-selected={handleFileSelected} 
-					on:to-datasets={handleToDatasets}
-					bind:this={homePage}
-					fileMIMETypes={['text/csv', 'application/vnd.ms-excel']}/>
-				{/if}
+					<Home 
+						{profile}
+						on:to-about={handleAboutClick}
+						on:file-selected={handleFileSelected} 
+						on:to-datasets={handleToDatasets}
+						bind:this={homePage}
+						fileMIMETypes={['text/csv', 'application/vnd.ms-excel']}/>
+					{/if}
 				{#if currentPage == 'ConfirmFields'}
 					<ConfirmFields file={fileForGeoref} on:fields-confirmed={handleFieldsConfirmed} on:fields-confirm-cancelled={handleConfirmCanceled}/>
 				{/if}
@@ -420,6 +426,9 @@
 					<QualityControl {profile} dataset={selectedDataset} 
 						on:to-datasets={handleBackToDatasets}
 					/>
+				{/if}
+				{#if currentPage == 'Workshop'}
+					<Workshop />
 				{/if}
 			</div>
 		</div>

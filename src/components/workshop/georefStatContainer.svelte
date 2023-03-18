@@ -1,5 +1,5 @@
 <script>
-import GeorefStat from '../georefStat.svelte'
+import GeorefStat from '../stats/georefStat.svelte'
 export let stat
 export let labelText
 export let isGeoref

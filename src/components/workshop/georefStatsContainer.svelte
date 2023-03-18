@@ -1,5 +1,5 @@
 <script>
-import GeorefStats from '../georefStats.svelte'
+import GeorefStats from '../stats/georefStats.svelte'
 
 export let Firebase
 export let userID

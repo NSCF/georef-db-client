@@ -10,6 +10,8 @@ import CustomSearch from '../georef/customSearch.svelte'
 import GeorefStat from './georefStatContainer.svelte'
 import GeorefStats from './georefStatsContainer.svelte'
 
+let stat = 12
+
 
 const handleCustomGeorefs = ev => {
   let georefs = ev.detail
@@ -29,8 +31,8 @@ const clearCustomSearch = _ => {
 <!-- HTML -->
 <div>
   <GeorefStat stat={23} isGeoref={false} labelText={'georef count'} />
-  <GeorefStat stat={11} isGeoref={true} labelText={'record count'} />
-  <GeorefStats {Firebase} userID={'iansuserid'} datasetID={'9jp8aFSneKuDjjfOuJhR'}/>
+  <GeorefStat stat={stat} isGeoref={true} labelText={'record count'} />
+  <!-- <GeorefStats {Firebase} userID={'iansuserid'} datasetID={'9jp8aFSneKuDjjfOuJhR'}/>
   <div class="stuff">
     <div class="form-container" style="width:500px">
       <div class="form-flex">
@@ -43,7 +45,7 @@ const clearCustomSearch = _ => {
       <br/>
       <button on:click={clearCustomSearch}>Clear custom search</button>
     </div>
-  </div>
+  </div> -->
 </div>
 
 <!-- ############################################## -->

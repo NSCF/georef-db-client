@@ -159,6 +159,8 @@
   const addGeorefToRecord = (record, georef, georefDetails) => {
 
     record.nscfGeorefID = georef.georefID
+    record.flagged = georef.flagged //needed for data processing afterwards
+    record.ambiguous = georef.ambiguous //ditto above
     record.georeferenceCountry = georef.country
     record.georeferenceStateProvince = georef.stateProvince
     record.georeferenceLocality = georef.locality

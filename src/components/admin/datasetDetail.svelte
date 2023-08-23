@@ -937,6 +937,11 @@
           <span class="label">Last georeference by</span>
           <span class="data-item">{dataset.lastGeoreferenceBy? dataset.lastGeoreferenceBy : 'NA'}</span>
         </div>
+        {#if dataset.remarks}
+        <div class="note">
+          {dataset.remarks}
+        </div>
+        {/if}
       </div>
       <div class='charts'>
         <ProgressChart {dataset} />
@@ -1053,6 +1058,14 @@
   .label {
     background-color: #bcd0ec;
     padding: 2px;
+  }
+
+  .note {
+    padding: 5px;
+    border-radius: 4px;
+    background-color: white;
+    width: 100%;
+    height: 50px;
   }
 
   .data-item {

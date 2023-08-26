@@ -6,6 +6,7 @@
 	
 	let fetching = false
 	let inputVal
+	let input
 	let timer;
 	
 	let items = []
@@ -76,12 +77,13 @@
 	const dispatchItem = item => {
 		items = []
 		inputVal = ''
+		input.focus()
 		dispatch('profile-selected', item)
 	}
 </script>
 
 <div class="dropcontainer">
-	<input style="width:400px;" placeholder="Type a name or email address" bind:value={inputVal} /> 
+	<input style="width:400px;" placeholder="Type a name or email address" bind:value={inputVal} bind:this={input}/> 
 	{#if fetching}
 	<div class="loader">
 		<Circle size="1" color="#1d4a9c" unit="em" />

@@ -24,13 +24,15 @@
 
 	import OverallStats from './stats/overallStats.svelte'
 	import DatasetStats from './stats/datasetStats.svelte'
+
+	import TeamDetail from './admin/teamDetail.svelte';
+	import NewTeam from './admin/newTeam.svelte';
 	
-	import workshop from './workshop/workshop.svelte'
 
 	import { getSafeTime } from '../utilities.js';
 
 	import { Circle } from 'svelte-loading-spinners'
-    import Workshop from './workshop/workshop.svelte';
+  import Workshop from './workshop/workshop.svelte';
 
 	//just for now
 	let profile
@@ -40,7 +42,7 @@
 
 	//for 'page navigation'
 	// do we need a router??????
-	let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'About', 'Home', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeferencer', 'QualityControl', 'Workshop' ]
+	let pages = ['Register', 'SignIn', 'ForgotPwd', 'ResetPwd', 'About', 'Home', 'ConfirmFields', 'ConfirmData', 'RegisterDataset', 'UploadData', 'Georeferencer', 'QualityControl', 'Workshop', 'TeamDetail', 'NewTeam' ]
 	let datasetPages = ['DatasetList', 'DatasetDetail']
 	let georeferencePage = 'Georeferencer' //just the one
 
@@ -328,6 +330,7 @@
 						<span class="menuitem" on:click={handleAboutClick}>About</span>
 						{#if profile && profile.isAdmin && currentPage != 'Georeferencer'}
 							<span class="menuitem" on:click={_ => currentPage = 'Workshop'}>Workshop</span>
+							<span class="menuitem" on:click={_ => currentPage = 'TeamDetail'}>Teams</span>
 						{/if}
 					</div>
 					{#if !firstAuth}
@@ -422,6 +425,12 @@
 						on:back-to-datasets='{_=> currentPage = 'DatasetList'}'
 					/>
 				{/if}
+				{#if currentPage == "TeamDetail"}
+						<TeamDetail userProfile={profile} on:new-team={_ => currentPage = 'NewTeam'} />
+				{/if}
+				{#if currentPage == 'NewTeam'}
+					  <NewTeam userProfile={profile} on:team-created={_ => currentPage = 'TeamDetail'} />
+				{/if}
 				{#if currentPage == "QualityControl"}
 					<QualityControl {profile} dataset={selectedDataset} 
 						on:to-datasets={handleBackToDatasets}
@@ -467,22 +476,28 @@
 	.menu {
 		display: flex;
 		margin-right:20px;
+		gap: 20px;
 	}
 
 	.menuitem {
-		width:40px;
-		margin-right:20px;
+		width: fit-content;
 		text-decoration: underline;
+		padding: 5px;
+		border-radius: 4px;
 	}
 
 	.menuitem:hover {
 		cursor: pointer;
-		font-weight:bold;
+		background-color: rgb(189, 189, 189);
 	}
 
 	.content-container {
-		flex: 1;
+		width:100%;
+		flex: 1 1 0;
+		min-height: 0px;
 		overflow: hidden;
+		border: 2px black dotted;
+		border-radius: 5px;
 	}
 
 	button {

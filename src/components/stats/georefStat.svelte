@@ -26,7 +26,6 @@
 
   $: stat, (_ => {
     if (el) {
-      console.log('running flash')
       el.classList.remove('flash');
       void el.offsetWidth; //see https://stackoverflow.com/a/30072037/3210158
       el.classList.add('flash');

@@ -171,8 +171,9 @@
     <Select items={domainOptions} bind:value={domain}/>
   </div>
   {#if regionInvalidCountries.length}
+  <p></p>
   <p>The following countries in the dataset are not valid for this region and the records will be removed:
-    <span>{regionInvalidCountries.map(x => x.ambiguous? `${x.country} (ambiguous)` : x.country).join(';')}</span>
+    <span style="font-weight: bold;">{regionInvalidCountries.map(x => x.ambiguous? `${x.country} (ambiguous)` : x.country).join(';')}</span>
   </p>
   {/if}
   <label for="invite">Invite georeferencers</label>

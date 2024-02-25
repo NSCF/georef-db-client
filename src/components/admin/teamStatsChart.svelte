@@ -1,7 +1,6 @@
 <script>
 
   //shows the records/georefs for the whole team, or per team member over the last time period (days, weeks, months)
-  import { onMount } from 'svelte'
   import makeTeamMemberData from '../../generalUtilities/makeTeamMemberData'
   import makeTeamTotals from '../../generalUtilities/makeTeamTotals'
   import makeChartData from '../../generalUtilities/makeChartData'
@@ -10,26 +9,20 @@
   import Loader from '../loader.svelte'
 
   export let teamProfiles
-  export let size = 6 //the number of columns in the graph
+  export let size = '6' //the number of columns in the graph
 
   //stats
   let stats = null //For the raw georef and record counts
   let chartData = null
 
   let selectTypes = ['daily', 'weekly', 'monthly']
-  let userSelect
+  let selectPeriods = [3, 6, 12, 18, 24].map(x => x.toString());
 
   let selectedType = 'weekly'
   let selectedUID = 'all'
 
   let browns = ['#ff944d', '#cc5200'] //for georefs
   let greens = ['#c3c388', '#77b300'] //for records
-
-  // $: teamProfiles, fetchAndMakeChartData()
-  $: teamProfiles, console.log('teamProfiles changed')
-  $: selectedType, console.log('selectedType changed')
-  $: selectedUID, console.log('selectedUID changed')
-
 
   const setChartData = _ => {
     if(selectedType) { //needed to prevent this from running on load
@@ -95,21 +88,45 @@
     }
   }
 
+  $:  getGeorefTotals = function() {
+    if (stats) {
+      if(selectedType) { //needed to prevent this from running on load
+        if(stats[selectedUID] && stats[selectedUID][selectedType]){
+          return stats[selectedUID][selectedType].georefs.reduce((accumulator, currentValue) => {
+            return accumulator + currentValue
+          },0)
+        }
+      }
+    } 
+  }
+
+  $:  getRecordTotals = function() {
+    if (stats) {
+      if(selectedType) { //needed to prevent this from running on load
+        if(stats[selectedUID] && stats[selectedUID][selectedType]){
+          return stats[selectedUID][selectedType].records.reduce((accumulator, currentValue) => {
+            return accumulator + currentValue
+          },0)
+        }
+      }
+    } 
+  }
+
 </script>
 
 <!-- ############################################## -->
 <!-- HTML -->
 <div style="max-height: 100%">
   <button on:click={fetchAndMakeChartData}>Get team stats</button>
-  <button on:click={_ => chartData = null}>clear chart data</button>
-  <button on:click={setChartData}>Add chart data</button>
+  <!-- <button on:click={_ => chartData = null}>clear chart data</button>
+  <button on:click={setChartData}>Add chart data</button> -->
   <div class="chart-div">
     {#if selectedType == 'daily'}
-      <div class="chart-title">Dataset stats for last six days</div>
+      <div class="chart-title">Team stats for last {size} days</div>
     {:else if selectedType == 'weekly'}
-      <div class="chart-title">Dataset stats for last six weeks</div>
+      <div class="chart-title">Team stats for last {size} weeks</div>
     {:else if selectedType == 'monthly'}
-      <div class="chart-title">Dataset stats for last six months</div>
+      <div class="chart-title">Team stats for last {size} months</div>
     {/if}
     <select class='profile-select' bind:value={selectedUID} on:change={setChartData}>
       <option value="all">all</option>
@@ -117,11 +134,19 @@
         <option value={profile.uid}>{profile.firstName}</option>
       {/each}
     </select>
-    <select class='time-select' bind:value={selectedType} on:change={setChartData}>
-      {#each selectTypes as type}
-      <option value={type}>{type}</option>
-      {/each}
-    </select>
+    <div class="time-select">
+      <select bind:value={size} on:change={fetchAndMakeChartData()}>
+        {#each selectPeriods as period}
+        <option value={period}>{period}</option>
+        {/each}
+      </select>
+      <select bind:value={selectedType} on:change={setChartData}>
+        {#each selectTypes as type}
+        <option value={type}>{type}</option>
+        {/each}
+      </select>
+    </div>
+    
     {#if chartData}
     <BarChart {chartData}/>
     {:else}
@@ -129,6 +154,10 @@
       <Loader />
     </div>
     {/if}
+    <div style="display: flex; justify-content: space-between;">
+      <span>Total georefs: {getGeorefTotals()}</span>
+      <span>Total records: {getRecordTotals()}</span>
+    </div>
   </div>
 </div>
 
@@ -145,7 +174,7 @@
     position:absolute;
     right: 20px;
     top: -15px;
-    width: 100px;
+    width: 200px;
   }
 
   .profile-select {

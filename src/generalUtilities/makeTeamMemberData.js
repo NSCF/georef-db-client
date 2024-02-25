@@ -43,7 +43,6 @@ export default function(userStats, size) {
       georefs,
       records
     }
-
   }
 
   return userData

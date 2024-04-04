@@ -54,8 +54,8 @@
     if (teamProfiles && Array.isArray(teamProfiles) && teamProfiles.length) {
 
       //reset
-      selectedType = 'weekly'
-      selectedUID = 'all'
+      // selectedType = 'weekly'
+      // selectedUID = 'all'
       
       const proms = {}
       for (const profile of teamProfiles) {
@@ -135,11 +135,12 @@
       {/each}
     </select>
     <div class="time-select">
-      <select bind:value={size} on:change={fetchAndMakeChartData()}>
+      <!-- <select bind:value={size} on:change={fetchAndMakeChartData()}>
         {#each selectPeriods as period}
         <option value={period}>{period}</option>
         {/each}
-      </select>
+      </select> -->
+      <input type="number" id="timespan" style="width:60px" bind:value={size} on:change={fetchAndMakeChartData} />
       <select bind:value={selectedType} on:change={setChartData}>
         {#each selectTypes as type}
         <option value={type}>{type}</option>

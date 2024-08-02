@@ -16,7 +16,6 @@
   let chartData = null
 
   let selectTypes = ['daily', 'weekly', 'monthly']
-  let selectPeriods = [3, 6, 12, 18, 24].map(x => x.toString());
 
   let selectedType = 'weekly'
   let selectedUID = 'all'

@@ -2,6 +2,7 @@
 /public/build/
 
 *.gpg
+*.log
 
 .DS_Store
 

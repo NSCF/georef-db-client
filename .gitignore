@@ -1,6 +1,8 @@
 /node_modules/
 /public/build/
 
+*.gpg
+
 .DS_Store
 
 /src/temp.js

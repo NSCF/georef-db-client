@@ -329,8 +329,8 @@
 						<span class="menuitem" on:click={handleHomeClick}>Home</span>
 						<span class="menuitem" on:click={handleAboutClick}>About</span>
 						{#if profile && profile.isAdmin && currentPage != 'Georeferencer'}
-							<span class="menuitem" on:click={_ => currentPage = 'Workshop'}>Workshop</span>
-							<span class="menuitem" on:click={_ => currentPage = 'TeamDetail'}>Teams</span>
+							<!-- <span class="menuitem" on:click={_ => currentPage = 'Workshop'}>Workshop</span>
+							<span class="menuitem" on:click={_ => currentPage = 'TeamDetail'}>Teams</span> -->
 						{/if}
 					</div>
 					{#if !firstAuth}
@@ -496,7 +496,7 @@
 		flex: 1 1 0;
 		min-height: 0px;
 		overflow: hidden;
-		border: 2px black dotted;
+		/* border: 2px black dotted; */
 		border-radius: 5px;
 	}
 

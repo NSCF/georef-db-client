@@ -329,8 +329,8 @@
 						<span class="menuitem" on:click={handleHomeClick}>Home</span>
 						<span class="menuitem" on:click={handleAboutClick}>About</span>
 						{#if profile && profile.isAdmin && currentPage != 'Georeferencer'}
-							<!-- <span class="menuitem" on:click={_ => currentPage = 'Workshop'}>Workshop</span>
-							<span class="menuitem" on:click={_ => currentPage = 'TeamDetail'}>Teams</span> -->
+							<span class="menuitem" on:click={_ => currentPage = 'Workshop'}>Workshop</span>
+							<span class="menuitem" on:click={_ => currentPage = 'TeamDetail'}>Teams</span>
 						{/if}
 					</div>
 					{#if !firstAuth}

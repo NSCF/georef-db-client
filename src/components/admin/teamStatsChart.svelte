@@ -7,6 +7,7 @@
   import { Realtime } from '../../firebase.js'
   import BarChart from '../BarChart.svelte'
   import Loader from '../loader.svelte'
+  import { text } from 'svelte/internal';
 
   export let teamProfiles
   export let size = '6' //the number of columns in the graph
@@ -111,12 +112,33 @@
     } 
   }
 
+  const copyStats = () => {
+    if (chartData) {
+      let textData = ''
+      const labels = chartData.labels
+      const datasets = chartData.datasets
+      const georefs = datasets[0].data
+      const records = datasets[1].data
+      textData += 'date\tgeorefs\trecords\n' 
+      for (let i = 0; i < labels.length; i++) {
+        textData += labels[i] + '\t' + georefs[i] + '\t' + records[i] + '\n'
+      }
+      navigator.clipboard.writeText(textData).then(_ => alert('stats copied'))
+    }
+    else {
+      alert('no stats to copy')
+    }
+  }
+
 </script>
 
 <!-- ############################################## -->
 <!-- HTML -->
 <div style="max-height: 100%">
-  <button on:click={fetchAndMakeChartData}>Get team stats</button>
+  <div style="display:flex; gap:1em;">
+    <button on:click={fetchAndMakeChartData}>Get team stats</button>
+    <button on:click={copyStats}>Copy stats</button>
+  </div>
   <!-- <button on:click={_ => chartData = null}>clear chart data</button>
   <button on:click={setChartData}>Add chart data</button> -->
   <div class="chart-div">

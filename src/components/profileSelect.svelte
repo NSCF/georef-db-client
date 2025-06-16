@@ -17,7 +17,7 @@
 	//but I dont know if it really works...
 	function* searchProfiles(search) {
 		fetching = true
-    let res = yield fetch(`https://us-central1-georef-745b9.cloudfunctions.net/findprofile?search=${search}`)
+    let res = yield fetch(`https://us-central1-georef-745b9.cloudfunctions.net/findprofileV2?search=${search}`)
     if(res.ok){
       let data = yield res.json()
 			if(data.length) {

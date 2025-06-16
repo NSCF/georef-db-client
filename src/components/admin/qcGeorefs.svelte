@@ -348,7 +348,7 @@
   const updateGeoref = async georef => {
     //this has to update on elastic and two collections in firestore
 
-    const url = 'https://us-central1-georef-745b9.cloudfunctions.net/updategeoref'
+    const url = 'https://us-central1-georef-745b9.cloudfunctions.net/updategeorefV2'
     
     //send it off async and hope for the best, we don't want to slow down!!
     let res
@@ -469,7 +469,7 @@
         ids.push(currentGeoref.georefID)
       }
 
-      navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updateVerifyGeorefLock?georefids=${ids.join(',')}`, '')
+      navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updateVerifyGeorefLockV2?georefids=${ids.join(',')}`, '')
       */
     
       let proms = []

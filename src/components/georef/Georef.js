@@ -48,8 +48,8 @@ export default class Georef {
       protocolObject: {
         enumerable: false,
         get() {
-          if(this.protocol && this.protocol.trim()){
-            let r = {value: this.protocol, label: this.protocol}
+          if (this.protocol && this.protocol.trim()) {
+            let r = { value: this.protocol, label: this.protocol }
             return r
           }
           else {
@@ -57,23 +57,23 @@ export default class Georef {
           }
         },
         set(obj) {
-          if(obj){
+          if (obj) {
             this.protocol = obj.value
           }
           else {
             this.protocol = null
           }
         }
-      }, 
+      },
       sourcesArray: {
         enumerable: false,
         get() {
-          if(this.sources && this.sources.trim()){
-            let sourceItems = this.sources.split('|').filter(x=>x).map(x=>x.trim()).filter(x=>x)
-            if(sourceItems.length) {
+          if (this.sources && this.sources.trim()) {
+            let sourceItems = this.sources.split('|').filter(x => x).map(x => x.trim()).filter(x => x)
+            if (sourceItems.length) {
               let selectedSources = []
-              for (let item of sourceItems){
-                selectedSources.push({value: item, label:item})
+              for (let item of sourceItems) {
+                selectedSources.push({ value: item, label: item })
               }
               return selectedSources
             }
@@ -85,21 +85,21 @@ export default class Georef {
             return null
           }
         },
-        set(selectedSources){ //for taking an array of {value, label} objects used for a <select>, throws if any problems
-          if(Array.isArray(selectedSources)) {
-            this.sources = selectedSources.map(x=>x.value).join(' | ')
+        set(selectedSources) { //for taking an array of {value, label} objects used for a <select>, throws if any problems
+          if (Array.isArray(selectedSources)) {
+            this.sources = selectedSources.map(x => x.value).join(' | ')
           }
           else {
             this.sources = null
           }
         }
-      }, 
+      },
       uncertaintyUnitOkay: {
-        value:true,
+        value: true,
         writable: true,
         enumerable: false
       }
-    }) 
+    })
   }
 
   ////////METHODS/////////////
@@ -107,15 +107,15 @@ export default class Georef {
   //deep copy
   copy() {
     let copy = new Georef()
-    for (let [key, val] of Object.entries(this)){
-      
-      if(key == 'protocolObject'){
+    for (let [key, val] of Object.entries(this)) {
+
+      if (key == 'protocolObject') {
         copy[key] = Object.assign({}, val)
         continue
       }
 
-      if(key == 'sourcesArray'){
-        copy[key] = val.map(x=>Object.assign({}, x)) //sourcesArray is an array of objects
+      if (key == 'sourcesArray') {
+        copy[key] = val.map(x => Object.assign({}, x)) //sourcesArray is an array of objects
         continue
       }
 
@@ -125,8 +125,8 @@ export default class Georef {
   }
 
   //empty everything
-  clear(){
-    for (let key of Object.keys(this)){
+  clear() {
+    for (let key of Object.keys(this)) {
       this[key] = null
     }
     this.protocolObject = null
@@ -135,20 +135,20 @@ export default class Georef {
 
   //indicate whether this is different to another georef, eg for checking changes
   differentTo(other) {
-    if(!other || Object.keys(other).length == 0) {
+    if (!other || Object.keys(other).length == 0) {
       return true
     }
     //we specify the fields that need to be checked to see if we can consider this a different georef
-    let fieldsToCheck = ['locality','verbatimCoordinates','decimalLatitude','decimalLongitude','uncertainty','uncertaintyUnit','datum','by','byORCID','date','sources','protocol','remarks']
+    let fieldsToCheck = ['locality', 'verbatimCoordinates', 'decimalLatitude', 'decimalLongitude', 'uncertainty', 'uncertaintyUnit', 'datum', 'by', 'byORCID', 'date', 'sources', 'protocol', 'remarks']
     for (let field of fieldsToCheck) {
-      if(field == 'decimalLatitude' || field == 'decimalLongitude'){
+      if (field == 'decimalLatitude' || field == 'decimalLongitude') {
         //we only consider differences more less than a certain number of decimals as different
-        if(Math.abs(this[field] - other[field]) > 0.000000001) {
+        if (Math.abs(this[field] - other[field]) > 0.000000001) {
           return true
         }
       }
       else {
-        if(this[field] != other[field]){
+        if (this[field] != other[field]) {
           return true
         }
       }
@@ -191,8 +191,8 @@ export default class Georef {
    * @param {boolean} update a flag for whether to update or save/create
    * @returns null
    */
-  async persist(profile, dataset, index, update){
-    if(!profile || !dataset || !index || !index.trim()) {
+  async persist(profile, dataset, index, update) {
+    if (!profile || !dataset || !index || !index.trim()) {
       throw new Error('valid profile and dataset objects and an index are required to persist a georef')
     }
 
@@ -200,12 +200,12 @@ export default class Georef {
     try {
       timeNow = await getSafeTime()
     }
-    catch(err) {
+    catch (err) {
       dispatch('componenterror', err)
       return
     }
 
-    if(update) {
+    if (update) {
       this.lastEdited = timeNow
       this.lastEditedB = profile.formattedName
       this.lastEditdByID = profile.uid
@@ -214,67 +214,67 @@ export default class Georef {
       this.dateCreated = timeNow
       this.createdBy = profile.formattedName
       this.createdByID = profile.uid
-  
+
       this.region = dataset.region
       this.domain = dataset.domain
-  
-      if(!this.originalGeorefSource || !this.originalGeorefSource.trim()) {
+
+      if (!this.originalGeorefSource || !this.originalGeorefSource.trim()) {
         this.originalGeorefSource = 'NSCF georeference database'
       }
     }
-    
+
     //save to elastic via our API
     let url
-    if(update) {
-      url = 'https://us-central1-georef-745b9.cloudfunctions.net/updategeoref'
+    if (update) {
+      url = 'https://us-central1-georef-745b9.cloudfunctions.net/updategeorefV2'
     }
     else {
-      url = 'https://us-central1-georef-745b9.cloudfunctions.net/addgeoref'
-    } 
+      url = 'https://us-central1-georef-745b9.cloudfunctions.net/addgeorefV2'
+    }
 
     let token = await Auth.currentUser.getIdToken();
 
     let res
     try {
       res = await fetch(url, {
-        method: 'POST', 
+        method: 'POST',
         headers: {
           'Authorization': token,
           'Content-Type': 'application/json'
         },
-        body: (JSON.stringify({georef: this, index}))
+        body: (JSON.stringify({ georef: this, index }))
       })
     }
-    catch(err) {
+    catch (err) {
       this.saveError = err.message
-      console.error(`error ${update? 'updating' : 'saving'} this georef:`)
+      console.error(`error ${update ? 'updating' : 'saving'} this georef:`)
       console.log(this)
       try {
-        let target = update? 'updateGeorefErrors' : 'saveGeorefErrors'
+        let target = update ? 'updateGeorefErrors' : 'saveGeorefErrors'
         await Firestore.collection(target).doc(this.georefID).set(this)
       }
-      catch(err) {
+      catch (err) {
         alert('Failed to store failed georef on Firebase:', err.message)
         return
       }
     }
 
-    if(res.status != 200) {
+    if (res.status != 200) {
       //we need to try save it elsewhere so the system admin can fix these
       let body = await res.json()
-      if(body.validation) {
+      if (body.validation) {
         this.validationErrors = body.validation
         console.log(this)
         try {
-          let target = update? 'updateGeorefErrors' : 'saveGeorefErrors'
+          let target = update ? 'updateGeorefErrors' : 'saveGeorefErrors'
           await Firestore.collection(target).doc(this.georefID).set(this) //async
         }
-        catch(err) {
+        catch (err) {
           alert('Unable to store failed georef on Firebase:', err.message)
           return
         }
-        
-        let message = `There was an error ${update? 'updating' : 'saving'} the georeference with id ${this.georefID}.\r\n\r\n`
+
+        let message = `There was an error ${update ? 'updating' : 'saving'} the georeference with id ${this.georefID}.\r\n\r\n`
         message += 'There were validation errors with these fields:' + body.validation + '\r\n\r\n'
         message += 'Please take a screenshot and alert the NSCF on data@nscf.org.za'
         alert(message)
@@ -284,15 +284,15 @@ export default class Georef {
         console.error("Error saving this georef:")
         console.log(this)
         try {
-          let target = update? 'updateGeorefErrors' : 'saveGeorefErrors'
+          let target = update ? 'updateGeorefErrors' : 'saveGeorefErrors'
           await Firestore.collection(target).doc(this.georefID).set(this) //async
         }
-        catch(err) {
+        catch (err) {
           alert('Unable to store failed georef on Firebase:', err.message)
           return
         }
-        
-        let message = `There was an error ${update? 'updating' : 'saving'} the georeference with id ${this.georefID}.\r\n\r\n`
+
+        let message = `There was an error ${update ? 'updating' : 'saving'} the georeference with id ${this.georefID}.\r\n\r\n`
         message += 'Error message:' + body + '\r\n\r\n'
         message += 'Please take a screenshot and alert the NSCF on data@nscf.org.za'
         alert(message)
@@ -300,17 +300,17 @@ export default class Georef {
       }
     }
     else {
-      if(window.pushToast) {
-        let message = update? 'georef updated' : 'new georef saved'
+      if (window.pushToast) {
+        let message = update ? 'georef updated' : 'new georef saved'
         window.pushToast(message)
-      } 
+      }
     }
   }
 
   ///////COMPUTED PROPERTIES///////////////
   get decimalCoordinates() {
-    if(this.decimalLatitude && this.decimalLongitude) {
-      return this.decimalLatitude  + ',' + this.decimalLongitude
+    if (this.decimalLatitude && this.decimalLongitude) {
+      return this.decimalLatitude + ',' + this.decimalLongitude
     }
     else {
       return null
@@ -318,27 +318,27 @@ export default class Georef {
   }
 
   //assumed already validated
-  set decimalCoordinates(coordsString){
-    if(coordsString && coordsString.trim()) {
+  set decimalCoordinates(coordsString) {
+    if (coordsString && coordsString.trim()) {
       let parts = coordsString.split(',')
       this.decimalLatitude = Number(parts[0])
       this.decimalLongitude = Number(parts[1])
     }
-    
+
   }
 
   //this is validation
   get decimalCoordinatesOkay() {
-    if(this.decimalLatitude && this.decimalLongitude){
+    if (this.decimalLatitude && this.decimalLongitude) {
       if (isNaN(this.decimalLatitude) || isNaN(this.decimalLongitude)) {
         return false
       }
 
-      if(this.decimalLatitude > 90 || this.decimalLongitude < -90) {
+      if (this.decimalLatitude > 90 || this.decimalLongitude < -90) {
         return false
       }
 
-      if(this.decimalLongitude > 180 || this.decimalLongitude < -180){
+      if (this.decimalLongitude > 180 || this.decimalLongitude < -180) {
         return false
       }
 
@@ -347,7 +347,7 @@ export default class Georef {
       if (!re.test(this.decimalCoordinates)) {
         return false
       }
-      
+
       //else
       return true
     }
@@ -369,8 +369,8 @@ export default class Georef {
   }
 
   get uncertaintyUnitOkay() {
-    if(this.uncertainty) {
-      if(!this.uncertaintyUnit || !this.uncertaintyUnit.trim() || !['m','km'].contains(this.uncertaintyUnit.trim())){
+    if (this.uncertainty) {
+      if (!this.uncertaintyUnit || !this.uncertaintyUnit.trim() || !['m', 'km'].contains(this.uncertaintyUnit.trim())) {
         return false
       }
     }

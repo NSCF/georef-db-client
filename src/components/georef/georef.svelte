@@ -714,7 +714,7 @@
       if(!georef.used) {
         // fire off the update request to the API
         georef.used = true
-        let url = `https://us-central1-georef-745b9.cloudfunctions.net/georefused?georefID=${georef.georefID}&index=${elasticindex}`
+        let url = `https://us-central1-georef-745b9.cloudfunctions.net/georefusedV2?georefID=${georef.georefID}&index=${elasticindex}`
         fetch(url) //no response needed here
         newGeorefsUsed.push(georef.georefID)
 
@@ -822,7 +822,7 @@
       if(newGeorefsUsed.length){
         for (let georefID of newGeorefsUsed){
           $dataStore.georefIndex[georefID].used = false
-          let url = `https://us-central1-georef-745b9.cloudfunctions.net/georefused?georefID=${georefID}&index=${elasticindex}&setfalse`
+          let url = `https://us-central1-georef-745b9.cloudfunctions.net/georefusedV2?georefID=${georefID}&index=${elasticindex}&setfalse`
           fetch(url) //no response needed here
         }
         newGeorefsUsed = []
@@ -1007,7 +1007,7 @@
   }
 
   const handleUnload = _ => {
-    navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updaterecordgrouplock?groupid=${$dataStore.recordGroupSnap.id}`, '')
+    navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updaterecordgrouplockV2?groupid=${$dataStore.recordGroupSnap.id}`, '')
   }
 
 </script>

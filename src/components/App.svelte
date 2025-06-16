@@ -290,7 +290,7 @@
 		if (fbUser) {
 			fbUser.getIdToken(true).then(token => {
 				console.log('id token is', token)
-				fetch('https://us-central1-georef-745b9.cloudfunctions.net/hello', {
+				fetch('https://us-central1-georef-745b9.cloudfunctions.net/helloV2', {
 					headers: {
 						Authorization: token
 					}
@@ -329,6 +329,7 @@
 						<span class="menuitem" on:click={handleHomeClick}>Home</span>
 						<span class="menuitem" on:click={handleAboutClick}>About</span>
 						{#if profile && profile.isAdmin && currentPage != 'Georeferencer'}
+            <!-- Remember to remove this before deploying -->
 							<span class="menuitem" on:click={_ => currentPage = 'Workshop'}>Workshop</span>
 							<span class="menuitem" on:click={_ => currentPage = 'TeamDetail'}>Teams</span>
 						{/if}

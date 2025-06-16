@@ -587,7 +587,7 @@
         georefIDs: georefKeys
       }
 
-      let url = 'https://us-central1-georef-745b9.cloudfunctions.net/getgeorefsbyid'
+      let url = 'https://us-central1-georef-745b9.cloudfunctions.net/getgeorefsbyidV2'
       let token = await Auth.currentUser.getIdToken(true);
 
       let res

@@ -1,6 +1,6 @@
 <script>
 
-  import {createEventDispatcher} from 'svelte'
+  import {onMount, createEventDispatcher} from 'svelte'
   import Select from 'svelte-select';
 
   const dispatch = createEventDispatcher()
@@ -16,7 +16,12 @@
 
   let provincChangeFromCountryChange = false //we use this to suppress dispatches from stateProvince change handler when country changes
 
-  $: if (countryProvs) setCountryAndStateOptions() //trigger it on first load of countryProvs, it wont change after that
+  onMount(() => {
+    //if we have countryProvs, we can set the options
+    if(countryProvs) {
+      setCountryAndStateOptions()
+    }
+  })
 
   const setCountryAndStateOptions = _ => {
 

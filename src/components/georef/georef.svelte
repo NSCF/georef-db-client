@@ -453,6 +453,8 @@
 
   const clearLocalityGroupQueuePosition = async _ => {
     let message = 'Are you sure you want to start over for '
+    console.log('selectedCountry:', selectedCountry)
+    console.log('selectedStateProv:', selectedStateProv)
     if(dataset.countryProvs) {
       if(selectedCountry == 'all'){
         message += 'all countries'

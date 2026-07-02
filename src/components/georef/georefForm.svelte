@@ -41,8 +41,7 @@ export let georefProtocols = [
   'Wieczorek et al. 2004'
 ]
 
-//TODO make prop and must come from a database
-export let georefSources = [
+const baseGeorefSources = [
   'Google Maps', 
   'Google Earth',
   'Google Satellite',
@@ -54,8 +53,11 @@ export let georefSources = [
   'Geolocate', 
   'Nominatum',
   'verbatim coordinates',
-  'NSCF georeference database'
+  'NSCF georeference database',
+  'Acocks maps'
 ]
+
+let georefSources = [...baseGeorefSources]
 
 onMount(_ => {
   let savedProtocols = localStorage.getItem('custom-protocols')
@@ -336,24 +338,21 @@ const handleProtocolSelected = _ => {
   }
 }
 
-const handleSourceSelected = _ => {
-  //add new items to localStorage
-  //more complicated than for protocol because of multiple arrays
-  //lets use sets
-  if(localGeoref.sourcesArray && localGeoref.sourcesArray.length) { //check we have values first
-    //for each one check if in original array
-    for (let selectedSource of localGeoref.sourcesArray) {
-      if(!georefSources.includes(selectedSource.value)) {
-        georefSources = [...georefSources, selectedSource.value] //add it
-        let sources = [] //this should only happen once so we should be able to do this in the loop...
-        let savedSources = localStorage.getItem('custom-sources')
-        if(savedSources) {
-          sources = JSON.parse(savedSources)
-        }
-        sources.push(selectedSource.value)
-        localStorage.setItem('custom-sources', JSON.stringify(sources))
-        break //this should be safe...
+const handleSourceSelected = ev => {
+  let addedSource = ev.detail[-1]
+  if (addedSource) {
+    if(!georefSources.map(s => s.value.toLowerCase().replace(/\s+/g, ' ').trim()).includes(addedSource.value.toLowerCase().replace(/\s+/g, ' ').trim())){
+      //add it so we can reuse it
+      const newVal = addedSource.value.toLowerCase().replace(/\s+/g, ' ').trim()
+      georefSources = [...georefSources, newVal]
+      let sources = []
+      let savedSources = localStorage.getItem('custom-sources')
+      if(savedSources){
+        sources = JSON.parse(savedSources)
       }
+      sources.push(addedSource.value)
+      sources.sort()
+      localStorage.setItem('custom-sources', JSON.stringify(sources))
     }
   }
 }

@@ -338,11 +338,16 @@ const handleProtocolSelected = _ => {
   }
 }
 
+// add custom sources locally 
 const handleSourceSelected = ev => {
-  let addedSource = ev.detail[-1]
+  let addedSource = null;
+  
+  if (ev.detail) {
+    addedSource = ev.detail[-1] // we assume it's the last one in the list...
+  }
+
   if (addedSource) {
     if(!georefSources.map(s => s.value.toLowerCase().replace(/\s+/g, ' ').trim()).includes(addedSource.value.toLowerCase().replace(/\s+/g, ' ').trim())){
-      //add it so we can reuse it
       const newVal = addedSource.value.toLowerCase().replace(/\s+/g, ' ').trim()
       georefSources = [...georefSources, newVal]
       let sources = []

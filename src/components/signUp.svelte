@@ -16,8 +16,8 @@
   let formattedName = ''
   let submitClicked = false
 
-  let orcidRE = /^https:\/\/orcid.org\/\d{4}-\d{4}-\d{4}-\d{3}[0-9X]{1}$/
-  let pwdRE =  /^(?=.*\d)(?=.*[a-zA-Z])(?=.*[!@#$%^&*])[0-9a-zA-Z!@#$%^&*]{8,}$/
+  const orcidRE = /^https:\/\/orcid.org\/\d{4}-\d{4}-\d{4}-\d{3}[0-9X]{1}$/
+  const pwdRE = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}$/;
 
   let warnings = ['firstWarning', 'lastWarning', 'orcidWarning', 'emailWarning', 'pwdWarning', 'confPwdWarning']
   $: firstWarning = submitClicked && (!first || !first.trim())

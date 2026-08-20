@@ -204,12 +204,14 @@
       return
     }
 
-    try {
-      fetchRecordGroupsAndGeorefs('at', usersLastGroupID)
-    }
-    catch(err){//only if offline
-      alert('there was an error getting a record group to georeference: ' + err.message)
-      console.error(err)
+    if (!dataset.countryProvs) {
+      try {
+        fetchRecordGroupsAndGeorefs('at', usersLastGroupID)
+      }
+      catch(err){//only if offline
+        alert('there was an error getting a record group to georeference: ' + err.message)
+        console.error(err)
+      }
     }
 
     //manage connection status
@@ -541,6 +543,10 @@
   }
 
   const handleCountryProvinceChanged = async ev => {
+    if (selectedCountry === ev.detail.country && selectedStateProv === ev.detail.stateProvince) {
+      return
+    }
+
     selectedCountry = ev.detail.country
     selectedStateProv = ev.detail.stateProvince
     datasetComplete = false //in case it was this for the last group

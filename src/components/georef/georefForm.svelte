@@ -6,6 +6,7 @@ import VerbatimCoordsInput from './verbatimCoordsInput.svelte'
 import DateInput from './dateInput.svelte'
 import Georef from './Georef.js'
 import Checkbox from '../Checkbox.svelte'
+import { dataStore } from './dataStore.js'
 
 import {onMount, createEventDispatcher} from 'svelte'
 let dispatch = createEventDispatcher();
@@ -98,6 +99,15 @@ $: localGeoref.verifiedBy, setDefaultORCID('verifiedBy')
 
 $: localGeoref.locality, updateOnLocalityChange()
 
+$: if (georef && localGeoref && localGeoref.decimalCoordinates !== georef.decimalCoordinates) {
+  if (defaultGeorefBy) {
+    localGeoref.by = defaultGeorefBy
+    localGeoref.byORCID = defaultGeorefByORCID || null
+    let now = new Date()
+    localGeoref.date = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0]
+  }
+}
+
 $: if(uncertaintySelect && !localGeoref.uncertaintyUnit){
   handleUncertaintyBlur() //this is just to handle new incoming georefs with no uncertainty after previous ones
 }
@@ -121,6 +131,22 @@ $: if (localGeoref && showVerification && localGeoref.locality ) {
 $: if (localGeoref && localGeoref.verifiedBy && localGeoref.verifiedDate && localGeoref.verifiedByRole) {
   localGeoref.verified = true
 }
+
+$: isCreatingNewGeoref = !georef || localGeoref.hasSpatialOrAuthorChanges(georef);
+
+$: selectedLocalities = ($dataStore.recordGroup && $dataStore.recordGroup.groupLocalities)
+  ? $dataStore.recordGroup.groupLocalities.filter(x => x.selected).map(x => x.loc)
+  : [];
+
+$: hasExactMatchInCandidates = selectedLocalities.some(loc => {
+  if (!loc || !$dataStore.georefIndex) return false;
+  const normalize = s => s.trim().toLowerCase().replace(/\s+/g, ' ');
+  return Object.values($dataStore.georefIndex).some(candidate => {
+    return candidate.locality && normalize(candidate.locality) === normalize(loc);
+  });
+});
+
+$: showDuplicateWarning = isCreatingNewGeoref && hasExactMatchInCandidates && !localGeoref.ambiguous;
 
 //for testing
 /*
@@ -181,12 +207,10 @@ const setLocalGeoref = _ => {
 const setDefaultORCID = field => {
   if(localGeoref[field] && localGeoref[field].trim()){ //make changes if there is a value
     if(defaultGeorefBy){
-      if(defaultGeorefByORCID) {
-        if(localGeoref[field] == defaultGeorefBy){
-          localGeoref[field + 'ORCID'] = defaultGeorefByORCID
-        }
+      if(defaultGeorefByORCID && localGeoref[field] == defaultGeorefBy) {
+        localGeoref[field + 'ORCID'] = defaultGeorefByORCID
       }
-      else { //it's changed and we don't have a default
+      else {
         localGeoref[field + 'ORCID'] = null
       }
     }
@@ -365,7 +389,7 @@ const handleSourceSelected = ev => {
 const checkAndDispatchGeoref = _ => {
 
   try {
-    if(localGeoref.differentTo(georef)) {
+    if(localGeoref.hasSpatialOrAuthorChanges(georef)) {
       //some validation first
       //simple validation first
       let invalidFields = []
@@ -424,6 +448,13 @@ const checkAndDispatchGeoref = _ => {
     <div class="ambiguous-alert-container">
       <div class="ambiguous-alert">
         Please note this is a blank geoference used for imprecise, ambiguous, or otherwise ungeoreferencable locality strings. Any edits will update it to a regular georeference. Only edit if you understand the consequences for other locaties that might use it...
+      </div>
+    </div>
+  {/if}
+  {#if showDuplicateWarning}
+    <div class="duplicate-warning-container">
+      <div class="duplicate-warning">
+        ⚠️ This locality already has an existing georeference in the candidate list. Please check the candidate list first to avoid duplication.
       </div>
     </div>
   {/if}
@@ -628,6 +659,25 @@ const checkAndDispatchGeoref = _ => {
     border-radius: 2px;
     border-width: 20px;
     border: 4px solid #c98f18;
+  }
+
+  .duplicate-warning-container {
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 10px;
+  }
+
+  .duplicate-warning {
+    width: 80%;
+    background-color: #ffebee;
+    color: #c62828;
+    border-radius: 2px;
+    padding: 10px;
+    border: 2px solid #ef5350;
+    text-align: center;
+    font-weight: bold;
+    font-size: 0.9em;
   }
 
   fieldset {

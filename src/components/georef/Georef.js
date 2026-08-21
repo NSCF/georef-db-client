@@ -156,6 +156,28 @@ export default class Georef {
     return false
   }
 
+  //indicate whether there are changes to core spatial details or author name
+  hasSpatialOrAuthorChanges(other) {
+    if (!other || Object.keys(other).length == 0) {
+      return true
+    }
+    let fieldsToCheck = ['locality', 'verbatimCoordinates', 'decimalLatitude', 'decimalLongitude', 'uncertainty', 'uncertaintyUnit', 'datum', 'by', 'date', 'sources', 'protocol', 'remarks']
+    for (let field of fieldsToCheck) {
+      if (field == 'decimalLatitude' || field == 'decimalLongitude') {
+        if (Math.abs(this[field] - other[field]) > 0.000000001) {
+          return true
+        }
+      }
+      else {
+        if (this[field] != other[field]) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+
   resetFieldsIfDifferent() {
     this.georefID = nanoid()
     this.guid = uuid()

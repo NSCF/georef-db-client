@@ -24,6 +24,20 @@
 
   $: filterBest, hidden()
 
+  $: selectedLocalities = ($dataStore.recordGroup && $dataStore.recordGroup.groupLocalities)
+    ? $dataStore.recordGroup.groupLocalities.filter(x => x.selected).map(x => x.loc)
+    : [];
+
+  $: georefLoc = $dataStore.georefIndex && $dataStore.georefIndex[georefKey] 
+    ? $dataStore.georefIndex[georefKey].locality 
+    : null;
+
+  $: isExactMatch = selectedLocalities.some(loc => {
+    if (!loc || !georefLoc) return false;
+    const normalize = s => s.trim().toLowerCase().replace(/\s+/g, ' ');
+    return normalize(loc) === normalize(georefLoc);
+  });
+
   const getQualityVal = _ => {
     let georef = $dataStore.georefIndex[georefKey]
     let qualityVars = ['uncertainty', 'datum', 'sources', 'protocol']
@@ -115,7 +129,12 @@ on:click={handleRowClick}>
     <td>
       <span class="material-icons" style="color:{qualityColor};">stop</span>
     </td>
-    <td>{$dataStore.georefIndex[georefKey].locality}</td>
+    <td>
+      {#if isExactMatch}
+        <span class="material-icons star-icon" title="Exact match for selected locality">star</span>
+      {/if}
+      {$dataStore.georefIndex[georefKey].locality}
+    </td>
     <td class='indicator'>
       {#if $dataStore.georefIndex[georefKey].uncertainty}
         <span class="material-icons">task_alt</span>
@@ -166,6 +185,13 @@ tr:hover {
 
 .hidden {
   display: none;
+}
+
+.star-icon {
+  color: #FFD700;
+  vertical-align: middle;
+  font-size: 18px;
+  margin-right: 4px;
 }
 
 </style>

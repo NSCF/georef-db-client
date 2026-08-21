@@ -2,6 +2,9 @@
 	import {onMount} from 'svelte'
 	import {Auth, Firestore, FieldValue, Realtime as Firebase } from '../firebase.js'
 
+  import tippy from 'tippy.js';
+  import 'tippy.js/dist/tippy.css'; // optional for styling
+
 	import Modal from 'svelte-simple-modal';
 	import Register from './signUp.svelte'
 	import SignIn from './signIn.svelte'
@@ -39,6 +42,8 @@
 	let fbUser //the firebase user object
 	let userID
 	let firstAuth = false
+  let showAccountMenu = false
+  let mainPageElement = null // for attaching the click handler when the account menu is open
 
 	//for 'page navigation'
 	// do we need a router??????
@@ -215,8 +220,21 @@
 		
 	}
 
+  function avatarClick(ev) {
+    ev.stopPropagation() //prevent the page click handler from firing
+    showAccountMenu = !showAccountMenu
+    if (!showAccountMenu) {
+      mainPageElement.removeEventListener('click', pageClickToCloseAccountMenu);
+      return
+    }
+    else {
+      mainPageElement.addEventListener('click', pageClickToCloseAccountMenu);
+    }
+  }
+
 	function signOutClick () {
 		Auth.signOut().then(_ => {
+      showAccountMenu = false
 			profile = null
 			userID = null
 			currentPage = 'Home'
@@ -225,6 +243,14 @@
 			alert('error signing out: ' + err.message)
 		}) 
 	}
+
+  function pageClickToCloseAccountMenu(ev) {
+    ev.stopPropagation() 
+    if (showAccountMenu) {
+      showAccountMenu = false;
+      mainPageElement.removeEventListener('click', pageClickToCloseAccountMenu);
+    }
+  }
 
 	function handleFileSelected(event){
 		fileForGeoref = event.detail.file
@@ -316,7 +342,7 @@
 
 </script>
 <svelte:window on:unload={async _ => await Firestore.collection('usersSignedIn').doc('users').update({uids: FieldValue.arrayRemove(profile.uid)})} />
-<main>
+<main bind:this={mainPageElement}>
 	<Modal>
 		<div class="main-flex-container">
 			<div class="header">
@@ -343,9 +369,31 @@
 								<button on:click='{_ => currentPage = 'SignIn'}'><strong>Sign In</strong></button>
 							</div>
 						{:else}
-							<div class="header-right">
-								<span style="margin-right:10px">Logged in as {profile.firstName} {profile.lastName}</span>
-								<button on:click={signOutClick}><strong>Sign Out</strong></button>
+							<div class="header-right" style="position:relative">
+                <button 
+                  type="button" 
+                  class="material-icons-outlined" 
+                  title={profile.firstName + ' ' + profile.lastName}
+                  style="font-size:2em;color:slategray;padding:0;background:none;border:none;cursor:pointer;margin:0"
+                  on:click={avatarClick}>
+                  account_circle
+                </button>
+                <div class="account-dropdown" hidden={!showAccountMenu}>
+                  <div class="account-info">
+                    <div class="account-name">{profile.firstName + ' ' + profile.lastName}</div>
+                  </div>
+                  {#if currentPage != 'Georeferencer'}
+                    <div class="menu-divider"></div>
+                    <div class="account-info" style="">
+                      <button 
+                        style="padding:0;background:none;border:none;cursor:pointer;margin:0"
+                        class="signout-button"
+                        on:click={signOutClick}>
+                        <strong>Sign Out</strong>
+                      </button>
+                    </div>
+                  {/if}
+                </div>
 							</div>
 						{/if}	
 					{/if}
@@ -531,5 +579,62 @@
 		font-size:1.5em;
 		font-weight: 400;
 	}
+
+  .account-menu {
+    position: relative;
+    display: inline-block;
+  }
+
+  .account-dropdown {
+    position: absolute;
+
+    /* Bottom-right of avatar */
+    top: calc(100% + 8px);
+    right: 0;
+
+    width: 220px;
+
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+
+    overflow: hidden;
+    z-index: 1000;
+  }
+
+  .account-info {
+    padding: 12px 16px;
+  }
+
+  .account-name {
+    font-weight: 600;
+  }
+
+  .menu-divider {
+    border-top: 1px solid #eee;
+  }
+
+  .menu-item {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+
+    border: 0;
+    background: none;
+
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .menu-item:hover {
+    background: #f5f5f5;
+  }
+
+  .signout-button:hover {
+    background: #f5f5f5;
+    color: slategray;
+  }
 	
 </style>

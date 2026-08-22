@@ -1,110 +1,97 @@
 <script>
-
-  import {onMount, createEventDispatcher} from 'svelte'
+  import { onMount, createEventDispatcher } from 'svelte';
   import Select from 'svelte-select';
 
-  const dispatch = createEventDispatcher()
+  const dispatch = createEventDispatcher();
 
-  export let hasStateProvince
-  export let countryProvs
-  export let disabled
-  export let initialCountry = null
-  export let initialStateProvince = null
+  export let hasStateProvince;
+  export let countryProvs;
+  export let disabled;
+  export let initialCountry = null;
+  export let initialStateProvince = null;
 
-  let countriesOptions = [] //array, we need to generate this with onMount so we can add 'all'
-  let selectedCountry = null
-  let stateProvOptions = []
-  let selectedStateProv = null
+  let countriesOptions = []; //array, we need to generate this with onMount so we can add 'all'
+  let selectedCountry = null;
+  let stateProvOptions = [];
+  let selectedStateProv = null;
 
-  let provincChangeFromCountryChange = false //we use this to suppress dispatches from stateProvince change handler when country changes
+  let provinceChangeFromCountryChange = false; //we use this to suppress dispatches from stateProvince change handler when country changes
 
   onMount(() => {
     //if we have countryProvs, we can set the options
-    if(countryProvs) {
-      setCountryAndStateOptions()
-    }
-  })
+    if (countryProvs) {
+      let countries = Object.keys(countryProvs);
+      countries.sort();
+      if (countries.length > 1) {
+        countries.unshift('all');
+      }
 
-  const setCountryAndStateOptions = _ => {
+      countriesOptions = countries.map((x) => ({ value: x, label: x }));
 
-    let countries = Object.keys(countryProvs)
-    countries.sort()
-    if(countries.length > 1) {
-      countries.unshift('all')
-    }
+      if (initialCountry) {
+        selectedCountry =
+          countriesOptions.find((x) => x.value === initialCountry) || countriesOptions[0];
+      } else {
+        selectedCountry = countriesOptions[0];
+      }
 
-    countriesOptions = countries.map(x => ({value: x, label: x}))
-
-    if (initialCountry) {
-      selectedCountry = countriesOptions.find(x => x.value === initialCountry) || countriesOptions[0]
-    } else {
-      selectedCountry = countriesOptions[0]
-    }
-
-    //if we have only one country, we can show the first option for it's stateProvinces
-    if(hasStateProvince) {
-      if(selectedCountry.value != 'all') {
-        stateProvOptions = countryProvs[selectedCountry.value].map(x => ({value: x, label: x}))
-        if (initialStateProvince) {
-          selectedStateProv = stateProvOptions.find(x => x.value === initialStateProvince) || stateProvOptions[0]
+      //if we have only one country, we can show the first option for it's stateProvinces
+      if (hasStateProvince) {
+        if (selectedCountry.value == 'all') {
+          stateProvOptions = [];
+          selectedStateProv = undefined;
         } else {
-          selectedStateProv = stateProvOptions[0]
+          stateProvOptions = countryProvs[selectedCountry.value].map((x) => ({
+            value: x,
+            label: x,
+          }));
+          if (initialStateProvince) {
+            selectedStateProv =
+              stateProvOptions.find((x) => x.value === initialStateProvince) || stateProvOptions[0];
+          } else {
+            selectedStateProv = stateProvOptions[0];
+          }
         }
       }
-      else {
-        stateProvOptions = []
-        selectedStateProv = undefined
+    }
+  });
+
+  const handleSelectedCountryChanged = async (_) => {
+    if (hasStateProvince) {
+      provinceChangeFromCountryChange = true;
+      if (selectedCountry.value == 'all') {
+        stateProvOptions = [];
+        selectedStateProv = undefined;
+      } else {
+        stateProvOptions = countryProvs[selectedCountry.value].map((x) => ({ value: x, label: x }));
+        selectedStateProv = stateProvOptions[0];
       }
     }
+    dispatchAdmins();
+  };
 
-    dispatchAdmins()
-    
-  }
-
-  const handleSelectedCountryChanged = async _ => {
-
-    if(hasStateProvince) {
-      provincChangeFromCountryChange = true
-      if(selectedCountry.value == 'all') {
-        stateProvOptions = []
-        selectedStateProv = undefined
-      }
-      else {
-        stateProvOptions = countryProvs[selectedCountry.value].map(x => ({value: x, label: x}))
-        selectedStateProv = stateProvOptions[0]
-      }
-    }
-
-    dispatchAdmins()
-   
-  }
-
-  const handleSelectedStateProvChanged = async _ => {
-
+  const handleSelectedStateProvChanged = async (_) => {
     //we only send this out if it's from a change on the countryProvs select!
-    if(provincChangeFromCountryChange) {
-      provincChangeFromCountryChange =  false //now we can make changes from the select
+    if (provinceChangeFromCountryChange) {
+      provinceChangeFromCountryChange = false; //now we can make changes from the select
+    } else {
+      dispatchAdmins();
     }
-    else {
-      dispatchAdmins()
-    }
-    
-  }
+  };
 
-  const dispatchAdmins = _ => {
+  const dispatchAdmins = (_) => {
     let selectedAdmins = {
-      country: selectedCountry.value
-    }
-    if(selectedStateProv) {
-      selectedAdmins.stateProvince = selectedStateProv.value
-    }
-    else {
-      selectedAdmins.stateProvince = null
-    }
-    
-    dispatch('admin-selected', selectedAdmins)
-  }
+      country: selectedCountry.value,
+    };
 
+    if (selectedStateProv) {
+      selectedAdmins.stateProvince = selectedStateProv.value;
+    } else {
+      selectedAdmins.stateProvince = null;
+    }
+
+    dispatch('admin-selected', selectedAdmins);
+  };
 </script>
 
 <!-- ############################################## -->
@@ -113,25 +100,27 @@
   <div class="inline-select">
     <span class="label">country</span>
     <div class="inline-select-fill">
-      <Select 
-        items={countriesOptions} 
-        isClearable={false} 
+      <Select
+        items={countriesOptions}
+        isClearable={false}
         isDisabled={disabled}
-        bind:value={selectedCountry} 
-        on:select={handleSelectedCountryChanged}/>
+        bind:value={selectedCountry}
+        on:select={handleSelectedCountryChanged}
+      />
     </div>
   </div>
   {#if hasStateProvince}
     <div class="inline-select" style="margin-top:5px;">
       <span class="label">stateProvince</span>
       <div class="inline-select-fill" style="--disabledBorderColor:darkgrey">
-        <Select 
-          items={stateProvOptions} 
-          placeholder={null} 
-          isClearable={false} 
-          bind:value={selectedStateProv} 
-          isDisabled={disabled || stateProvOptions.length <= 1} 
-          on:select={handleSelectedStateProvChanged} />
+        <Select
+          items={stateProvOptions}
+          placeholder={null}
+          isClearable={false}
+          bind:value={selectedStateProv}
+          isDisabled={disabled || stateProvOptions.length <= 1}
+          on:select={handleSelectedStateProvChanged}
+        />
       </div>
     </div>
   {/if}
@@ -140,19 +129,18 @@
 <!-- ############################################## -->
 <style>
   .label {
-    color:grey;
+    color: grey;
     font-weight: bolder;
   }
 
   .inline-select {
     display: flex;
-    width:100%;
+    width: 100%;
     align-items: center;
   }
 
   .inline-select-fill {
-    margin-left:5px;
-    flex: 1
+    margin-left: 5px;
+    flex: 1;
   }
-
 </style>

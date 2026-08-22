@@ -1,115 +1,124 @@
 <script>
-  import {onMount, onDestroy, createEventDispatcher} from 'svelte'
-  import { nanoid } from "nanoid" //see https://github.com/ai/nanoid/issues/237
-  import Toggle from "svelte-toggle";
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+  import { nanoid } from 'nanoid'; //see https://github.com/ai/nanoid/issues/237
+  import Toggle from 'svelte-toggle';
 
-  import { Firestore, Realtime as Firebase, ServerValue, FieldValue } from '../../firebase.js'
+  import { Firestore, Realtime as Firebase, ServerValue, FieldValue } from '../../firebase.js';
 
   import { getSafeTime } from '../../utilities.js';
 
   import {
     getNextAvailableRecordGroup,
     updateGeorefStats,
-    updateDatasetStats, 
+    updateDatasetStats,
     updateDatasetGeorefs,
     fetchCandidateGeorefs,
-    updateGeorefRecords, 
-    flagGeoref
-  } from './georefFuncs.js'
+    updateGeorefRecords,
+    flagGeoref,
+  } from './georefFuncs.js';
 
-  import { dataStore } from './dataStore.js'
+  import { dataStore } from './dataStore.js';
 
-  import CountryProvSelect from './countryProvSelect.svelte'
-  import RecordGroup from './georefRecordGroup.svelte'
-  import MatchList from './georefMatchList.svelte'
-  import MatchMap from './georefMatchMap.svelte'
-  import GeorefForm from './georefForm.svelte'
-  import CustomSearch from './customSearch.svelte'
-  import Toast from '../toast.svelte'
+  import CountryProvSelect from './countryProvSelect.svelte';
+  import RecordGroup from './georefRecordGroup.svelte';
+  import MatchList from './georefMatchList.svelte';
+  import MatchMap from './georefMatchMap.svelte';
+  import GeorefForm from './georefForm.svelte';
+  import CustomSearch from './customSearch.svelte';
+  import Toast from '../toast.svelte';
 
-  import Georef from './Georef'
+  import Georef from './Georef';
 
-  export let dataset
+  export let dataset;
 
-  export let profile
+  export let profile;
 
-  let formContainer
-  let georefForm
+  let formContainer;
+  let georefForm;
 
-  let datasetRef 
+  let datasetRef;
 
-  $: if(Firestore) {
-    datasetRef = Firestore.collection('datasets').doc(dataset.datasetID)
+  $: if (Firestore) {
+    datasetRef = Firestore.collection('datasets').doc(dataset.datasetID);
   }
 
-  let dispatch = createEventDispatcher()
+  let dispatch = createEventDispatcher();
 
   //the georef prop to send to the form
   //can be a georef object or null. Null and blank object can be used to reset the georef form
-  let selectedGeoref
+  let selectedGeoref;
 
-  let connected = true //we assume this, but it could cause an issue
-  let mounted = false
-  let busy = false
-  let savingGeoref = false
-  let savingRecordGroup = false
+  let connected = true; //we assume this, but it could cause an issue
+  let mounted = false;
+  let busy = false;
+  let savingGeoref = false;
+  let savingRecordGroup = false;
 
-  let elasticindex
-  let newGeorefsUsed = [] //for storing georefIDs of georefs not used before, this allows undo of setting them to used when resetting a record group
-  let datasetGeorefsUsed = []
+  let elasticindex;
+  let newGeorefsUsed = []; //for storing georefIDs of georefs not used before, this allows undo of setting them to used when resetting a record group
+  let datasetGeorefsUsed = [];
 
   //vars for custom georef searches
-  let customSearchString = null
-  let georefIndexOnHold = null
+  let customSearchString = null;
+  let georefIndexOnHold = null;
 
-  let selectedCountry = null
-  let selectedStateProv = null
+  let selectedCountry = null;
+  let selectedStateProv = null;
 
-  let filterLoaded = false
-  let savedCountry = null
-  let savedStateProv = null
+  let filterLoaded = false;
+  let savedCountry = null;
+  let savedStateProv = null;
 
-  let bookmarked = null //for storing the actual list of bookmarkedRecordGroups
-  let fetchBookmarked = false //bound prop for the toggle
-  let fetchBookmarkedFirstToggled = false //so we don't trigger a fetch on render
-  let bookMarksRef = null
-  let currentBookmarkIndex = 0
+  let bookmarked = null; //for storing the actual list of bookmarkedRecordGroups
+  let fetchBookmarked = false; //bound prop for the toggle
+  let fetchBookmarkedFirstToggled = false; //so we don't trigger a fetch on render
+  let bookMarksRef = null;
+  let currentBookmarkIndex = 0;
 
-  let selectedLocGeorefRemarks
+  let selectedLocGeorefRemarks;
 
-  let pastedDecimalCoords = null //for communication between the georef form and the movable map marker
+  let pastedDecimalCoords = null; //for communication between the georef form and the movable map marker
 
-  let georefsAdded = 0 //this is the number of locality strings georeferenced
-  let recordsGeoreferenced = 0 //this is the number of associated records georeferenced
-  let datasetComplete = false //a flag to take us back to the datasets when this one is complete
+  let georefsAdded = 0; //this is the number of locality strings georeferenced
+  let recordsGeoreferenced = 0; //this is the number of associated records georeferenced
+  let datasetComplete = false; //a flag to take us back to the datasets when this one is complete
 
-  let locStringsTitle = "Select the items below that represent the same locality and then choose and apply or create an appropriate georeference"
+  let locStringsTitle =
+    'Select the items below that represent the same locality and then choose and apply or create an appropriate georeference';
 
-  let recordCount
-  let locStringsCount
-  $: if($dataStore.recordGroup && $dataStore.recordGroup.groupLocalities) {
-    recordCount = $dataStore.recordGroup.groupLocalities.filter(x => !x.georefID).map(x=> x.recordIDs.length).reduce((a, b) => a + b, 0)
-    locStringsCount = $dataStore.recordGroup.groupLocalities.filter(x => !x.georefID).length
+  let recordCount;
+  let locStringsCount;
+  $: if ($dataStore.recordGroup && $dataStore.recordGroup.groupLocalities) {
+    recordCount = $dataStore.recordGroup.groupLocalities
+      .filter((x) => !x.georefID)
+      .map((x) => x.recordIDs.length)
+      .reduce((a, b) => a + b, 0);
+    locStringsCount = $dataStore.recordGroup.groupLocalities.filter((x) => !x.georefID).length;
   }
 
-  $: if(!connected && mounted) alert('There appears to be a problem with your connection. Please check before continuing')
+  $: if (!connected && mounted)
+    alert('There appears to be a problem with your connection. Please check before continuing');
 
   let lastSelectedLocsKey = '';
 
-  $: selectedLocs = ($dataStore.recordGroup && $dataStore.recordGroup.groupLocalities)
-    ? $dataStore.recordGroup.groupLocalities.filter(x => x.selected)
-    : [];
+  $: selectedLocs =
+    $dataStore.recordGroup && $dataStore.recordGroup.groupLocalities
+      ? $dataStore.recordGroup.groupLocalities.filter((x) => x.selected)
+      : [];
 
   $: {
     const hasCandidates = $dataStore.georefIndex ? Object.keys($dataStore.georefIndex).length : 0;
-    const currentLocsKey = `${selectedLocs.map(x => x.loc).sort().join('|')}-${hasCandidates}`;
-    
+    const currentLocsKey = `${selectedLocs
+      .map((x) => x.loc)
+      .sort()
+      .join('|')}-${hasCandidates}`;
+
     if (currentLocsKey !== lastSelectedLocsKey) {
       lastSelectedLocsKey = currentLocsKey;
-      
+
       if (selectedLocs.length > 0) {
         if ($dataStore.georefIndex) {
-          const normalize = s => s.trim().toLowerCase().replace(/\s+/g, ' ');
+          const normalize = (s) => s.trim().toLowerCase().replace(/\s+/g, ' ');
           let exactMatchGeoref = null;
           for (let loc of selectedLocs) {
             for (let georef of Object.values($dataStore.georefIndex)) {
@@ -135,873 +144,887 @@
   }
 
   //trigger a fetch on toggle
-  $: if(fetchBookmarked) {
-      currentBookmarkIndex = 0
-      fetchBookmarkedFirstToggled = true
-      fetchRecordGroupsAndGeorefs()
-    }
-    else if (fetchBookmarkedFirstToggled) {
-      getUsersLastGroupID().then(lastGroupID => {
-        fetchRecordGroupsAndGeorefs('at', lastGroupID)
+  $: if (fetchBookmarked) {
+    currentBookmarkIndex = 0;
+    fetchBookmarkedFirstToggled = true;
+    fetchRecordGroupsAndGeorefs();
+  } else if (fetchBookmarkedFirstToggled) {
+    getUsersLastGroupID()
+      .then((lastGroupID) => {
+        fetchRecordGroupsAndGeorefs('at', lastGroupID);
       })
-      .catch(err => {
-        console.error(err)
-        alert('error getting users last group ID')
-      })
+      .catch((err) => {
+        console.error(err);
+        alert('error getting users last group ID');
+      });
   }
 
-  const getUsersLastGroupID = async _ => {
+  const getUsersLastGroupID = async (_) => {
     //unfortunately we have to deal with legacy here...
-    let lastRecordGroupIDSnap
-    let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}/${selectedCountry}`
-    if(dataset.hasStateProvince) {
-      if(selectedStateProv) {
-        refString += `/${selectedStateProv}`
-      }
-      else {
-        refString += '/all'
+    let lastRecordGroupIDSnap;
+    let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}/${selectedCountry}`;
+    if (dataset.hasStateProvince) {
+      if (selectedStateProv) {
+        refString += `/${selectedStateProv}`;
+      } else {
+        refString += '/all';
       }
     }
 
-    try{
-      lastRecordGroupIDSnap = await Firebase.ref(refString).once('value')
-    }
-    catch(err) {
-      err.message = 'there was an error getting last recordgroup SNAP for this user: ' + err.message
-      throw err
+    try {
+      lastRecordGroupIDSnap = await Firebase.ref(refString).once('value');
+    } catch (err) {
+      err.message =
+        'there was an error getting last recordgroup SNAP for this user: ' + err.message;
+      throw err;
     }
 
-    if (lastRecordGroupIDSnap.exists()){
-      return lastRecordGroupIDSnap.val()
-    }
-    else { //check if any exist for this dataset, if not, try get the the legacy one
-      
-      let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}`
-      let snap
+    if (lastRecordGroupIDSnap.exists()) {
+      return lastRecordGroupIDSnap.val();
+    } else {
+      //check if any exist for this dataset, if not, try get the the legacy one
+
+      let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}`;
+      let snap;
       try {
-        snap = await Firebase.ref(refString).once('value')
+        snap = await Firebase.ref(refString).once('value');
+      } catch (err) {
+        err.message =
+          'there was an error getting last recordgroup SNAP for this user: ' + err.message;
+        throw err;
       }
-      catch(err) {
-        err.message = 'there was an error getting last recordgroup SNAP for this user: ' + err.message
-        throw err
+      if (snap.exists()) {
+        return null; //this effectively triggers a search again from the beginning
       }
-      if(snap.exists()) {
-        return null //this effectively triggers a search again from the beginning
-      }
-      
+
       //this is different because the old system used the id for the recordGroup in the collection, whereas the new system uses recordGroup.groupID
-      let oldSnap
+      let oldSnap;
       try {
-        oldSnap = await Firebase.ref(`userDatasetLastRecordGroup/${profile.uid}/${dataset.datasetID}`).once('value')
-      }
-      catch(err){
-        err.message = 'there was an error getting last recordgroup SNAP for this user: ' + err.message
-        throw err
+        oldSnap = await Firebase.ref(
+          `userDatasetLastRecordGroup/${profile.uid}/${dataset.datasetID}`
+        ).once('value');
+      } catch (err) {
+        err.message =
+          'there was an error getting last recordgroup SNAP for this user: ' + err.message;
+        throw err;
       }
 
-      if (oldSnap.exists()){
-        const documentID = oldSnap.val()
-        let recordGroupSnap
+      if (oldSnap.exists()) {
+        const documentID = oldSnap.val();
+        let recordGroupSnap;
         try {
-          recordGroupSnap = await Firestore.collection('recordGroups').doc(documentID).get()
-        }
-        catch(err)
-        {
-          err.message = 'there was an error getting last recordgroup for this user: ' + err.message
-          throw err
+          recordGroupSnap = await Firestore.collection('recordGroups').doc(documentID).get();
+        } catch (err) {
+          err.message = 'there was an error getting last recordgroup for this user: ' + err.message;
+          throw err;
         }
 
-        if(recordGroupSnap.exists) {
-          const recordGroup = recordGroupSnap.data()
-          return recordGroup.groupID
+        if (recordGroupSnap.exists) {
+          const recordGroup = recordGroupSnap.data();
+          return recordGroup.groupID;
         }
       }
     }
-    return null
-  }
+    return null;
+  };
 
-  onMount(async _ => { 
-
+  onMount(async (_) => {
     if (dataset.countryProvs) {
       try {
-        const filterSnap = await Firebase.ref(`userDatasetRecordGroupFilter/${profile.uid}/${dataset.datasetID}`).once('value')
+        const filterSnap = await Firebase.ref(
+          `userDatasetRecordGroupFilter/${profile.uid}/${dataset.datasetID}`
+        ).once('value');
         if (filterSnap.exists()) {
-          const filterData = filterSnap.val()
-          savedCountry = filterData.country
-          savedStateProv = filterData.stateProvince
+          const filterData = filterSnap.val();
+          savedCountry = filterData.country;
+          savedStateProv = filterData.stateProvince;
         }
       } catch (err) {
-        console.error('Error loading saved georef filter:', err)
+        console.error('Error loading saved georef filter:', err);
       }
     }
-    filterLoaded = true
+    filterLoaded = true;
 
-    elasticindex = dataset.region.toLowerCase().replace(/\s+/g, '') + dataset.domain.toLowerCase()
+    elasticindex = dataset.region.toLowerCase().replace(/\s+/g, '') + dataset.domain.toLowerCase();
 
     //get users bookmarks and listen for changes
     Firestore.collection('userDatasetBookmarks')
-    .where('uid', '==', profile.uid)
-    .where('datasetID', '==', dataset.datasetID)
-    .get().then(qrySnap => {
-      if(!qrySnap.empty) {
-        const docSnap = qrySnap.docs[0]
-        const data = docSnap.data() //there can be only one!
-        bookmarked = data.recordGroupIDs
-        bookMarksRef = docSnap.ref
-      }
-    })
+      .where('uid', '==', profile.uid)
+      .where('datasetID', '==', dataset.datasetID)
+      .get()
+      .then((qrySnap) => {
+        if (!qrySnap.empty) {
+          const docSnap = qrySnap.docs[0];
+          const data = docSnap.data(); //there can be only one!
+          bookmarked = data.recordGroupIDs;
+          bookMarksRef = docSnap.ref;
+        }
+      });
 
     //get record group and georefs
-    let usersLastGroupID
+    let usersLastGroupID;
     try {
-      usersLastGroupID = await getUsersLastGroupID()
-    }
-    catch(err){
-      alert(err.message)
-      console.error(err)
-      return
+      usersLastGroupID = await getUsersLastGroupID();
+    } catch (err) {
+      alert(err.message);
+      console.error(err);
+      return;
     }
 
     if (!dataset.countryProvs) {
       try {
-        fetchRecordGroupsAndGeorefs('at', usersLastGroupID)
-      }
-      catch(err){//only if offline
-        alert('there was an error getting a record group to georeference: ' + err.message)
-        console.error(err)
+        fetchRecordGroupsAndGeorefs('at', usersLastGroupID);
+      } catch (err) {
+        //only if offline
+        alert('there was an error getting a record group to georeference: ' + err.message);
+        console.error(err);
       }
     }
 
     //manage connection status
-    let connectedRef = Firebase.ref(".info/connected");
-    connectedRef.on("value", function(snap) {
+    let connectedRef = Firebase.ref('.info/connected');
+    connectedRef.on('value', function (snap) {
       if (snap.val() === true) {
-        connected = true
+        connected = true;
       } else {
-        connected = false
+        connected = false;
       }
     });
 
-    mounted = true
-  })
+    mounted = true;
+  });
 
-  onDestroy(async _ => {
-    await releaseRecordGroup()
-  })
+  onDestroy(async (_) => {
+    await releaseRecordGroup();
+  });
 
   const fetchRecordGroupsAndGeorefs = async (atOrAfter, currentGroupID) => {
-    if(connected){
-
+    if (connected) {
       //reset everything
-      $dataStore.recordGroup = null
-      $dataStore.recordGroupSnap = null
-      $dataStore.georefIndex = null
-      $dataStore.locGeorefIndex = null
+      $dataStore.recordGroup = null;
+      $dataStore.recordGroupSnap = null;
+      $dataStore.georefIndex = null;
+      $dataStore.locGeorefIndex = null;
 
-      clearSelectedGeorefAndForm()
-      
-      newGeorefsUsed = [] //start over
-      datasetGeorefsUsed = [] //start over
-      georefsAdded = 0
-      recordsGeoreferenced = 0
-      customSearchString = null //just to clear
-      
+      clearSelectedGeorefAndForm();
+
+      newGeorefsUsed = []; //start over
+      datasetGeorefsUsed = []; //start over
+      georefsAdded = 0;
+      recordsGeoreferenced = 0;
+      customSearchString = null; //just to clear
+
       //get the next recordGroup, depending on whether we are getting bookmarked or new
-      let nextRecordGroupSnap = null
+      let nextRecordGroupSnap = null;
 
-      if(fetchBookmarked) {
-        if(currentBookmarkIndex < bookmarked.length) {
-          const bookmarkedRecordGroupID = bookmarked[currentBookmarkIndex]
-          const docSnap = await Firestore.collection('recordGroups').doc(bookmarkedRecordGroupID).get()
-          if(docSnap.exists) { //it has to!!!
+      if (fetchBookmarked) {
+        if (currentBookmarkIndex < bookmarked.length) {
+          const bookmarkedRecordGroupID = bookmarked[currentBookmarkIndex];
+          const docSnap = await Firestore.collection('recordGroups')
+            .doc(bookmarkedRecordGroupID)
+            .get();
+          if (docSnap.exists) {
+            //it has to!!!
             //this is a bit funny because getNextAvailableRecordGroup() returns an array with one item if successful so we can loop
-            nextRecordGroupSnap =  [docSnap]
+            nextRecordGroupSnap = [docSnap];
+          } else {
+            alert('Could not fetch bookmarked recordGroup with ID', bookmarkedRecordGroupID);
+            return;
           }
-          else {
-            alert('Could not fetch bookmarked recordGroup with ID', bookmarkedRecordGroupID)
-            return
-          }
+        } else {
+          alert('You have no more bookmarked locality groups for this dataset');
+          fetchBookmarked = false; //trigger the fetch for regular record groups
+          return;
         }
-        else {
-          alert('You have no more bookmarked locality groups for this dataset')
-          fetchBookmarked = false //trigger the fetch for regular record groups
-          return
+      } else {
+        let searchCountry = null;
+        if (selectedCountry) {
+          searchCountry = selectedCountry;
         }
-      }
-      else {
-        let searchCountry = null
-        if(selectedCountry) {
-          searchCountry = selectedCountry
-        }
-        let searchStateProv = null
-        if(selectedStateProv) {
-          searchStateProv = selectedStateProv
+        let searchStateProv = null;
+        if (selectedStateProv) {
+          searchStateProv = selectedStateProv;
         }
 
-        while(!nextRecordGroupSnap) {
+        while (!nextRecordGroupSnap) {
           try {
-            nextRecordGroupSnap = await getNextAvailableRecordGroup(dataset.datasetID, searchCountry, searchStateProv, atOrAfter, currentGroupID)
-          }
-          catch(err) {
-            console.error(err)
-            alert('error fetching locality group, see console')
-            return
+            nextRecordGroupSnap = await getNextAvailableRecordGroup(
+              dataset.datasetID,
+              searchCountry,
+              searchStateProv,
+              atOrAfter,
+              currentGroupID
+            );
+          } catch (err) {
+            console.error(err);
+            alert('error fetching locality group, see console');
+            return;
           }
         }
 
-        if(!nextRecordGroupSnap.length) { //no more available recordGroups
-          datasetComplete = true
-          return
+        if (!nextRecordGroupSnap.length) {
+          //no more available recordGroups
+          datasetComplete = true;
+          return;
         }
       }
-      
+
       //if we have a record group...
-      $dataStore.recordGroupSnap = nextRecordGroupSnap[0] 
-      $dataStore.recordGroup = $dataStore.recordGroupSnap.data()
+      $dataStore.recordGroupSnap = nextRecordGroupSnap[0];
+      $dataStore.recordGroup = $dataStore.recordGroupSnap.data();
 
       //add keys to the record group locs in case they are missing....
-      for (let loc of $dataStore.recordGroup.groupLocalities){
-        if(!loc.id){
-          loc.id = nanoid()
+      for (let loc of $dataStore.recordGroup.groupLocalities) {
+        if (!loc.id) {
+          loc.id = nanoid();
         }
       }
 
       //calculate the number of georefs to fetch per locality string in the record group
-      let georefsPerLocString = Math.round(100/$dataStore.recordGroup.groupLocalities.length)
+      let georefsPerLocString = Math.round(100 / $dataStore.recordGroup.groupLocalities.length);
       if (georefsPerLocString > 20) {
-        georefsPerLocString = 20
+        georefsPerLocString = 20;
       }
       if (georefsPerLocString < 5) {
-        georefsPerLocString = 5
-      }
-      
-      let candidateGeorefs
-      try {
-        candidateGeorefs = await fetchCandidateGeorefs($dataStore.recordGroup.groupLocalities, elasticindex, georefsPerLocString, true)
-      }
-      catch(err) {
-        console.error('error fetching georefs:', err.message)
-        alert('fetching georeferences failed')
+        georefsPerLocString = 5;
       }
 
-      georefIndexOnHold = null //in case custom search is still active
-      if(Object.keys(candidateGeorefs.georefIndex).length) {
-        $dataStore.georefIndex = candidateGeorefs.georefIndex
-        $dataStore.locGeorefIndex =  candidateGeorefs.locGeorefIndex
-      }              
+      let candidateGeorefs;
+      try {
+        candidateGeorefs = await fetchCandidateGeorefs(
+          $dataStore.recordGroup.groupLocalities,
+          elasticindex,
+          georefsPerLocString,
+          true
+        );
+      } catch (err) {
+        console.error('error fetching georefs:', err.message);
+        alert('fetching georeferences failed');
+      }
+
+      georefIndexOnHold = null; //in case custom search is still active
+      if (Object.keys(candidateGeorefs.georefIndex).length) {
+        $dataStore.georefIndex = candidateGeorefs.georefIndex;
+        $dataStore.locGeorefIndex = candidateGeorefs.locGeorefIndex;
+      }
 
       //if not searching for bookmarks, save the users place in the queue
-      if(!fetchBookmarked){
-        let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}/${selectedCountry}`
-        if(dataset.hasStateProvince) {
-          if(selectedStateProv) {
-            refString += `/${selectedStateProv}`
-          }
-          else {
-            refString += '/all'
+      if (!fetchBookmarked) {
+        let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}/${selectedCountry}`;
+        if (dataset.hasStateProvince) {
+          if (selectedStateProv) {
+            refString += `/${selectedStateProv}`;
+          } else {
+            refString += '/all';
           }
         }
-        
+
         try {
-          await Firebase.ref(refString).set($dataStore.recordGroup.groupID)
+          await Firebase.ref(refString).set($dataStore.recordGroup.groupID);
+        } catch (err) {
+          console.error('error updating userLastSnap on firebase:', err.message);
+          console.error(err);
         }
-        catch(err) {
-          console.error('error updating userLastSnap on firebase:', err.message)
-          console.error(err)
-        }
       }
 
-      busy = false
+      busy = false;
+    } else {
+      alert('You are not online, please check your connection');
     }
-    else {
-      alert('You are not online, please check your connection')
-    }
-  }
+  };
 
-  const releaseRecordGroup = async _ => {
-    if($dataStore.recordGroupSnap){
-      try{
-        await $dataStore.recordGroupSnap.ref.update({groupLocked: false})
-      }
-      catch(err) {
-        alert('error releasing the locality group:' + err.message)
+  const releaseRecordGroup = async (_) => {
+    if ($dataStore.recordGroupSnap) {
+      try {
+        await $dataStore.recordGroupSnap.ref.update({ groupLocked: false });
+      } catch (err) {
+        alert('error releasing the locality group:' + err.message);
       }
     }
-  }
+  };
 
-  const saveRecordGroup = async _ => {
-    if($dataStore.recordGroupSnap){
-      let withGeorefs = $dataStore.recordGroup.groupLocalities.filter(x => x.georefID).length
-      let total = $dataStore.recordGroup.groupLocalities.length
-      let groupComplete = false
-      if(withGeorefs == total){
-        groupComplete = true
-        $dataStore.recordGroup.completed = true
+  const saveRecordGroup = async (_) => {
+    if ($dataStore.recordGroupSnap) {
+      let withGeorefs = $dataStore.recordGroup.groupLocalities.filter((x) => x.georefID).length;
+      let total = $dataStore.recordGroup.groupLocalities.length;
+      let groupComplete = false;
+      if (withGeorefs == total) {
+        groupComplete = true;
+        $dataStore.recordGroup.completed = true;
       }
 
       //update some fields
-      $dataStore.recordGroup.groupLocked = false
-      if($dataStore.recordGroup.georeferencers && Array.isArray($dataStore.recordGroup.georeferencers)) {
-        if(!$dataStore.recordGroup.georeferencers.includes(profile.uid)) {
-          $dataStore.recordGroup.georeferencers.push(profile.uid) //so we can get a georeferencers record groups later...
+      $dataStore.recordGroup.groupLocked = false;
+      if (
+        $dataStore.recordGroup.georeferencers &&
+        Array.isArray($dataStore.recordGroup.georeferencers)
+      ) {
+        if (!$dataStore.recordGroup.georeferencers.includes(profile.uid)) {
+          $dataStore.recordGroup.georeferencers.push(profile.uid); //so we can get a georeferencers record groups later...
         }
-      }
-      else {
-        $dataStore.recordGroup.georeferencers = [profile.uid]
+      } else {
+        $dataStore.recordGroup.georeferencers = [profile.uid];
       }
 
       //clean out the ids to avoid confusion later
-      for (let loc of $dataStore.recordGroup.groupLocalities){
-        delete loc.id
+      for (let loc of $dataStore.recordGroup.groupLocalities) {
+        delete loc.id;
       }
 
-      savingRecordGroup = true
+      savingRecordGroup = true;
       try {
-        await $dataStore.recordGroupSnap.ref.set($dataStore.recordGroup) //its an overwrite
+        await $dataStore.recordGroupSnap.ref.set($dataStore.recordGroup); //its an overwrite
+      } catch (err) {
+        alert('error saving record group:' + err.message);
+        console.error(err);
+        console.log($dataStore.recordGroup);
+        savingRecordGroup = false;
       }
-      catch(err){
-        alert('error saving record group:' + err.message)
-        console.error(err)
-        console.log($dataStore.recordGroup)
-        savingRecordGroup = false
-      }
-      
+
       //update georefRecords
       //we can't use withGeorefs because there may have been some already done when we got the group
-      if(georefsAdded || recordsGeoreferenced) {
-        let proms = []
+      if (georefsAdded || recordsGeoreferenced) {
+        let proms = [];
 
-        let recordsPerGeoref = {}
-        for(let groupLoc of $dataStore.recordGroup.groupLocalities){
-          if(groupLoc.georefID){ //it was georeferenced
-            if(recordsPerGeoref[groupLoc.georefID]){
-              recordsPerGeoref[groupLoc.georefID] = [...recordsPerGeoref[groupLoc.georefID], ...groupLoc.recordIDs]
-            }
-            else {
-              recordsPerGeoref[groupLoc.georefID] = groupLoc.recordIDs
+        let recordsPerGeoref = {};
+        for (let groupLoc of $dataStore.recordGroup.groupLocalities) {
+          if (groupLoc.georefID) {
+            //it was georeferenced
+            if (recordsPerGeoref[groupLoc.georefID]) {
+              recordsPerGeoref[groupLoc.georefID] = [
+                ...recordsPerGeoref[groupLoc.georefID],
+                ...groupLoc.recordIDs,
+              ];
+            } else {
+              recordsPerGeoref[groupLoc.georefID] = groupLoc.recordIDs;
             }
           }
         }
 
-        for(let [georefID, recordIDs] of Object.entries(recordsPerGeoref)){
-          let georef = $dataStore.georefIndex[georefID]
-          if(georef){
-            proms.push(updateGeorefRecords(Firestore, FieldValue, georef, dataset.datasetID, recordIDs))
+        for (let [georefID, recordIDs] of Object.entries(recordsPerGeoref)) {
+          let georef = $dataStore.georefIndex[georefID];
+          if (georef) {
+            proms.push(
+              updateGeorefRecords(Firestore, FieldValue, georef, dataset.datasetID, recordIDs)
+            );
           }
           //if there isn't one then it hasn't been used, we dont have to worry about it (this happens when reloading a recordgroup with some locs already georeferenced)
           //if we sent this again we'd be falsely incrementing georefRecord.recordCount
         }
 
-        proms.push(updateGeorefStats(Firebase, ServerValue, georefsAdded, recordsGeoreferenced, profile.uid, profile.formattedName, dataset.datasetID, groupComplete))
-        proms.push(updateDatasetStats(Firestore, datasetRef, recordsGeoreferenced, profile.formattedName, groupComplete))
-        proms.push(updateDatasetGeorefs(Firestore, FieldValue, dataset.datasetID, datasetGeorefsUsed))
-        
+        proms.push(
+          updateGeorefStats(
+            Firebase,
+            ServerValue,
+            georefsAdded,
+            recordsGeoreferenced,
+            profile.uid,
+            profile.formattedName,
+            dataset.datasetID,
+            groupComplete
+          )
+        );
+        proms.push(
+          updateDatasetStats(
+            Firestore,
+            datasetRef,
+            recordsGeoreferenced,
+            profile.formattedName,
+            groupComplete
+          )
+        );
+        proms.push(
+          updateDatasetGeorefs(Firestore, FieldValue, dataset.datasetID, datasetGeorefsUsed)
+        );
+
         try {
-          await Promise.all(proms)
+          await Promise.all(proms);
+        } catch (err) {
+          savingRecordGroup = false;
+          console.error(err);
+          alert('there was an error updating stats: ' + err.message);
         }
-        catch(err) {
-          savingRecordGroup = false
-          console.error(err)
-          alert('there was an error updating stats: ' + err.message)
-        }
-        
       }
-      savingRecordGroup = false
+      savingRecordGroup = false;
     }
-    return
-  }
+    return;
+  };
 
-  const clearLocalityGroupQueuePosition = async _ => {
-    let message = 'Are you sure you want to start over for '
-    console.log('selectedCountry:', selectedCountry)
-    console.log('selectedStateProv:', selectedStateProv)
-    if(dataset.countryProvs) {
-      if(selectedCountry == 'all'){
-        message += 'all countries'
-      }
-      else {
-        message += selectedCountry
-        if(selectedStateProv != 'all') {
-          if(selectedStateProv == 'none') {
-            message += ' (no stateProvince)'
-          }
-          else {
-            message += ', ' + selectedStateProv
+  const clearLocalityGroupQueuePosition = async (_) => {
+    let message = 'Are you sure you want to start over for ';
+    console.log('selectedCountry:', selectedCountry);
+    console.log('selectedStateProv:', selectedStateProv);
+    if (dataset.countryProvs) {
+      if (selectedCountry == 'all') {
+        message += 'all countries';
+      } else {
+        message += selectedCountry;
+        if (selectedStateProv != 'all') {
+          if (selectedStateProv == 'none') {
+            message += ' (no stateProvince)';
+          } else {
+            message += ', ' + selectedStateProv;
           }
         }
       }
+    } else {
+      message += 'this dataset';
     }
-    else {
-      message += 'this dataset'
-    }
-    
-    message += '?'
 
-    let conf = confirm(message) 
-    if(conf) {
-      let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}/`
-    
-      if(selectedCountry) {
-        refString += selectedCountry
-        if(selectedStateProv) {
-          refString += '/' + selectedStateProv
+    message += '?';
+
+    let conf = confirm(message);
+    if (conf) {
+      let refString = `userDatasetQueuePosition/${profile.uid}/${dataset.datasetID}/`;
+
+      if (selectedCountry) {
+        refString += selectedCountry;
+        if (selectedStateProv) {
+          refString += '/' + selectedStateProv;
+        } else {
+          refString += '/all';
         }
-        else {
-          refString += '/all'
-        }
-      }
-      else {
-        refString += 'all'
+      } else {
+        refString += 'all';
       }
 
       try {
-        await Firebase.ref(refString).remove() //throws if does not exist
+        await Firebase.ref(refString).remove(); //throws if does not exist
+      } catch (err) {
+        console.log(refString, 'does not exist. No action necessary');
       }
-      catch(err) {
-        console.log(refString, 'does not exist. No action necessary')
-      }
-      
-      fetchRecordGroupsAndGeorefs()
-    }
-  }
 
-  const handleSkipRecordGroup = async _ => {
-    busy = true
-    if(georefsAdded || recordsGeoreferenced){
-      await saveRecordGroup()
+      fetchRecordGroupsAndGeorefs();
     }
-    else {
+  };
+
+  const handleSkipRecordGroup = async (_) => {
+    busy = true;
+    if (georefsAdded || recordsGeoreferenced) {
+      await saveRecordGroup();
+    } else {
       await releaseRecordGroup();
     }
 
     //if this was while reviewing bookmarked record groups, and we have none left, back to other record groups
-    if(fetchBookmarked) {
-      currentBookmarkIndex++
-      if(currentBookmarkIndex >= bookmarked.length) {
-        alert('You have no more bookmarked locality groups for this dataset')
-        fetchBookmarked = false //this will trigger fetching a regular record group
+    if (fetchBookmarked) {
+      currentBookmarkIndex++;
+      if (currentBookmarkIndex >= bookmarked.length) {
+        alert('You have no more bookmarked locality groups for this dataset');
+        fetchBookmarked = false; //this will trigger fetching a regular record group
+      } else {
+        await fetchRecordGroupsAndGeorefs();
       }
-      else {
-        await fetchRecordGroupsAndGeorefs()
-      }
+    } else {
+      // a regular get
+      await fetchRecordGroupsAndGeorefs('after', $dataStore.recordGroup.groupID);
     }
-    else { // a regular get
-      await fetchRecordGroupsAndGeorefs('after', $dataStore.recordGroup.groupID)
-    }
-  }
+  };
 
-  const handleCustomSearchSearching = _ => {
-    if($dataStore.selectedGeorefID) {
-      resetTableAndMap($dataStore.selectedGeorefID)
+  const handleCustomSearchSearching = (_) => {
+    if ($dataStore.selectedGeorefID) {
+      resetTableAndMap($dataStore.selectedGeorefID);
     }
-    if(!georefIndexOnHold){
-      georefIndexOnHold = $dataStore.georefIndex
+    if (!georefIndexOnHold) {
+      georefIndexOnHold = $dataStore.georefIndex;
     }
-    $dataStore.georefIndex = null
-  }
+    $dataStore.georefIndex = null;
+  };
 
-  const handleCountryProvinceChanged = async ev => {
+  const handleCountryProvinceChanged = async (ev) => {
     if (selectedCountry === ev.detail.country && selectedStateProv === ev.detail.stateProvince) {
-      return
+      return;
     }
 
-    selectedCountry = ev.detail.country
-    selectedStateProv = ev.detail.stateProvince
-    datasetComplete = false //in case it was this for the last group
+    selectedCountry = ev.detail.country;
+    selectedStateProv = ev.detail.stateProvince;
+    datasetComplete = false; //in case it was this for the last group
 
     try {
       await Firebase.ref(`userDatasetRecordGroupFilter/${profile.uid}/${dataset.datasetID}`).set({
         country: selectedCountry,
-        stateProvince: selectedStateProv || null
-      })
-    } catch(err) {
-      console.error('Failed to save georef filter:', err)
+        stateProvince: selectedStateProv || null,
+      });
+    } catch (err) {
+      console.error('Failed to save georef filter:', err);
     }
 
-    busy = true
-    if(georefsAdded || recordsGeoreferenced){
-      await saveRecordGroup()
-    }
-    else {
+    busy = true;
+    if (georefsAdded || recordsGeoreferenced) {
+      await saveRecordGroup();
+    } else {
       await releaseRecordGroup();
     }
 
-    let usersLastGroupID
+    let usersLastGroupID;
     try {
-      usersLastGroupID = await getUsersLastGroupID()
-    }
-    catch(err){
-      alert(err.message)
-      console.error(err)
-      return
+      usersLastGroupID = await getUsersLastGroupID();
+    } catch (err) {
+      alert(err.message);
+      console.error(err);
+      return;
     }
 
     try {
-      await fetchRecordGroupsAndGeorefs('at', usersLastGroupID)
+      await fetchRecordGroupsAndGeorefs('at', usersLastGroupID);
+    } catch (err) {
+      //only if offline
+      alert('there was an error getting a record group to georeference: ' + err.message);
+      console.error(err);
     }
-    catch(err){//only if offline
-      alert('there was an error getting a record group to georeference: ' + err.message)
-      console.error(err)
-    }
-    busy = false
-  }
+    busy = false;
+  };
 
-  const handleCustomGeorefs = ev => {
-    let customGeorefs = ev.detail
-    $dataStore.georefIndex = customGeorefs
-  }
+  const handleCustomGeorefs = (ev) => {
+    let customGeorefs = ev.detail;
+    $dataStore.georefIndex = customGeorefs;
+  };
 
-  const handleCustomSearchCleared = _ => {
-    if($dataStore.selectedGeorefID) {
-      resetTableAndMap($dataStore.selectedGeorefID)
+  const handleCustomSearchCleared = (_) => {
+    if ($dataStore.selectedGeorefID) {
+      resetTableAndMap($dataStore.selectedGeorefID);
     }
 
-    if(georefIndexOnHold) {
-      $dataStore.georefIndex = georefIndexOnHold
-      georefIndexOnHold = null
+    if (georefIndexOnHold) {
+      $dataStore.georefIndex = georefIndexOnHold;
+      georefIndexOnHold = null;
     }
-  }
+  };
 
-  const clearSelectedGeorefAndForm = _ => {
-    if(selectedGeoref) {
-      let hold = selectedGeoref //we need this so we don't pass down to the form again
-      selectedGeoref = null
-      hold.selected = false
+  const clearSelectedGeorefAndForm = (_) => {
+    if (selectedGeoref) {
+      let hold = selectedGeoref; //we need this so we don't pass down to the form again
+      selectedGeoref = null;
+      hold.selected = false;
     }
-    georefForm.clear()
-  }
+    georefForm.clear();
+  };
 
-  const handleClearGeoref = _ => {
-    if($dataStore.selectedGeorefID) {
-      resetTableAndMap($dataStore.selectedGeorefID)
+  const handleClearGeoref = (_) => {
+    if ($dataStore.selectedGeorefID) {
+      resetTableAndMap($dataStore.selectedGeorefID);
     }
-  }
+  };
 
-  const handleFlagGeoref = async ev => {
+  const handleFlagGeoref = async (ev) => {
+    clearSelectedGeorefAndForm();
 
-    clearSelectedGeorefAndForm()
+    let georefID = ev.detail;
+    delete $dataStore.georefIndex[georefID];
+    $dataStore.georefIndex = $dataStore.georefIndex; //svelte
 
-    let georefID = ev.detail
-    delete $dataStore.georefIndex[georefID]
-    $dataStore.georefIndex = $dataStore.georefIndex //svelte
+    await flagGeoref(georefID, elasticindex);
+  };
 
-    await flagGeoref(georefID, elasticindex)
-    
-  }
+  const handleCoordsFromPaste = (ev) => {
+    pastedDecimalCoords = ev.detail;
+  };
 
-  const handleCoordsFromPaste = ev => {
-    pastedDecimalCoords = ev.detail
-  }
-
-  const handleGeorefSelected = ev => {
-
-    if($dataStore.selectedGeorefID){
-      resetTableAndMap($dataStore.selectedGeorefID)
+  const handleGeorefSelected = (ev) => {
+    if ($dataStore.selectedGeorefID) {
+      resetTableAndMap($dataStore.selectedGeorefID);
     }
-    
-    if(ev && ev.detail){
-      let georefID = ev.detail
-      
-      $dataStore.georefIndex[georefID].selected = true
-      selectedGeoref = $dataStore.georefIndex[georefID]
-      if(selectedGeoref.ambiguous) {
-        formContainer.scrollTop = 0 //to make sure the user sees the message!
+
+    if (ev && ev.detail) {
+      let georefID = ev.detail;
+
+      $dataStore.georefIndex[georefID].selected = true;
+      selectedGeoref = $dataStore.georefIndex[georefID];
+      if (selectedGeoref.ambiguous) {
+        formContainer.scrollTop = 0; //to make sure the user sees the message!
       }
 
-      let selectedMarker = $dataStore.markers[georefID]
-      if(selectedMarker) {
+      let selectedMarker = $dataStore.markers[georefID];
+      if (selectedMarker) {
         selectedMarker.setIcon({
           path: google.maps.SymbolPath.CIRCLE,
-          scale: 5, 
-          fillColor: 'blue', 
+          scale: 5,
+          fillColor: 'blue',
           fillOpacity: 1,
-          strokeColor: 'blue'
-        })
+          strokeColor: 'blue',
+        });
 
-        selectedMarker.setZIndex(1)
-        selectedMarker.panToMe()
+        selectedMarker.setZIndex(1);
+        selectedMarker.panToMe();
       }
-      
-      $dataStore.selectedGeorefID = georefID
-      $dataStore.georefIndex = $dataStore.georefIndex //svelte
+
+      $dataStore.selectedGeorefID = georefID;
+      $dataStore.georefIndex = $dataStore.georefIndex; //svelte
     }
-  }
+  };
 
   //helper for above and below
-  const resetTableAndMap = georefID => {
-    let selectedMarker = $dataStore.markers[georefID]
-    if(selectedMarker) {
+  const resetTableAndMap = (georefID) => {
+    let selectedMarker = $dataStore.markers[georefID];
+    if (selectedMarker) {
       selectedMarker.setIcon({
         path: google.maps.SymbolPath.CIRCLE,
-        scale: 5, 
-        fillColor: 'green', 
+        scale: 5,
+        fillColor: 'green',
         fillOpacity: 1,
-        strokeColor: 'green'
-      })
-      selectedMarker.setZIndex(0)
+        strokeColor: 'green',
+      });
+      selectedMarker.setZIndex(0);
     }
-    
-    if($dataStore.georefIndex[georefID]) {
-      $dataStore.georefIndex[georefID].selected = false
+
+    if ($dataStore.georefIndex[georefID]) {
+      $dataStore.georefIndex[georefID].selected = false;
     }
-    $dataStore.selectedGeorefID = null
-  }
-  
+    $dataStore.selectedGeorefID = null;
+  };
+
   //this is the heavy lifting
-  const handleSetGeoref = async ev => {
+  const handleSetGeoref = async (ev) => {
     //confirm required fields...
-    let georef = ev.detail
+    let georef = ev.detail;
 
     //validate, but only for real georefs
-    if(!georef.ambiguous) {
-      let requiredFields = ['decimalCoordinates', 'uncertainty', 'uncertaintyUnit', 'datum', 'by', 'date', 'protocol', 'sources']
-      let missing = []
+    if (!georef.ambiguous) {
+      let requiredFields = [
+        'decimalCoordinates',
+        'uncertainty',
+        'uncertaintyUnit',
+        'datum',
+        'by',
+        'date',
+        'protocol',
+        'sources',
+      ];
+      let missing = [];
       for (let field of requiredFields) {
-        if(!georef[field] || (typeof georef[field] == 'string' && !georef[field].trim())) {
-          missing.push(field)
+        if (!georef[field] || (typeof georef[field] == 'string' && !georef[field].trim())) {
+          missing.push(field);
         }
       }
 
       //only for non-ambiguous georefs
-      if(missing.length ) {
-        alert("Required fields are missing: " + missing.join(', ') + '\r\nPlease make sure these fields are completed before proceeding')
-        return
+      if (missing.length) {
+        alert(
+          'Required fields are missing: ' +
+            missing.join(', ') +
+            '\r\nPlease make sure these fields are completed before proceeding'
+        );
+        return;
       }
     }
-    
+
     //carry on if we're happy...
-    let selectedLocs = $dataStore.recordGroup.groupLocalities.filter(x => x.selected)
-    if(selectedLocs.length){ //it has to be
-      let saveGeoref = true
-      if(selectedGeoref && selectedGeoref.georefID == georef.georefID) {
-        saveGeoref = false 
-      } 
-
-      if(saveGeoref){ //we treat it as a new georef
-        
-        georef.used = true
-        georef.persist(profile, dataset, elasticindex, false) //its a promise, we don't want to slow down here
-        $dataStore.georefIndex = {...$dataStore.georefIndex, [georef.georefID]: georef} //svelte
-
+    let selectedLocs = $dataStore.recordGroup.groupLocalities.filter((x) => x.selected);
+    if (selectedLocs.length) {
+      //it has to be
+      let saveGeoref = true;
+      if (selectedGeoref && selectedGeoref.georefID == georef.georefID) {
+        saveGeoref = false;
       }
-      else {
-        if(selectedGeoref && selectedGeoref.differentTo(georef)) {
-          georef.persist(profile, dataset, elasticindex, true) // update existing in-place (promise in background)
-          $dataStore.georefIndex = {...$dataStore.georefIndex, [georef.georefID]: georef} // update local cache
+
+      if (saveGeoref) {
+        //we treat it as a new georef
+
+        georef.used = true;
+        georef.persist(profile, dataset, elasticindex, false); //its a promise, we don't want to slow down here
+        $dataStore.georefIndex = { ...$dataStore.georefIndex, [georef.georefID]: georef }; //svelte
+      } else {
+        if (selectedGeoref && selectedGeoref.differentTo(georef)) {
+          georef.persist(profile, dataset, elasticindex, true); // update existing in-place (promise in background)
+          $dataStore.georefIndex = { ...$dataStore.georefIndex, [georef.georefID]: georef }; // update local cache
         }
       }
 
       //this is if we haven't used this georef before
-      if(!georef.used) {
+      if (!georef.used) {
         // fire off the update request to the API
-        georef.used = true
-        let url = `https://us-central1-georef-745b9.cloudfunctions.net/georefusedV2?georefID=${georef.georefID}&index=${elasticindex}`
-        fetch(url) //no response needed here
-        newGeorefsUsed.push(georef.georefID)
-
+        georef.used = true;
+        let url = `https://us-central1-georef-745b9.cloudfunctions.net/georefusedV2?georefID=${georef.georefID}&index=${elasticindex}`;
+        fetch(url); //no response needed here
+        newGeorefsUsed.push(georef.georefID);
       }
 
-      datasetGeorefsUsed.push(georef.georefID)
+      datasetGeorefsUsed.push(georef.georefID);
 
-      let timeNow = null
+      let timeNow = null;
       try {
-        timeNow = await getSafeTime()
+        timeNow = await getSafeTime();
+      } catch (err) {
+        dispatch('componenterror', err);
+        return;
       }
-      catch(err) {
-        dispatch('componenterror', err)
-        return
-      }
-      
+
       //update each locality with the georef details
-      for (let loc of selectedLocs){
-        loc.georefID = georef.georefID
-        loc.georefBy = profile.formattedName
-        loc.georefByUID = profile.uid
-        loc.georefByID = profile.orcid || null
-        loc.georefDate = timeNow
-        if(selectedLocGeorefRemarks) {
-          loc.georefRemarks = selectedLocGeorefRemarks
-        }
-        else {
-          loc.georefRemarks = null
+      for (let loc of selectedLocs) {
+        loc.georefID = georef.georefID;
+        loc.georefBy = profile.formattedName;
+        loc.georefByUID = profile.uid;
+        loc.georefByID = profile.orcid || null;
+        loc.georefDate = timeNow;
+        if (selectedLocGeorefRemarks) {
+          loc.georefRemarks = selectedLocGeorefRemarks;
+        } else {
+          loc.georefRemarks = null;
         }
 
         //add the verification fields
-        loc.georefVerified = false
-        loc.georefVerifiedBy = null
-        loc.georefVerifiedDate = null
-        loc.georefVerifiedByRole = null
-        loc.georefVerifiedRemarks = null
+        loc.georefVerified = false;
+        loc.georefVerifiedBy = null;
+        loc.georefVerifiedDate = null;
+        loc.georefVerifiedByRole = null;
+        loc.georefVerifiedRemarks = null;
 
-        if(loc.recordIDs && loc.recordIDs.length) { //this really should never be necessary
-          recordsGeoreferenced += loc.recordIDs.length
+        if (loc.recordIDs && loc.recordIDs.length) {
+          //this really should never be necessary
+          recordsGeoreferenced += loc.recordIDs.length;
         }
-        loc.selected = false
-        selectedLocGeorefRemarks = null
+        loc.selected = false;
+        selectedLocGeorefRemarks = null;
       }
-      
-      $dataStore.recordGroup.groupLocalities = $dataStore.recordGroup.groupLocalities //the svelte update trigger
 
-      if($dataStore.selectedGeorefID) {
-        resetTableAndMap($dataStore.selectedGeorefID)
-      } 
-      
+      $dataStore.recordGroup.groupLocalities = $dataStore.recordGroup.groupLocalities; //the svelte update trigger
+
+      if ($dataStore.selectedGeorefID) {
+        resetTableAndMap($dataStore.selectedGeorefID);
+      }
+
       //we need to clear the georef
-      clearSelectedGeorefAndForm()
+      clearSelectedGeorefAndForm();
 
-      georefsAdded += selectedLocs.length
-    
+      georefsAdded += selectedLocs.length;
+
       //if these were the last ones
-      let withGeorefs = $dataStore.recordGroup.groupLocalities.filter(x => x.georefID).length
-      let total = $dataStore.recordGroup.groupLocalities.length
-      if(withGeorefs == total){
-        
-        await saveRecordGroup()
-        
-        if(fetchBookmarked) {
-          currentBookmarkIndex++
-          fetchRecordGroupsAndGeorefs()
-        }
-        else {
-          fetchRecordGroupsAndGeorefs('after', $dataStore.recordGroup.groupID)
+      let withGeorefs = $dataStore.recordGroup.groupLocalities.filter((x) => x.georefID).length;
+      let total = $dataStore.recordGroup.groupLocalities.length;
+      if (withGeorefs == total) {
+        await saveRecordGroup();
+
+        if (fetchBookmarked) {
+          currentBookmarkIndex++;
+          fetchRecordGroupsAndGeorefs();
+        } else {
+          fetchRecordGroupsAndGeorefs('after', $dataStore.recordGroup.groupID);
         }
       }
+    } else {
+      alert('localities must be selected to apply the georeference');
+      return;
     }
-    else {
-      alert('localities must be selected to apply the georeference')
-      return
-    }
-  }
+  };
 
-  const handleBackToDatasets =  async _ => {
-    
-    busy = true
+  const handleBackToDatasets = async (_) => {
+    busy = true;
 
-    if(georefsAdded){
-      await saveRecordGroup()
-    }
-    else {
+    if (georefsAdded) {
+      await saveRecordGroup();
+    } else {
       await releaseRecordGroup();
     }
-    
-    $dataStore.recordGroupSnap = null
-    $dataStore.recordGroup = null
-    $dataStore.georefIndex = null
 
-    dispatch('back-to-datasets')
-  }
+    $dataStore.recordGroupSnap = null;
+    $dataStore.recordGroup = null;
+    $dataStore.georefIndex = null;
 
-  const handleStartOver = _ => { //just clear out any georefIDs
-    if($dataStore.recordGroup){
-      
-      for (let loc of $dataStore.recordGroup.groupLocalities){
-        loc.georefID = null
+    dispatch('back-to-datasets');
+  };
+
+  const handleStartOver = (_) => {
+    //just clear out any georefIDs
+    if ($dataStore.recordGroup) {
+      for (let loc of $dataStore.recordGroup.groupLocalities) {
+        loc.georefID = null;
       }
 
-      $dataStore.recordGroup.groupLocalities = $dataStore.recordGroup.groupLocalities
+      $dataStore.recordGroup.groupLocalities = $dataStore.recordGroup.groupLocalities;
 
-      if(newGeorefsUsed.length){
-        for (let georefID of newGeorefsUsed){
-          $dataStore.georefIndex[georefID].used = false
-          let url = `https://us-central1-georef-745b9.cloudfunctions.net/georefusedV2?georefID=${georefID}&index=${elasticindex}&setfalse`
-          fetch(url) //no response needed here
+      if (newGeorefsUsed.length) {
+        for (let georefID of newGeorefsUsed) {
+          $dataStore.georefIndex[georefID].used = false;
+          let url = `https://us-central1-georef-745b9.cloudfunctions.net/georefusedV2?georefID=${georefID}&index=${elasticindex}&setfalse`;
+          fetch(url); //no response needed here
         }
-        newGeorefsUsed = []
+        newGeorefsUsed = [];
       }
 
-      georefsAdded = 0 
-      recordsGeoreferenced = 0
+      georefsAdded = 0;
+      recordsGeoreferenced = 0;
     }
-  }
+  };
 
-  const handleBookmarkRecordGroup = async ev => {
-  
-    let recordGroupID = $dataStore.recordGroupSnap.id
+  const handleBookmarkRecordGroup = async (ev) => {
+    let recordGroupID = $dataStore.recordGroupSnap.id;
     ev.currentTarget.disabled = true;
 
-    if(bookMarksRef) {
-
+    if (bookMarksRef) {
       try {
         await bookMarksRef.update({
-          recordGroupIDs: FieldValue.arrayUnion(recordGroupID)
-        })
+          recordGroupIDs: FieldValue.arrayUnion(recordGroupID),
+        });
 
-        bookmarked.push(recordGroupID)
+        bookmarked.push(recordGroupID);
 
         await $dataStore.recordGroupSnap.ref.update({
           bookmarked: true,
           bookmarkedBy: profile.formattedName,
           bookmarkedByUID: profile.uid,
-          bookmarkedDate: FieldValue.serverTimestamp()
-        })
+          bookmarkedDate: FieldValue.serverTimestamp(),
+        });
+      } catch (err) {
+        console.error(err);
+        alert('error bookmarking record group: ' + err.message);
+        return;
       }
-      catch(err) {
-        console.error(err)
-        alert('error bookmarking record group: ' + err.message )
-        return
-      }
-    }
-    else {
-
+    } else {
       let doc = {
-        uid: profile.uid, 
+        uid: profile.uid,
         datasetID: dataset.datasetID,
-        recordGroupIDs: [recordGroupID]
-      }
+        recordGroupIDs: [recordGroupID],
+      };
 
       try {
-        let docRef =  await Firestore.collection('userDatasetBookmarks').add(doc)
-        bookMarksRef = docRef
-      }
-      catch(err) {
-        console.error(err)
-        alert('error adding first bookmark for user')
-        return
+        let docRef = await Firestore.collection('userDatasetBookmarks').add(doc);
+        bookMarksRef = docRef;
+      } catch (err) {
+        console.error(err);
+        alert('error adding first bookmark for user');
+        return;
       }
 
-      bookmarked = [recordGroupID]
-      
+      bookmarked = [recordGroupID];
+
       try {
         await $dataStore.recordGroupSnap.ref.update({
           bookmarked: true,
           bookmarkedBy: profile.formattedName,
           bookmarkedByUID: profile.uid,
-          bookmarkedDate: FieldValue.serverTimestamp()
-        })
-      }
-      catch(err) {
-        console.error(err)
-        alert('error updating record group bookmark data')
-        return
+          bookmarkedDate: FieldValue.serverTimestamp(),
+        });
+      } catch (err) {
+        console.error(err);
+        alert('error updating record group bookmark data');
+        return;
       }
     }
 
     //we're all good
-    $dataStore.recordGroup.bookmarked = true
-    $dataStore.recordGroup.bookmarkedBy = profile.formattedName
-    $dataStore.recordGroup.bookmarkedByUID = profile.uid
+    $dataStore.recordGroup.bookmarked = true;
+    $dataStore.recordGroup.bookmarkedBy = profile.formattedName;
+    $dataStore.recordGroup.bookmarkedByUID = profile.uid;
 
-    if(window.pushToast){
-      window.pushToast('locality group bookmarked')
+    if (window.pushToast) {
+      window.pushToast('locality group bookmarked');
     }
-
-  }
+  };
 
   //this is just the opposite of above
-  const handleUnbookmarkRecordGroup = async ev => {
-    let recordGroupID = $dataStore.recordGroupSnap.id
+  const handleUnbookmarkRecordGroup = async (ev) => {
+    let recordGroupID = $dataStore.recordGroupSnap.id;
     ev.currentTarget.disabled = true;
 
     //this time we have to have bookMarksRef
-    try{
+    try {
       await bookMarksRef.update({
-        recordGroupIDs: FieldValue.arrayRemove(recordGroupID)
-      })
-    }
-    catch(err) {
-      console.error(err)
-      alert('error removing bookmarked record group')
-      return
+        recordGroupIDs: FieldValue.arrayRemove(recordGroupID),
+      });
+    } catch (err) {
+      console.error(err);
+      alert('error removing bookmarked record group');
+      return;
     }
 
     try {
@@ -1009,92 +1032,95 @@
         bookmarked: false,
         bookmarkedBy: null,
         bookmarkedByUID: null,
-        bookmarkedDate: null
-      })
-    }
-    catch(err) {
-      console.error(err)
-      alert('error updating recordgroup bookmark details')
-      return
+        bookmarkedDate: null,
+      });
+    } catch (err) {
+      console.error(err);
+      alert('error updating recordgroup bookmark details');
+      return;
     }
 
-    const ind = bookmarked.indexOf(recordGroupID)
-    bookmarked.splice(ind, 1)
-    
-    if(fetchBookmarked) {
-      if(currentBookmarkIndex > 0) {
-        currentBookmarkIndex--
+    const ind = bookmarked.indexOf(recordGroupID);
+    bookmarked.splice(ind, 1);
+
+    if (fetchBookmarked) {
+      if (currentBookmarkIndex > 0) {
+        currentBookmarkIndex--;
       }
     }
 
     //we're all good
-    $dataStore.recordGroup.bookmarked = false
-    $dataStore.recordGroup.bookmarkedBy = null
-    $dataStore.recordGroup.bookmarkedByUID = null
+    $dataStore.recordGroup.bookmarked = false;
+    $dataStore.recordGroup.bookmarkedBy = null;
+    $dataStore.recordGroup.bookmarkedByUID = null;
 
-    if(window.pushToast){
-      window.pushToast('locality group unbookmarked')
+    if (window.pushToast) {
+      window.pushToast('locality group unbookmarked');
     }
-  }
+  };
 
   //we want to push these to the database so that we can use them again in future
-  const handleNoGeoref = _ => {
-    let selectedLocs = $dataStore.recordGroup.groupLocalities.filter(x => x.selected)
-    if(selectedLocs.length){
+  const handleNoGeoref = (_) => {
+    let selectedLocs = $dataStore.recordGroup.groupLocalities.filter((x) => x.selected);
+    if (selectedLocs.length) {
       //piggy backing on setGeoref
-      if(selectedLocGeorefRemarks && selectedLocGeorefRemarks.trim()){
+      if (selectedLocGeorefRemarks && selectedLocGeorefRemarks.trim()) {
+        let georef = new Georef();
+        georef.locality = selectedLocs[0].loc; //we use the first
+        georef.ambiguous = true;
+        georef.by = profile.formattedName;
+        georef.byORCID = profile.orcid || null;
 
-        let georef = new Georef()
-        georef.locality = selectedLocs[0].loc //we use the first
-        georef.ambiguous = true
-        georef.by = profile.formattedName
-        georef.byORCID = profile.orcid || null
+        let now = new Date();
+        georef.date = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000)
+          .toISOString()
+          .split('T')[0]; //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
+        georef.originalGeorefSource = 'NSCF georeference database';
 
-        let now = new Date()
-        georef.date = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().split('T')[0] //we need this horrible thing to adjust for time zone differences as getTime gives a utc time
-        georef.originalGeorefSource = 'NSCF georeference database'
-        
         //TODO get user input for the protocol
-        georef.protocol = null
-        georef.remarks = selectedLocGeorefRemarks
+        georef.protocol = null;
+        georef.remarks = selectedLocGeorefRemarks;
 
         let fakeEv = {
-          detail : georef
-        }
-        handleSetGeoref(fakeEv)
+          detail: georef,
+        };
+        handleSetGeoref(fakeEv);
+      } else {
+        alert(
+          'Please add remarks (e.g. ambiguous or imprecise) under Locality Strings in order to assert no georef'
+        );
       }
-      else {
-        alert('Please add remarks (e.g. ambiguous or imprecise) under Locality Strings in order to assert no georef')
-      }
+    } else {
+      alert('No locality strings selected');
     }
-    else {
-      alert('No locality strings selected')
-    }
-  }
+  };
 
-  const handleLocalityCopied = async => {
-    if(window.pushToast) {
-      window.pushToast('locality copied')
+  const handleLocalityCopied = (async) => {
+    if (window.pushToast) {
+      window.pushToast('locality copied');
     }
-  }
+  };
 
   //just to unlock a locked record group if the user closes or refreshes
-  const confirmUnload = ev => {
-    if(georefsAdded) {
-      ev.preventDefault()
+  const confirmUnload = (ev) => {
+    if (georefsAdded) {
+      ev.preventDefault();
       ev.returnValue = 'georefs have not been saved, go back to datsets before closing';
-      return 'georefs have not been saved, go back to datsets before closing'
+      return 'georefs have not been saved, go back to datsets before closing';
     }
-  }
+  };
 
-  const handleUnload = _ => {
-    navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updaterecordgrouplockV2?groupid=${$dataStore.recordGroupSnap.id}`, '')
-  }
-
+  const handleUnload = (_) => {
+    navigator.sendBeacon(
+      `https://us-central1-georef-745b9.cloudfunctions.net/updaterecordgrouplockV2?groupid=${$dataStore.recordGroupSnap.id}`,
+      ''
+    );
+  };
 </script>
 
 <!-- ############################################## -->
-<svelte:window on:beforeunload={confirmUnload}  on:unload={handleUnload}/> <!--in case the user just closes-->
+<svelte:window on:beforeunload={confirmUnload} on:unload={handleUnload} />
+<!--in case the user just closes-->
 <div class="col-flex-container">
   <div class="grid-container">
     <div class="recordgroup-container">
@@ -1103,60 +1129,90 @@
         <button class="recordgroup-tool" title="back to datasets" on:click={handleBackToDatasets}>
           <span class="material-icons">list</span>
         </button>
-        <button class="recordgroup-tool" title="restart queue" disabled={fetchBookmarked} on:click={clearLocalityGroupQueuePosition}>
+        <button
+          class="recordgroup-tool"
+          title="restart queue"
+          disabled={fetchBookmarked}
+          on:click={clearLocalityGroupQueuePosition}
+        >
           <span class="material-icons">low_priority</span>
         </button>
-        <button class="recordgroup-tool" title="clear georefs added to this group" on:click={handleStartOver}>
+        <button
+          class="recordgroup-tool"
+          title="clear georefs added to this group"
+          on:click={handleStartOver}
+        >
           <span class="material-icons">replay</span>
         </button>
-        <button class="recordgroup-tool" title="skip this group" disabled={!$dataStore.georefIndex} on:click={handleSkipRecordGroup}>
+        <button
+          class="recordgroup-tool"
+          title="skip this group"
+          disabled={!$dataStore.georefIndex}
+          on:click={handleSkipRecordGroup}
+        >
           <span class="material-icons">skip_next</span>
         </button>
         {#if !$dataStore.recordGroup || !$dataStore.recordGroup.bookmarked}
-          <button class="recordgroup-tool" title="bookmark this group" disabled={!$dataStore.georefIndex} on:click={handleBookmarkRecordGroup}>
+          <button
+            class="recordgroup-tool"
+            title="bookmark this group"
+            disabled={!$dataStore.georefIndex}
+            on:click={handleBookmarkRecordGroup}
+          >
             <span class="material-icons">bookmark_border</span>
           </button>
         {:else}
-          <button 
-            class="recordgroup-tool" 
-            title="remove bookmark" 
-            disabled={!$dataStore.georefIndex || $dataStore.recordGroup.bookmarkedByUID != profile.uid}
-            on:click={handleUnbookmarkRecordGroup}>
-              <span class="material-icons">bookmark_added</span>
-          </button> <!--note only the person who bookmarked the record can unbookmark it-->
+          <button
+            class="recordgroup-tool"
+            title="remove bookmark"
+            disabled={!$dataStore.georefIndex ||
+              $dataStore.recordGroup.bookmarkedByUID != profile.uid}
+            on:click={handleUnbookmarkRecordGroup}
+          >
+            <span class="material-icons">bookmark_added</span>
+          </button>
+          <!--note only the person who bookmarked the record can unbookmark it-->
         {/if}
-        <button class="recordgroup-tool" title="state selected localities cannot be georeferenced" on:click={handleNoGeoref}>
+        <button
+          class="recordgroup-tool"
+          title="state selected localities cannot be georeferenced"
+          on:click={handleNoGeoref}
+        >
           <span class="material-icons">location_off</span>
         </button>
       </div>
       <div class="bookmarkToggle">
         <span class="label">bookmarked</span>
-        <Toggle 
-          hideLabel 
+        <Toggle
+          hideLabel
           label="Show bookmarked"
           switchColor="#eee"
           toggledColor="lightblue"
           untoggledColor="lightgrey"
           disabled={!bookmarked || bookmarked.length == 0}
-          bind:toggled={fetchBookmarked} />
+          bind:toggled={fetchBookmarked}
+        />
       </div>
-      {#if dataset.countryProvs && filterLoaded} 
-        <CountryProvSelect 
-          hasStateProvince={dataset.hasStateProvince} 
-          countryProvs={dataset.countryProvs} 
+      {#if dataset.countryProvs && filterLoaded}
+        <CountryProvSelect
+          hasStateProvince={dataset.hasStateProvince}
+          countryProvs={dataset.countryProvs}
           disabled={fetchBookmarked}
           initialCountry={savedCountry}
           initialStateProvince={savedStateProv}
-          on:admin-selected={handleCountryProvinceChanged} />
+          on:admin-selected={handleCountryProvinceChanged}
+        />
       {/if}
       {#if datasetComplete}
         {#if selectedCountry == 'all'}
           <h5>You've reached the end of the records for this dataset</h5>
-        {:else if selectedStateProv && selectedStateProv != 'all'} 
+        {:else if selectedStateProv && selectedStateProv != 'all'}
           {#if selectedStateProv == 'none'}
             <h5>You've reached the end of the records for {selectedCountry}, (no stateProvince)</h5>
           {:else}
-            <h5>You've reached the end of the records for {selectedCountry}, {selectedStateProv}</h5>
+            <h5>
+              You've reached the end of the records for {selectedCountry}, {selectedStateProv}
+            </h5>
           {/if}
         {:else}
           <h5>You've reached the end of the records for {selectedCountry}</h5>
@@ -1172,55 +1228,71 @@
           </div>
         {/if}
         <div class="recordgroup">
-          <RecordGroup busy={busy || savingGeoref || savingRecordGroup} on:locality-copied={handleLocalityCopied}></RecordGroup>
+          <RecordGroup
+            busy={busy || savingGeoref || savingRecordGroup}
+            on:locality-copied={handleLocalityCopied}
+          />
         </div>
         <div class="recordgroup-remarks">
           <label for="slgr">Locality georef remarks</label>
-          <textarea id="slgr" style="width:100%" bind:value={selectedLocGeorefRemarks} placeholder="Add remarks about applying this georeference to this/these selected localities" rows="2" />
+          <textarea
+            id="slgr"
+            style="width:100%"
+            bind:value={selectedLocGeorefRemarks}
+            placeholder="Add remarks about applying this georeference to this/these selected localities"
+            rows="2"
+          />
         </div>
       {/if}
     </div>
     <div class="matchlist-container">
       <h4>Candidate georeferences</h4>
-      <CustomSearch bind:customSearchString {elasticindex} on:custom-search-searching={handleCustomSearchSearching} on:custom-search-cleared={handleCustomSearchCleared} on:custom-georefs={handleCustomGeorefs} />
+      <CustomSearch
+        bind:customSearchString
+        {elasticindex}
+        on:custom-search-searching={handleCustomSearchSearching}
+        on:custom-search-cleared={handleCustomSearchCleared}
+        on:custom-georefs={handleCustomGeorefs}
+      />
       <div class="matchlist-flex">
-        <MatchList on:georef-selected={handleGeorefSelected}/>
+        <MatchList on:georef-selected={handleGeorefSelected} />
       </div>
       <div class="matchlist-flex-plug" />
     </div>
     <div class="matchmap-container">
-      <MatchMap bind:pastedDecimalCoords on:georef-selected={handleGeorefSelected}/>
+      <MatchMap bind:pastedDecimalCoords on:georef-selected={handleGeorefSelected} />
     </div>
     <div class="georef-form-container">
       <h4 class="georef-flex-header">Georeference</h4>
       <div class="georef-form-flex" bind:this={formContainer}>
-        <GeorefForm 
-        georef={selectedGeoref} 
-        defaultGeorefBy={profile.formattedName}
-        defaultGeorefByORCID={profile.orcid}
-        submitButtonText={"Use this georeference"} 
-        bind:this={georefForm}
-        on:clear-georef={handleClearGeoref} 
-        on:georef-flagged={handleFlagGeoref}
-        on:coords-from-paste={handleCoordsFromPaste}
-        on:set-georef={handleSetGeoref}/>
+        <GeorefForm
+          georef={selectedGeoref}
+          defaultGeorefBy={profile.formattedName}
+          defaultGeorefByORCID={profile.orcid}
+          submitButtonText={'Use this georeference'}
+          bind:this={georefForm}
+          on:clear-georef={handleClearGeoref}
+          on:georef-flagged={handleFlagGeoref}
+          on:coords-from-paste={handleCoordsFromPaste}
+          on:set-georef={handleSetGeoref}
+        />
       </div>
       <div class="georef-form-plug" />
     </div>
   </div>
 </div>
-<div class="stopper"/>
+<div class="stopper" />
 <Toast />
+
 <!-- ############################################## -->
 <style>
-
   h4 {
-    color:  #86afe8;
+    color: #86afe8;
     text-transform: uppercase;
     font-size: 1.5em;
     font-weight: 600;
     text-align: center;
-    margin:0;
+    margin: 0;
   }
 
   .col-flex-container {
@@ -1232,8 +1304,8 @@
 
   .stopper {
     position: absolute;
-    height:0;
-    bottom:0;
+    height: 0;
+    bottom: 0;
   }
 
   .grid-container {
@@ -1241,30 +1313,30 @@
     flex: 1 1 auto;
     width: 100%;
     padding: 10px;
-    margin-top:10px;
-    overflow:hidden;
+    margin-top: 10px;
+    overflow: hidden;
     box-sizing: border-box;
     grid-template-columns: minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-    grid-column-gap:1%;
-    border-radius:4px;
+    grid-column-gap: 1%;
+    border-radius: 4px;
     border: 2px solid #bcd0ec;
   }
 
   .bookmarkToggle {
     display: flex;
-    width:100%;
+    width: 100%;
     align-items: center;
     justify-content: space-between;
   }
 
   .label {
-    color:grey;
+    color: grey;
     font-weight: bolder;
   }
 
   .warning {
-    width:100%;
+    width: 100%;
     max-width: 600px;
     text-align: center;
     background-color: #ffd47d;
@@ -1281,35 +1353,35 @@
     flex-flow: column;
     height: 100%;
     max-height: 100%;
-    min-height: 0;  /* NEW */
-    min-width: 0;   /* NEW; needed for Firefox */
-    overflow:hidden;
+    min-height: 0; /* NEW */
+    min-width: 0; /* NEW; needed for Firefox */
+    overflow: hidden;
   }
 
   .recordgroup {
-    flex-grow:0;
-    flex-basis:100%;
-    overflow:auto;
-    border:1px solid #bcd0ec;
-    padding:2px;
+    flex-grow: 0;
+    flex-basis: 100%;
+    overflow: auto;
+    border: 1px solid #bcd0ec;
+    padding: 2px;
   }
 
   .recordgroup-tool {
-    float:right;
-    margin-left:5px;
-    padding-bottom:0;
+    float: right;
+    margin-left: 5px;
+    padding-bottom: 0;
   }
 
   .recordgroup-remarks {
     text-align: center;
-    flex-basis:auto;
+    flex-basis: auto;
   }
 
   .matchlist-container {
-    grid-column: 2/2; 
+    grid-column: 2/2;
     grid-row: 1 / 2;
     max-height: 100%;
-    position:relative;
+    position: relative;
     display: flex;
     flex-flow: column;
   }
@@ -1333,13 +1405,13 @@
   .georef-form-container {
     grid-column: 3/3;
     grid-row: 1 / 3;
-    height:100%;
-    max-height:100%;
-    position:relative;
+    height: 100%;
+    max-height: 100%;
+    position: relative;
     display: flex;
     flex-flow: column;
-    overflow-x:hidden;
-  } 
+    overflow-x: hidden;
+  }
 
   .georef-flex-header {
     flex: 0 1 auto;
@@ -1356,7 +1428,7 @@
   label {
     display: inline-block;
     text-align: right;
-    color:grey;
+    color: grey;
     font-weight: bolder;
   }
 
@@ -1365,8 +1437,7 @@
   }
 
   button:hover:enabled {
-    background-color:grey;
-    color:white;
+    background-color: grey;
+    color: white;
   }
-
 </style>

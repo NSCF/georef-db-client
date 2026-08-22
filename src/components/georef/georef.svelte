@@ -65,6 +65,10 @@
   let selectedCountry = null
   let selectedStateProv = null
 
+  let filterLoaded = false
+  let savedCountry = null
+  let savedStateProv = null
+
   let bookmarked = null //for storing the actual list of bookmarkedRecordGroups
   let fetchBookmarked = false //bound prop for the toggle
   let fetchBookmarkedFirstToggled = false //so we don't trigger a fetch on render
@@ -90,33 +94,42 @@
 
   $: if(!connected && mounted) alert('There appears to be a problem with your connection. Please check before continuing')
 
+  let lastSelectedLocsKey = '';
+
   $: selectedLocs = ($dataStore.recordGroup && $dataStore.recordGroup.groupLocalities)
     ? $dataStore.recordGroup.groupLocalities.filter(x => x.selected)
     : [];
 
   $: {
-    if (selectedLocs.length > 0) {
-      if ($dataStore.georefIndex) {
-        const normalize = s => s.trim().toLowerCase().replace(/\s+/g, ' ');
-        let exactMatchGeoref = null;
-        for (let loc of selectedLocs) {
-          for (let georef of Object.values($dataStore.georefIndex)) {
-            if (georef.locality && loc.loc && normalize(georef.locality) === normalize(loc.loc)) {
-              exactMatchGeoref = georef;
-              break;
+    const hasCandidates = $dataStore.georefIndex ? Object.keys($dataStore.georefIndex).length : 0;
+    const currentLocsKey = `${selectedLocs.map(x => x.loc).sort().join('|')}-${hasCandidates}`;
+    
+    if (currentLocsKey !== lastSelectedLocsKey) {
+      lastSelectedLocsKey = currentLocsKey;
+      
+      if (selectedLocs.length > 0) {
+        if ($dataStore.georefIndex) {
+          const normalize = s => s.trim().toLowerCase().replace(/\s+/g, ' ');
+          let exactMatchGeoref = null;
+          for (let loc of selectedLocs) {
+            for (let georef of Object.values($dataStore.georefIndex)) {
+              if (georef.locality && loc.loc && normalize(georef.locality) === normalize(loc.loc)) {
+                exactMatchGeoref = georef;
+                break;
+              }
+            }
+            if (exactMatchGeoref) break;
+          }
+          if (exactMatchGeoref) {
+            if ($dataStore.selectedGeorefID !== exactMatchGeoref.georefID) {
+              handleGeorefSelected({ detail: exactMatchGeoref.georefID });
             }
           }
-          if (exactMatchGeoref) break;
         }
-        if (exactMatchGeoref) {
-          if ($dataStore.selectedGeorefID !== exactMatchGeoref.georefID) {
-            handleGeorefSelected({ detail: exactMatchGeoref.georefID });
-          }
+      } else {
+        if (selectedGeoref) {
+          handleClearGeoref();
         }
-      }
-    } else {
-      if (selectedGeoref) {
-        handleClearGeoref();
       }
     }
   }
@@ -208,6 +221,20 @@
   }
 
   onMount(async _ => { 
+
+    if (dataset.countryProvs) {
+      try {
+        const filterSnap = await Firebase.ref(`userDatasetRecordGroupFilter/${profile.uid}/${dataset.datasetID}`).once('value')
+        if (filterSnap.exists()) {
+          const filterData = filterSnap.val()
+          savedCountry = filterData.country
+          savedStateProv = filterData.stateProvince
+        }
+      } catch (err) {
+        console.error('Error loading saved georef filter:', err)
+      }
+    }
+    filterLoaded = true
 
     elasticindex = dataset.region.toLowerCase().replace(/\s+/g, '') + dataset.domain.toLowerCase()
 
@@ -581,6 +608,15 @@
     selectedCountry = ev.detail.country
     selectedStateProv = ev.detail.stateProvince
     datasetComplete = false //in case it was this for the last group
+
+    try {
+      await Firebase.ref(`userDatasetRecordGroupFilter/${profile.uid}/${dataset.datasetID}`).set({
+        country: selectedCountry,
+        stateProvince: selectedStateProv || null
+      })
+    } catch(err) {
+      console.error('Failed to save georef filter:', err)
+    }
 
     busy = true
     if(georefsAdded || recordsGeoreferenced){
@@ -1104,11 +1140,13 @@
           disabled={!bookmarked || bookmarked.length == 0}
           bind:toggled={fetchBookmarked} />
       </div>
-      {#if dataset.countryProvs} 
+      {#if dataset.countryProvs && filterLoaded} 
         <CountryProvSelect 
           hasStateProvince={dataset.hasStateProvince} 
           countryProvs={dataset.countryProvs} 
           disabled={fetchBookmarked}
+          initialCountry={savedCountry}
+          initialStateProvince={savedStateProv}
           on:admin-selected={handleCountryProvinceChanged} />
       {/if}
       {#if datasetComplete}

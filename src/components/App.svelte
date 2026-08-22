@@ -2,9 +2,6 @@
 	import {onMount} from 'svelte'
 	import {Auth, Firestore, FieldValue, Realtime as Firebase } from '../firebase.js'
 
-  import tippy from 'tippy.js';
-  import 'tippy.js/dist/tippy.css'; // optional for styling
-
 	import Modal from 'svelte-simple-modal';
 	import Register from './signUp.svelte'
 	import SignIn from './signIn.svelte'
@@ -194,7 +191,7 @@
 
 	function handleHomeClick() {
 		if(currentPage == 'Georeferencer') {
-			alert('Please click \'Done\' above the locality group to return')
+			alert('Please click \'Back to datasets\' above the locality group to return')
 		}
 		else if (currentPage == 'Home') { //we presume the user is trying to escape the manual georef
 			homePage.closeSearching()

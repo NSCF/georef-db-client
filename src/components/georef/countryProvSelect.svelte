@@ -8,6 +8,8 @@
   export let hasStateProvince
   export let countryProvs
   export let disabled
+  export let initialCountry = null
+  export let initialStateProvince = null
 
   let countriesOptions = [] //array, we need to generate this with onMount so we can add 'all'
   let selectedCountry = null
@@ -32,13 +34,22 @@
     }
 
     countriesOptions = countries.map(x => ({value: x, label: x}))
-    selectedCountry = countriesOptions[0]
+
+    if (initialCountry) {
+      selectedCountry = countriesOptions.find(x => x.value === initialCountry) || countriesOptions[0]
+    } else {
+      selectedCountry = countriesOptions[0]
+    }
 
     //if we have only one country, we can show the first option for it's stateProvinces
     if(hasStateProvince) {
       if(selectedCountry.value != 'all') {
         stateProvOptions = countryProvs[selectedCountry.value].map(x => ({value: x, label: x}))
-        selectedStateProv = stateProvOptions[0]
+        if (initialStateProvince) {
+          selectedStateProv = stateProvOptions.find(x => x.value === initialStateProvince) || stateProvOptions[0]
+        } else {
+          selectedStateProv = stateProvOptions[0]
+        }
       }
       else {
         stateProvOptions = []

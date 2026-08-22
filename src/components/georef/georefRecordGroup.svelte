@@ -66,7 +66,7 @@ const copyLocality = loc => {
       <div hidden={groupLoc.georefID}>
         <div class="container">
           <p class="grouptext text-unselectable" class:selected="{groupLoc.selected}"  on:click="{ev => handleGroupLocClick(ev,i)}">{groupLoc.loc}</p>
-          <p class="material-icons inline-icon" style="margin-right:5px; margin-left:5px" title="copy locality string" on:click={copyLocality(groupLoc.loc)}>content_copy</p>
+          <p class="material-icons inline-icon" style="margin-right:5px; margin-left:5px" title="copy locality string" on:click={() => copyLocality(groupLoc.loc)}>content_copy</p>
         </div>
       </div>
     {/each}

@@ -11,9 +11,9 @@
   export let initialStateProvince = null;
 
   let countriesOptions = []; //array, we need to generate this with onMount so we can add 'all'
-  let selectedCountry = null;
+  let selectedCountry = initialCountry;
   let stateProvOptions = [];
-  let selectedStateProv = null;
+  let selectedStateProv = initialStateProvince;
 
   let provinceChangeFromCountryChange = false; //we use this to suppress dispatches from stateProvince change handler when country changes
 
@@ -28,13 +28,6 @@
 
       countriesOptions = countries.map((x) => ({ value: x, label: x }));
 
-      if (initialCountry) {
-        selectedCountry =
-          countriesOptions.find((x) => x.value === initialCountry) || countriesOptions[0];
-      } else {
-        selectedCountry = countriesOptions[0];
-      }
-
       //if we have only one country, we can show the first option for it's stateProvinces
       if (hasStateProvince) {
         if (selectedCountry.value == 'all') {
@@ -45,23 +38,17 @@
             value: x,
             label: x,
           }));
-          if (initialStateProvince) {
-            selectedStateProv =
-              stateProvOptions.find((x) => x.value === initialStateProvince) || stateProvOptions[0];
-            if (selectedStateProv.value !== initialStateProvince) {
-              console.warn(
-                `initialStateProvince ${initialStateProvince} not found in stateProvOptions for country ${selectedCountry.value}`
-              );
-            }
-          } else {
+          if (!initialStateProvince) {
             selectedStateProv = stateProvOptions[0];
           }
         }
       }
+      dispatchAdmins();
     }
   });
 
   const handleSelectedCountryChanged = async (_) => {
+    console.log('handleSelectedCountryChanged fired');
     if (hasStateProvince) {
       provinceChangeFromCountryChange = true;
       if (selectedCountry.value == 'all') {
@@ -76,6 +63,7 @@
   };
 
   const handleSelectedStateProvChanged = async (_) => {
+    console.log('handleSelectedStateProvChanged fired');
     //we only send this out if it's from a change on the countryProvs select!
     if (provinceChangeFromCountryChange) {
       provinceChangeFromCountryChange = false; //now we can make changes from the select

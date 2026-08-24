@@ -271,6 +271,7 @@
       return;
     }
 
+    // we will call this from the CountryProvSelect if countryProvs exists
     if (!dataset.countryProvs) {
       try {
         fetchRecordGroupsAndGeorefs('at', usersLastGroupID);
@@ -1126,10 +1127,6 @@
   <div class="grid-container">
     <div class="recordgroup-container">
       <h4 title={locStringsTitle}>Locality group</h4>
-      <span
-        >current settings: {selectedCountry ? selectedCountry : 'none'}
-        {selectedStateProv ? selectedStateProv : 'none'}</span
-      >
       <div>
         <button class="recordgroup-tool" title="back to datasets" on:click={handleBackToDatasets}>
           <span class="material-icons">list</span>

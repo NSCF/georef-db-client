@@ -106,42 +106,42 @@
       ? $dataStore.recordGroup.groupLocalities.filter((x) => x.selected)
       : [];
 
-  $: {
-    const hasCandidates = $dataStore.georefIndex ? Object.keys($dataStore.georefIndex).length : 0;
-    const currentLocsKey = `${selectedLocs
-      .map((x) => x.loc)
-      .sort()
-      .join('|')}-${hasCandidates}`;
+  // $: {
+  //   const hasCandidates = $dataStore.georefIndex ? Object.keys($dataStore.georefIndex).length : 0;
+  //   const currentLocsKey = `${selectedLocs
+  //     .map((x) => x.loc)
+  //     .sort()
+  //     .join('|')}-${hasCandidates}`;
 
-    if (currentLocsKey !== lastSelectedLocsKey) {
-      lastSelectedLocsKey = currentLocsKey;
+  //   if (currentLocsKey !== lastSelectedLocsKey) {
+  //     lastSelectedLocsKey = currentLocsKey;
 
-      if (selectedLocs.length > 0) {
-        if ($dataStore.georefIndex) {
-          const normalize = (s) => s.trim().toLowerCase().replace(/\s+/g, ' ');
-          let exactMatchGeoref = null;
-          for (let loc of selectedLocs) {
-            for (let georef of Object.values($dataStore.georefIndex)) {
-              if (georef.locality && loc.loc && normalize(georef.locality) === normalize(loc.loc)) {
-                exactMatchGeoref = georef;
-                break;
-              }
-            }
-            if (exactMatchGeoref) break;
-          }
-          if (exactMatchGeoref) {
-            if ($dataStore.selectedGeorefID !== exactMatchGeoref.georefID) {
-              handleGeorefSelected({ detail: exactMatchGeoref.georefID });
-            }
-          }
-        }
-      } else {
-        if (selectedGeoref) {
-          handleClearGeoref();
-        }
-      }
-    }
-  }
+  //     if (selectedLocs.length > 0) {
+  //       if ($dataStore.georefIndex) {
+  //         const normalize = (s) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+  //         let exactMatchGeoref = null;
+  //         for (let loc of selectedLocs) {
+  //           for (let georef of Object.values($dataStore.georefIndex)) {
+  //             if (georef.locality && loc.loc && normalize(georef.locality) === normalize(loc.loc)) {
+  //               exactMatchGeoref = georef;
+  //               break;
+  //             }
+  //           }
+  //           if (exactMatchGeoref) break;
+  //         }
+  //         if (exactMatchGeoref) {
+  //           if ($dataStore.selectedGeorefID !== exactMatchGeoref.georefID) {
+  //             handleGeorefSelected({ detail: exactMatchGeoref.georefID });
+  //           }
+  //         }
+  //       }
+  //     } else {
+  //       if (selectedGeoref) {
+  //         handleClearGeoref();
+  //       }
+  //     }
+  //   }
+  // }
 
   //trigger a fetch on toggle
   $: if (fetchBookmarked) {

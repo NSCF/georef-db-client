@@ -611,8 +611,8 @@ const checkValidations = _ => {
   {#if showDuplicateWarning}
     <div class="duplicate-warning-container">
       <div class="duplicate-warning">
-        ⚠️ This locality already has an existing georeference in the candidate list. Please check
-        the candidate list first to avoid duplication.
+        ⚠️ This locality has one or more existing georeferences in the candidate list. Please check
+        the candidate list to avoid duplication.
       </div>
     </div>
   {/if}

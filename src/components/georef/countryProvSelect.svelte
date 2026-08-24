@@ -48,6 +48,11 @@
           if (initialStateProvince) {
             selectedStateProv =
               stateProvOptions.find((x) => x.value === initialStateProvince) || stateProvOptions[0];
+            if (selectedStateProv.value !== initialStateProvince) {
+              console.warn(
+                `initialStateProvince ${initialStateProvince} not found in stateProvOptions for country ${selectedCountry.value}`
+              );
+            }
           } else {
             selectedStateProv = stateProvOptions[0];
           }

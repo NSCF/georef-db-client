@@ -755,7 +755,7 @@
 
   //helper for above and below
   const resetTableAndMap = (georefID) => {
-    let selectedMarker = $dataStore.markers[georefID];
+    let selectedMarker = $dataStore.markers && $dataStore.markers[georefID];
     if (selectedMarker) {
       selectedMarker.setIcon({
         path: google.maps.SymbolPath.CIRCLE,
@@ -767,7 +767,7 @@
       selectedMarker.setZIndex(0);
     }
 
-    if ($dataStore.georefIndex[georefID]) {
+    if ($dataStore.georefIndex && $dataStore.georefIndex[georefID]) {
       $dataStore.georefIndex[georefID].selected = false;
     }
     $dataStore.selectedGeorefID = null;
@@ -912,14 +912,15 @@
 
     if (georefsAdded) {
       await saveRecordGroup();
-    } else {
-      await releaseRecordGroup();
     }
+
+    await releaseRecordGroup();
 
     $dataStore.recordGroupSnap = null;
     $dataStore.recordGroup = null;
     $dataStore.georefIndex = null;
 
+    console.log('back to datasets from georeferencer');
     dispatch('back-to-datasets');
   };
 
@@ -1125,6 +1126,10 @@
   <div class="grid-container">
     <div class="recordgroup-container">
       <h4 title={locStringsTitle}>Locality group</h4>
+      <span
+        >current settings: {selectedCountry ? selectedCountry : 'none'}
+        {selectedStateProv ? selectedStateProv : 'none'}</span
+      >
       <div>
         <button class="recordgroup-tool" title="back to datasets" on:click={handleBackToDatasets}>
           <span class="material-icons">list</span>

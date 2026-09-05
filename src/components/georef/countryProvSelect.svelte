@@ -11,9 +11,9 @@
   export let initialStateProvince = null;
 
   let countriesOptions = []; //array, we need to generate this with onMount so we can add 'all'
-  let selectedCountry = initialCountry;
+  let selectedCountry = null;
   let stateProvOptions = [];
-  let selectedStateProv = initialStateProvince;
+  let selectedStateProv = null;
 
   let provinceChangeFromCountryChange = false; //we use this to suppress dispatches from stateProvince change handler when country changes
 
@@ -27,6 +27,11 @@
       }
 
       countriesOptions = countries.map((x) => ({ value: x, label: x }));
+      if (initialCountry) {
+        selectedCountry = countriesOptions.find((x) => x.value == initialCountry);
+      } else {
+        selectedCountry = countriesOptions[0];
+      }
 
       //if we have only one country, we can show the first option for it's stateProvinces
       if (hasStateProvince) {
@@ -38,7 +43,9 @@
             value: x,
             label: x,
           }));
-          if (!initialStateProvince) {
+          if (initialStateProvince) {
+            selectedStateProv = stateProvOptions.find((x) => x.value == initialStateProvince);
+          } else {
             selectedStateProv = stateProvOptions[0];
           }
         }
@@ -73,17 +80,22 @@
   };
 
   const dispatchAdmins = (_) => {
-    let selectedAdmins = {
-      country: selectedCountry.value,
-    };
+    if (selectedCountry) {
+      let selectedAdmins = {
+        country: selectedCountry ? selectedCountry.value : null,
+      };
 
-    if (selectedStateProv) {
-      selectedAdmins.stateProvince = selectedStateProv.value;
+      if (selectedStateProv) {
+        selectedAdmins.stateProvince = selectedStateProv.value;
+      } else {
+        selectedAdmins.stateProvince = null;
+      }
+
+      dispatch('admin-selected', selectedAdmins);
     } else {
-      selectedAdmins.stateProvince = null;
+      // first on the list
+      dispatch('admin-selected', { country: countriesOptions[0].value, stateProvince: null });
     }
-
-    dispatch('admin-selected', selectedAdmins);
   };
 </script>
 

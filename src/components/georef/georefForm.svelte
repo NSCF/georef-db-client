@@ -3,6 +3,7 @@
   import LocalityInput from './localityInput.svelte';
   import DecimalCoordsInput from './decimalCoordsInput.svelte';
   import VerbatimCoordsInput from './verbatimCoordsInput.svelte';
+  import Loader from '../loader.svelte';
   import DateInput from './dateInput.svelte';
   import Georef from './Georef.js';
   import Checkbox from '../Checkbox.svelte';
@@ -28,6 +29,7 @@
   export let showVerification = false;
   export let showResetButton = true;
   export let submitButtonText = '';
+  let busy = false;
 
   export let requiredFields = ['uncertainty', 'datum', 'by', 'date']; //for on form validation
 
@@ -405,6 +407,7 @@ const checkValidations = _ => {
 
   // note this is overwritable by the parent
   export const clear = (_) => {
+    busy = false;
     localGeoref = new Georef();
     if (defaultGeorefBy) {
       localGeoref.by = defaultGeorefBy;
@@ -523,6 +526,7 @@ const checkValidations = _ => {
   };
 
   const checkAndDispatchGeoref = (_) => {
+    busy = true;
     try {
       if (localGeoref.hasSpatialOrAuthorChanges(georef)) {
         //some validation first
@@ -538,6 +542,7 @@ const checkValidations = _ => {
           let message = `The following fields have invalid values: ${invalidFields}.\r\n\r\nDo you want to continue?`;
           let conf = confirm(message);
           if (!conf) {
+            busy = false;
             return;
           }
         }
@@ -895,12 +900,16 @@ const checkValidations = _ => {
   <!-- submit button -->
   {#if showSubmitButton}
     <div style="text-align:center">
-      <button
-        type="button"
-        class="georefbutton"
-        disabled={!hasLocalityAndCoords && !localGeoref.ambiguous}
-        on:click={checkAndDispatchGeoref}>{submitButtonText}</button
-      >
+      {#if busy}
+        <Loader />
+      {:else}
+        <button
+          type="button"
+          class="georefbutton"
+          disabled={!hasLocalityAndCoords && !localGeoref.ambiguous}
+          on:click={checkAndDispatchGeoref}>{submitButtonText}</button
+        >
+      {/if}
     </div>
   {/if}
 </form>

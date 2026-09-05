@@ -24,11 +24,13 @@
       }
       //else
 
+      console.log('Sending password reset email to:', email);
       Auth.sendPasswordResetEmail(email)
         .then((_) => {
           console.log('password reset mail sent');
+          busy = false;
           codeSent = true;
-        }) // no need reset busy because we go to another page
+        })
         .catch((error) => {
           switch (error.code) {
             case 'auth/invalid-email':
@@ -58,6 +60,11 @@
   <h3>Forgot password</h3>
   {#if busy}
     <Loader />
+  {:else if codeSent}
+    <p>
+      Password reset email sent successfully. Please check your inbox (including your spam folder).
+    </p>
+    <button on:click={(_) => dispatch('to-sign-in')}><strong>Sign In</strong></button>
   {:else}
     <form>
       <div class="formsection">
@@ -90,6 +97,12 @@
     flex-direction: column;
     align-items: center;
     height: 100%;
+  }
+
+  .signin {
+    color: white;
+    background-color: rgb(29, 74, 156);
+    font-weight: bolder;
   }
 
   form {

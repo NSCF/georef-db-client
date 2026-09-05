@@ -432,7 +432,7 @@
           />
         {/if}
         {#if currentPage == 'ForgotPwd'}
-          <ForgotPwd {Auth} />
+          <ForgotPwd {Auth} on:to-sign-in={(_) => (currentPage = 'SignIn')} />
         {/if}
         {#if currentPage == 'ResetPwd'}
           <PwdReset {Auth} code={pwdResetCode} on:to-sign-in={(_) => (currentPage = 'SignIn')} />

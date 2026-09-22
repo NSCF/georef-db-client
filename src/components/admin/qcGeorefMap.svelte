@@ -1,5 +1,5 @@
 <script>
-  import {onMount, createEventDispatcher} from 'svelte'
+  import {onMount, onDestroy, createEventDispatcher} from 'svelte'
   import { Loader as MapsAPILoader } from '@googlemaps/js-api-loader';
   import MeasureTool from 'measuretool-googlemaps-v3'; //https://www.npmjs.com/package/measuretool-googlemaps-v3
   import { dataStore } from '../georef/dataStore.js'
@@ -31,7 +31,6 @@
         libraries: ["geometry"]
       }); 
       await loader.load()
-      dispatch('map-ready')
     }
     
     map = new google.maps.Map(container, {
@@ -70,6 +69,7 @@
 
     const measureTool = new MeasureTool(map, {showSegmentLength: false}); //don't remove this
     mapReady = true
+    dispatch('map-ready')
 
     setMarkersForNewGeorefIndex()
   })
@@ -77,6 +77,7 @@
   $: $dataStore.georefIndex, setMarkersForNewGeorefIndex(), updateMarkers() //this is being fancy, if one runs the other doesn't
 
   export const setMapWithNewGeoref = georef => {
+    if(!georef) return
     
     if(mapGeoref) {
       removeMapGeoref()
@@ -95,6 +96,13 @@
       else {
         addCoordsPin(georef.decimalCoordinates)
       }
+
+      if (map) {
+        try {
+          const latLng = makeLatLngLiteral(georef.decimalCoordinates)
+          map.panTo(latLng)
+        } catch(e) {}
+      }
     }
     else {
       if(coordsPin) {
@@ -109,6 +117,8 @@
 
   //for responding to changes in the coords or uncertainty
   export const updateGeorefDetails = data => {
+    if(!data) return
+
     if(data.decimalCoordinates) {
       if(coordsPin) {
         moveCoordsPin(data.decimalCoordinates)
@@ -131,7 +141,7 @@
       if(newUncertaintyCircle) {
         resizeUncertaintyCircle()
       }
-      else {
+      else if (coordsPin && typeof coordsPin.getPosition === 'function') {
         const coords = coordsPin.getPosition().toUrlValue() //we might not have a data.decimalCoordinates value here
         addUncertaintyCircle(coords)
       }
@@ -145,8 +155,8 @@
       latLng = makeLatLngLiteral(coordsString)
     }
     catch(err) {
-      console.error(`error making latLng for ${coordsString} in addCoordsPin: ${err.message}}`)
-      alert('error moving uncertainty circle, see console')
+      console.error(`error making latLng for ${coordsString} in addCoordsPin: ${err.message}`)
+      alert('error setting coordinates pin, see console')
       return
     }
     
@@ -154,7 +164,15 @@
       position: latLng,
       map: map,
       draggable: true,
-      color: 'blue',
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 6,
+        fillColor: '#2196F3',
+        fillOpacity: 1,
+        strokeColor: '#0D47A1',
+        strokeWeight: 2
+      },
+      zIndex: 100,
       title: "Move to update coordinates"
     });
 
@@ -179,8 +197,8 @@
       latLng = makeLatLngLiteral(coordsString)
     }
     catch(err) {
-      console.error(`error making latLng for ${coordsString} in moveCoordsPin: ${err.message}}`)
-      alert('error moving uncertainty circle, see console')
+      console.error(`error making latLng for ${coordsString} in moveCoordsPin: ${err.message}`)
+      alert('error moving coordinates pin, see console')
       return
     }
 
@@ -189,19 +207,23 @@
   }
 
   const removeCoordsPin = _ => {
-    coordsPin.setMap = null
-    coordsPin = null
+    if (coordsPin) {
+      coordsPin.setMap(null)
+      coordsPin = null
+    }
   }
 
   const addUncertaintyCircle = coordsString => {
     if(georefUncertainty) {
-      newUncertaintyCircle = makeCircle(coordsString, georefUncertainty, georefUncertaintyUnit, map, 'blue')
+      newUncertaintyCircle = makeCircle(coordsString, georefUncertainty, georefUncertaintyUnit, map, '#2196F3')
     }
   }
 
   const removeUncertaintyCircle = _ => {
-    newUncertaintyCircle.setMap(null)
-    newUncertaintyCircle = null
+    if (newUncertaintyCircle) {
+      newUncertaintyCircle.setMap(null)
+      newUncertaintyCircle = null
+    }
   }
 
   //this is for changes to the size of the uncertainty
@@ -226,11 +248,13 @@
       latLng = makeLatLngLiteral(coordsString)
     }
     catch(err) {
-      console.error(`error making latLng for ${coordsString}: ${err.message}}`)
+      console.error(`error making latLng for ${coordsString}: ${err.message}`)
       alert('error moving uncertainty circle, see console')
       return
     }
-    newUncertaintyCircle.setCenter(latLng)
+    if (newUncertaintyCircle) {
+      newUncertaintyCircle.setCenter(latLng)
+    }
   }
 
   const makeLatLngLiteral = coordsString => {
@@ -446,32 +470,37 @@
   }
 
   const toggleCircles = _ => {
+    circlesOn = !circlesOn
+
     if($dataStore.markers && Object.keys($dataStore.markers).length) {
-      if(circlesOn){
-        for (let marker of Object.values($dataStore.markers)){
-          if(marker.circle) {
-            marker.circle.setVisible(false)
-          }
+      for (let marker of Object.values($dataStore.markers)){
+        if(marker.circle) {
+          marker.circle.setVisible(circlesOn)
         }
-        circlesOn = false
       }
-      else {
-        for (let marker of Object.values($dataStore.markers)){
-          if(marker.circle) {
-            marker.circle.setVisible(true)
-          }
-        }
-        circlesOn = true
-      }
+    }
+
+    if(mapGeoref && mapGeoref.circle) {
+      mapGeoref.circle.setVisible(circlesOn)
+    }
+
+    if(newUncertaintyCircle) {
+      newUncertaintyCircle.setVisible(circlesOn)
     }
   }
 
   //This one is different, because we don't add/move the coordsPin, that comes the georef to verify
   const setMarkersForNewGeorefIndex = _ => {
-    if(mapReady && $dataStore.georefIndex && Object.keys($dataStore.georefIndex).length && currentGeorefs != $dataStore.georefIndex) {
+    if(!mapReady) return
+
+    if(currentGeorefs != $dataStore.georefIndex) {
       clearMapMarkers()
-      setNewMapMarkers()
-      setMapBounds()
+      if($dataStore.georefIndex && Object.keys($dataStore.georefIndex).length) {
+        setNewMapMarkers()
+        setMapBounds()
+      } else {
+        currentGeorefs = $dataStore.georefIndex
+      }
     }
   }
 
@@ -506,14 +535,14 @@
     else return 0
   }
 
-  const makeMarker = (coordsString, map, color, title) => {
+  const makeMarker = (coordsString, map, color, title, zIndex = 90) => {
     let latLng
     try {
       latLng = makeLatLngLiteral(coordsString)
     }
     catch(err) {
-      console.error(`error making latLng for ${coordsString} in makeMarker: ${err.message}}`)
-      alert('error moving uncertainty circle, see console')
+      console.error(`error making latLng for ${coordsString} in makeMarker: ${err.message}`)
+      alert('error creating marker, see console')
       return
     }
 
@@ -527,7 +556,7 @@
         fillOpacity: 1,
         strokeColor: color
       }, 
-      zIndex: 0,
+      zIndex,
       title
     });
 
@@ -543,8 +572,8 @@
         latLng = makeLatLngLiteral(coordsString)
       }
       catch(err) {
-        console.error(`error making latLng for ${coordsString} in makeCircle: ${err.message}}`)
-        alert('error moving uncertainty circle, see console')
+        console.error(`error making latLng for ${coordsString} in makeCircle: ${err.message}`)
+        alert('error creating uncertainty circle, see console')
         return
       }
 
@@ -559,7 +588,8 @@
           center: latLng,
           map,
           radius: accuracy, 
-          clickable: false
+          clickable: false,
+          zIndex: 1
         });
         return circle
       }
@@ -571,6 +601,13 @@
       return null
     }
   }
+
+  onDestroy(() => {
+    clearMapMarkers()
+    if(mapGeoref) removeMapGeoref()
+    if(coordsPin) removeCoordsPin()
+    if(newUncertaintyCircle) removeUncertaintyCircle()
+  })
 
 </script>
 

@@ -1,151 +1,183 @@
 <script>
+  import { onMount, onDestroy, createEventDispatcher, getContext } from 'svelte';
+  import { Firestore, Realtime as Firebase, Auth } from '../../firebase';
+  import Select from 'svelte-select';
+  import QCGeorefs from './qcGeorefs.svelte';
+  import Dialog from '../Dialog.svelte';
 
-  import {onMount, createEventDispatcher, getContext} from 'svelte'
-  import {Firestore, Realtime as Firebase} from '../../firebase'
-  import Select from 'svelte-select'
-  import QCGeorefs from './qcGeorefs.svelte'
-  import Dialog from '../Dialog.svelte'
-
-  const dispatch = createEventDispatcher()
+  const dispatch = createEventDispatcher();
   const { open } = getContext('simple-modal');
 
-  export let profile
-  export let dataset
+  export let profile;
+  export let dataset;
 
-  let selectedTab = 'georefs'
+  let selectedTab = 'georefs';
 
-  let georeferencersDictionary = {}
-  let georeferencersOptions = []
-  let selectedGeoreferencer
-  let disableFeedbackButton = false
-  let georeferencerFeedbackCounts = null
+  const roleOptions = [
+    { value: 'quality controller', label: 'quality controller' },
+    { value: 'curator', label: 'curator' },
+    { value: 'collector', label: 'collector' },
+  ];
+  let selectedRole = roleOptions[0];
 
-  let qcGeorefs //for binding
+  let georeferencersDictionary = {};
+  let georeferencersOptions = [];
+  let selectedGeoreferencer;
+  let disableFeedbackButton = false;
+  let georeferencerFeedbackCounts = null;
+  let feedbackRef = null;
+
+  let qcGeorefs; //for binding
 
   //for changes to feedback counts from Firebase or georeferencer changed
-  $: if (georeferencerFeedbackCounts || selectedGeoreferencer)  updateFeedbackButtonDisabledOnCountsOrSelectionChanged()
+  $: if (georeferencerFeedbackCounts || selectedGeoreferencer)
+    updateFeedbackButtonDisabledOnCountsOrSelectionChanged();
 
-  onMount(async _ => {
-    
-    const FirestoreUserProfiles = Firestore.collection('userProfiles')
-    let proms = []
-    for (let uid of dataset.georeferencers) {
-      if(uid != profile.uid) { //we can't verify our own georeferences
-        proms.push(FirestoreUserProfiles.doc(uid).get())
+  onMount(async (_) => {
+    const FirestoreUserProfiles = Firestore.collection('userProfiles');
+    let uidsToFetch = new Set();
+    if (dataset.georeferencers && Array.isArray(dataset.georeferencers)) {
+      for (let uid of dataset.georeferencers) {
+        if (uid != profile.uid) {
+          //we can't verify our own georeferences
+          uidsToFetch.add(uid);
+        }
       }
     }
 
-    if(dataset.pastGeoreferencers && dataset.pastGeoreferencers.length) {
+    if (dataset.pastGeoreferencers && Array.isArray(dataset.pastGeoreferencers)) {
       for (let uid of dataset.pastGeoreferencers) {
-        proms.push(FirestoreUserProfiles.doc(uid).get())
+        if (uid != profile.uid) {
+          uidsToFetch.add(uid);
+        }
       }
     }
 
-    let userProfileSnaps = await Promise.all(proms)
+    let proms = [];
+    for (let uid of uidsToFetch) {
+      proms.push(FirestoreUserProfiles.doc(uid).get());
+    }
 
+    let userProfileSnaps = await Promise.all(proms);
+    let options = [];
     for (let snap of userProfileSnaps) {
-      if(snap.exists) { //it should
-        const profile = snap.data()
-        let option = {value: profile.uid, label: profile.formattedName}
-        georeferencersOptions.push(option)
-        georeferencersDictionary[profile.uid] = profile
+      if (snap.exists) {
+        //it should
+        const userP = snap.data();
+        options.push({ value: userP.uid, label: userP.formattedName });
+        georeferencersDictionary[userP.uid] = userP;
       }
     }
 
-    georeferencersOptions.unshift({value: null, label: 'all'})
-    console.log('setting initial selectedGeoreferencer')
-    selectedGeoreferencer = georeferencersOptions[0]
+    georeferencersOptions = [{ value: null, label: 'all' }, ...options];
+    console.log('setting initial selectedGeoreferencer');
+    selectedGeoreferencer = georeferencersOptions[0];
 
     //set the listener on the feedback record counts
-    Firebase.ref(`georefVerificationFeedback/${dataset.datasetID}/${profile.uid}`)
-    .on('value', snap => {
-      if(snap.exists()) {
-        georeferencerFeedbackCounts = snap.value()
+    feedbackRef = Firebase.ref(`georefVerificationFeedback/${dataset.datasetID}/${profile.uid}`);
+    feedbackRef.on('value', (snap) => {
+      if (snap.exists()) {
+        georeferencerFeedbackCounts = snap.val();
+      } else {
+        georeferencerFeedbackCounts = {};
+        disableFeedbackButton = true;
       }
-      else {
-        georeferencerFeedbackCounts = {}
-        disableFeedbackButton = true
-      }
-    })
-  })
+    });
+  });
 
-  const updateFeedbackButtonDisabledOnCountsOrSelectionChanged = _ => {
-    if(selectedGeoreferencer.value) {
-      if(georeferencerFeedbackCounts[selectedGeoreferencer.value]) { 
-        disableFeedbackButton = false
+  onDestroy((_) => {
+    if (feedbackRef) {
+      feedbackRef.off('value');
+    }
+  });
+
+  const updateFeedbackButtonDisabledOnCountsOrSelectionChanged = (_) => {
+    if (!selectedGeoreferencer || !georeferencerFeedbackCounts) {
+      disableFeedbackButton = true;
+      return;
+    }
+
+    if (selectedGeoreferencer.value) {
+      if (georeferencerFeedbackCounts[selectedGeoreferencer.value]) {
+        disableFeedbackButton = false;
+      } else {
+        disableFeedbackButton = true;
       }
-      else {
-        disableFeedbackButton = true
+    } else {
+      if (georeferencerFeedbackCounts.all) {
+        disableFeedbackButton = false;
+      } else {
+        disableFeedbackButton = true;
       }
     }
-    else {
-      if(georeferencerFeedbackCounts && georeferencerFeedbackCounts.all) {
-        disableFeedbackButton = false
-      }
-    }
-  }
+  };
 
-  const onDialogOkay = async message => {
-
-    if(!message || !message.trim()) {
-      alert('A feedback message is required')
-      return
+  const onDialogOkay = async (message) => {
+    if (!message || !message.trim()) {
+      alert('A feedback message is required');
+      return;
     }
 
     //we need this so the user can't enable it again with a quick switch back in the Select
-    if(selectedGeoreferencer.value) {
-      georeferencerFeedbackCounts[selectedGeoreferencer.value] = 0
+    if (selectedGeoreferencer && selectedGeoreferencer.value) {
+      if (georeferencerFeedbackCounts) {
+        georeferencerFeedbackCounts[selectedGeoreferencer.value] = 0;
+      }
+    } else {
+      if (georeferencerFeedbackCounts) {
+        georeferencerFeedbackCounts.all = 0;
+      }
     }
-    else {
-      georeferencerFeedbackCounts.all = 0
-    }
-    disableFeedbackButton = true
+    disableFeedbackButton = true;
 
     //from there the server does the work...
-    let url = 'https://us-central1-georef-745b9.cloudfunctions.net/sendfeedback'
+    let url = 'https://us-central1-georef-745b9.cloudfunctions.net/sendfeedback';
 
-    let data = {message}
+    let data = { message };
 
-    if(selectedGeoreferencer.value) {
-      data.georeferencerID = selectedGeoreferencer.value
+    if (selectedGeoreferencer && selectedGeoreferencer.value) {
+      data.georeferencerID = selectedGeoreferencer.value;
     }
 
-    data.reviewerID = profile.uid
-    data.datasetID = dataset.datasetID
+    data.reviewerID = profile.uid;
+    data.datasetID = dataset.datasetID;
 
-    let res
+    let res;
     try {
       let token = await Auth.currentUser.getIdToken(true);
-      
+
       res = await fetch(url, {
         method: 'POST',
         headers: {
-          'Authorization': token,
-          'Content-Type': 'application/json'
+          Authorization: token,
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data)
-      })
+        body: JSON.stringify(data),
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Oops, something went wrong with calling the sendfeedback API, see the console');
+      return;
     }
-    catch(err) {
-      console.error(err)
-      alert('Oops, something went wrong with calling the sendfeedback API, see the console')
-      return
+
+    if (!res.ok) {
+      alert(`There was an issue calling the sendfeedback API: ${res.statusText}`);
     }
+  };
 
-    if(!res.ok) {
-      alert('There was an issue calling the sendfeedback API with statusText', res.statusText)
-    } 
-
-  }
-
-  const sendFeedback = _ => {
-
-    let dialogMessage = ""
-    if(selectedGeoreferencer.value) {
-      dialogMessage = "Send a general feedback message to " + georeferencersDictionary[selectedGeoreferencer.value].firstName
-    }
-    else {
-      dialogMessage = "Send a general feedback message to all"
+  const sendFeedback = (_) => {
+    let dialogMessage = '';
+    if (
+      selectedGeoreferencer &&
+      selectedGeoreferencer.value &&
+      georeferencersDictionary[selectedGeoreferencer.value]
+    ) {
+      const gProfile = georeferencersDictionary[selectedGeoreferencer.value];
+      dialogMessage =
+        'Send a general feedback message to ' +
+        (gProfile.firstName || gProfile.formattedName || 'georeferencer');
+    } else {
+      dialogMessage = 'Send a general feedback message to all';
     }
 
     //note that onOkay does the rest...
@@ -154,8 +186,8 @@
       {
         message: dialogMessage,
         hasForm: true,
-        onCancel,
-        onOkay: onDialogOkay
+        onCancel: () => {},
+        onOkay: onDialogOkay,
       },
       {
         closeButton: false,
@@ -163,30 +195,29 @@
         closeOnOuterClick: false,
       }
     );
+  };
 
-  }
-
-  const handleSkipValidation = _ => {
-    if(qcGeorefs) {
-      qcGeorefs.skipCurrentGeoref()
+  const handleSkipValidation = (_) => {
+    if (qcGeorefs) {
+      qcGeorefs.skipCurrentGeoref();
     }
-  }
+  };
 
-  const restartQueuePosition = _ => {
-    if(qcGeorefs) {
-      qcGeorefs.resetQueuePosition()
+  const restartQueuePosition = (_) => {
+    if (qcGeorefs) {
+      qcGeorefs.resetQueuePosition();
     }
-  }
+  };
 
-  const handleBackToDatasets = _ => {
-    dispatch('to-datasets')
-  }
-
+  const handleBackToDatasets = (_) => {
+    dispatch('to-datasets');
+  };
 </script>
 
 <!-- ############################################## -->
 <!-- HTML -->
-<div class="qc-container"> <!--just in case-->
+<div class="qc-container">
+  <!--just in case-->
   <div class="tools-container">
     <button class="dataset-tool" title="back to datasets" on:click={handleBackToDatasets}>
       <span class="material-icons">list</span>
@@ -202,25 +233,53 @@
     <h4>Quality control for {dataset.datasetName}</h4>
     <div class="controls">
       <div class="tabs">
-        <div class="tab" class:tab-selected={selectedTab == 'georefs'} on:click='{_ => selectedTab = 'georefs'}'>
+        <div
+          class="tab"
+          class:tab-selected={selectedTab == 'georefs'}
+          on:click={(_) => (selectedTab = 'georefs')}
+        >
           Georeferences
         </div>
-        <div class="tab" class:tab-selected={selectedTab == 'species'} on:click='{_ => selectedTab = 'species'}'>
+        <div
+          class="tab"
+          class:tab-selected={selectedTab == 'species'}
+          on:click={(_) => (selectedTab = 'species')}
+        >
           Species
         </div>
       </div>
       <div class="georeferencer-controls">
-        <div class="svelte-select">
-          <Select  items={georeferencersOptions} bind:value={selectedGeoreferencer} />
+        <div class="control-group">
+          <label class="control-label" for="role-select">QC Role</label>
+          <div class="svelte-select role-select">
+            <Select
+              id="role-select"
+              items={roleOptions}
+              bind:value={selectedRole}
+              isClearable={false}
+            />
+          </div>
         </div>
-        <button class="feedback-button" disabled={disableFeedbackButton} on:click={sendFeedback}>Send feedback</button>
+        <div class="control-group">
+          <label class="control-label" for="georeferencer-select">Georeferencer</label>
+          <div class="svelte-select georeferencer-select">
+            <Select
+              id="georeferencer-select"
+              items={georeferencersOptions}
+              bind:value={selectedGeoreferencer}
+              isClearable={false}
+            />
+          </div>
+        </div>
+        <button class="feedback-button" disabled={disableFeedbackButton} on:click={sendFeedback}
+          >Send feedback</button
+        >
       </div>
     </div>
-    
   </div>
   <div class="working-area">
     {#if selectedTab == 'georefs'}
-      <QCGeorefs {profile} {dataset} {selectedGeoreferencer} bind:this={qcGeorefs} />
+      <QCGeorefs {profile} {dataset} {selectedGeoreferencer} {selectedRole} bind:this={qcGeorefs} />
     {:else}
       <div>under construction...</div>
     {/if}
@@ -230,16 +289,19 @@
 <!-- ############################################## -->
 <style>
   .qc-container {
-    position:relative;
-    display:flex;
-    flex-direction:column;
+    position: relative;
+    display: flex;
+    flex-direction: column;
     height: 100%;
-    width:100%;
+    width: 100%;
   }
 
   .controls {
     display: flex;
     justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
   }
 
   .tabs {
@@ -250,71 +312,91 @@
   }
 
   .tab {
-    text-align:center;
+    text-align: center;
     border-bottom: 5px solid #99ccff;
   }
   .tab:hover {
-    cursor:pointer
+    cursor: pointer;
   }
 
   .tab-selected {
-    background-color:#b6d8fc;
-    font-weight:500;
+    background-color: #b6d8fc;
+    font-weight: 500;
   }
 
   .georeferencer-controls {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .control-label {
+    font-weight: 500;
+    color: darkslategray;
+    white-space: nowrap;
   }
 
   .svelte-select {
-    flex: 0 0 20%;
-    min-width:300px;
+    min-width: 220px;
+  }
+
+  .role-select {
+    min-width: 170px;
+  }
+
+  .georeferencer-select {
+    min-width: 220px;
   }
 
   .feedback-button {
-    font-weight:bolder;
-		color:darkslategrey;
-    background-color:lightskyblue;
+    font-weight: bolder;
+    color: darkslategrey;
+    background-color: lightskyblue;
     border-radius: 2px;
-    padding:10px;
-    width: 200px;
-    margin-left:20px;
+    padding: 10px;
+    width: 180px;
   }
 
   .feedback-button:disabled {
     color: grey;
-    background-color:lightgrey;
+    background-color: lightgrey;
   }
 
   .working-area {
     flex: 1;
-    overflow-y:auto; /* absolutely no idea why this works but it does */
-    width:100%;
+    overflow-y: auto; /* absolutely no idea why this works but it does */
+    width: 100%;
   }
 
   .tools-container {
-    position:absolute;
-    top:10px;
-    right:10px;
+    position: absolute;
+    top: 10px;
+    right: 10px;
   }
 
   .tools-container::after {
-    content: "";
-    display: block; 
+    content: '';
+    display: block;
     clear: both;
   }
 
   .dataset-tool {
-    float:right;
-    margin-left:5px;
-    padding-bottom:0;
+    float: right;
+    margin-left: 5px;
+    padding-bottom: 0;
     background-color: lightgray;
   }
 
   .dataset-tool:hover {
-    cursor:pointer;
-    background-color:grey;
-    color:white;
+    cursor: pointer;
+    background-color: grey;
+    color: white;
   }
 </style>

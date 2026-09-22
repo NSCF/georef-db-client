@@ -27,9 +27,11 @@
   export let showWKT = false;
   export let showGeorefBy = true;
   export let showVerification = false;
+  export let showVerifierFields = true;
+  export let defaultVerifierRole = 'quality controller';
   export let showResetButton = true;
   export let submitButtonText = '';
-  let busy = false;
+  export let busy = false;
 
   export let requiredFields = ['uncertainty', 'datum', 'by', 'date']; //for on form validation
 
@@ -190,6 +192,7 @@
 
   const setLocalGeoref = () => {
     console.log('setting local georef');
+    busy = false;
     metaEditable = false;
     if (georef && georef instanceof Georef) {
       localGeoref = georef.copy();
@@ -333,8 +336,14 @@
     localGeoref &&
     localGeoref.verifiedBy &&
     localGeoref.verifiedDate &&
-    localGeoref.verifiedByRole
+    (localGeoref.verifiedByRole || localGeoref.verifierRole)
   ) {
+    if (localGeoref.verifierRole && !localGeoref.verifiedByRole) {
+      localGeoref.verifiedByRole = localGeoref.verifierRole;
+    }
+    if (localGeoref.verifiedByRole && !localGeoref.verifierRole) {
+      localGeoref.verifierRole = localGeoref.verifiedByRole;
+    }
     localGeoref.verified = true;
   }
 
@@ -419,6 +428,10 @@ const checkValidations = _ => {
         localGeoref.byORCID = defaultGeorefByORCID;
       }
     }
+  };
+
+  export const resetBusy = (_) => {
+    busy = false;
   };
 
   //the way we handle depends on whether there is a georef prop value or not
@@ -528,6 +541,32 @@ const checkValidations = _ => {
   const checkAndDispatchGeoref = (_) => {
     busy = true;
     try {
+      if (showVerification) {
+        if (!localGeoref.verifiedBy || !showVerifierFields) {
+          localGeoref.verifiedBy = defaultGeorefBy || '';
+        }
+        if ((!localGeoref.verifiedByORCID || !showVerifierFields) && defaultGeorefByORCID) {
+          localGeoref.verifiedByORCID = defaultGeorefByORCID;
+        }
+        const roleVal =
+          defaultVerifierRole && typeof defaultVerifierRole === 'object'
+            ? defaultVerifierRole.value
+            : defaultVerifierRole;
+        if (!localGeoref.verifierRole || !showVerifierFields) {
+          localGeoref.verifierRole = roleVal || 'quality controller';
+        }
+        localGeoref.verifiedByRole = localGeoref.verifierRole;
+        if (!localGeoref.verifiedDate || !showVerifierFields) {
+          let now = new Date();
+          localGeoref.verifiedDate = new Date(
+            now.getTime() - now.getTimezoneOffset() * 60 * 1000
+          )
+            .toISOString()
+            .split('T')[0];
+        }
+        localGeoref.verified = true;
+      }
+
       if (localGeoref.hasSpatialOrAuthorChanges(georef)) {
         //some validation first
         //simple validation first
@@ -551,6 +590,7 @@ const checkValidations = _ => {
 
       dispatch('set-georef', localGeoref);
     } catch (err) {
+      busy = false;
       alert('error checking georefs are equal: ' + err.message);
     }
   };
@@ -808,75 +848,81 @@ const checkValidations = _ => {
     </div>
     <!-- georef verification -->
     {#if showVerification}
-      <div class="hr-break">
-        <hr />
-        <hr />
-      </div>
-      <!-- verified by -->
-      <div class="oneliner">
-        <label for="verifiedBy">verified by</label>
-        {#if defaultGeorefBy}
-          <input
-            type="text"
-            list="defaultVerifiedBy"
-            id="verifiedBy"
-            style="width:70%"
-            class:hasError={verifiedByHasError}
-            bind:value={localGeoref.verifiedBy}
-          />
-          <datalist id="defaultVerifiedBy"> <option value={defaultGeorefBy} /></datalist>
-        {:else}
-          <input
-            type="text"
-            id="verifiedBy"
-            style="width:70%"
-            class:hasError={verifiedByHasError}
-            bind:value={localGeoref.verifiedBy}
-          />
-        {/if}
-      </div>
-      <!-- verified by ID -->
-      <div class="oneliner">
-        <label for="verifiedByORCID">verified by ID</label>
-        <input
-          type="text"
-          id="verifiedByORCID"
-          style="width:100%;max-width:300px"
-          bind:value={localGeoref.verifiedByORCID}
-        />
-      </div>
-      <!-- verifier role -->
-      <div class="oneliner">
-        <label for="verifierRole">verifier role</label>
-        <input
-          id="verifierRole"
-          class:hasError={verifierRoleHasError}
-          list="verifierRoles"
-          name="verifierRole"
-          style="width:50%"
-          bind:value={localGeoref.verifierRole}
-        />
-        <datalist id="verifierRoles">
-          <option value="quality controller" /><option value="curator" /><option
-            value="collector"
-          /></datalist
-        >
-      </div>
-      <!-- verified date -->
-      {#if editable}
+      {#if showVerifierFields || editable}
+        <div class="hr-break">
+          <hr />
+          <hr />
+        </div>
+      {/if}
+      {#if showVerifierFields}
+        <!-- verified by -->
         <div class="oneliner">
-          <div class="fields">
-            <div class="flex">
-              <label for="verifiedDate" style="padding-right:10px">verified date</label>
-              <DateInput
-                hasBy={localGeoref.verifiedBy && localGeoref.verifiedBy.trim()}
-                {editable}
-                hasError={verifiedDateHasError}
-                bind:value={localGeoref.verifiedDate}
-              />
+          <label for="verifiedBy">verified by</label>
+          {#if defaultGeorefBy}
+            <input
+              type="text"
+              list="defaultVerifiedBy"
+              id="verifiedBy"
+              style="width:70%"
+              class:hasError={verifiedByHasError}
+              bind:value={localGeoref.verifiedBy}
+            />
+            <datalist id="defaultVerifiedBy"> <option value={defaultGeorefBy} /></datalist>
+          {:else}
+            <input
+              type="text"
+              id="verifiedBy"
+              style="width:70%"
+              class:hasError={verifiedByHasError}
+              bind:value={localGeoref.verifiedBy}
+            />
+          {/if}
+        </div>
+        <!-- verified by ID -->
+        <div class="oneliner">
+          <label for="verifiedByORCID">verified by ID</label>
+          <input
+            type="text"
+            id="verifiedByORCID"
+            style="width:100%;max-width:300px"
+            bind:value={localGeoref.verifiedByORCID}
+          />
+        </div>
+        <!-- verifier role -->
+        <div class="oneliner">
+          <label for="verifierRole">verifier role</label>
+          <input
+            id="verifierRole"
+            class:hasError={verifierRoleHasError}
+            list="verifierRoles"
+            name="verifierRole"
+            style="width:50%"
+            bind:value={localGeoref.verifierRole}
+          />
+          <datalist id="verifierRoles">
+            <option value="quality controller" /><option value="curator" /><option
+              value="collector"
+            /></datalist
+          >
+        </div>
+        <!-- verified date -->
+        {#if editable}
+          <div class="oneliner">
+            <div class="fields">
+              <div class="flex">
+                <label for="verifiedDate" style="padding-right:10px">verified date</label>
+                <DateInput
+                  hasBy={localGeoref.verifiedBy && localGeoref.verifiedBy.trim()}
+                  {editable}
+                  hasError={verifiedDateHasError}
+                  bind:value={localGeoref.verifiedDate}
+                />
+              </div>
             </div>
           </div>
-        </div>
+        {/if}
+      {/if}
+      {#if editable}
         <div>
           <label for="verificationRemarks" style="width:100%;text-align:right"
             >verification remarks</label
@@ -891,10 +937,12 @@ const checkValidations = _ => {
           <Checkbox label={'Send feedback'} bind:checked={localGeoref.sendVerificationFeedback} />
         </div>
       {/if}
-      <div class="hr-break">
-        <hr />
-        <hr />
-      </div>
+      {#if showVerifierFields || editable}
+        <div class="hr-break">
+          <hr />
+          <hr />
+        </div>
+      {/if}
     {/if}
   </fieldset>
   <!-- submit button -->
@@ -906,6 +954,7 @@ const checkValidations = _ => {
         <button
           type="button"
           class="georefbutton"
+          title={submitButtonText}
           disabled={!hasLocalityAndCoords && !localGeoref.ambiguous}
           on:click={checkAndDispatchGeoref}>{submitButtonText}</button
         >

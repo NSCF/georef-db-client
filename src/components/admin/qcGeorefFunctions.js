@@ -1,14 +1,16 @@
-import {Firestore, FieldPath} from '../../firebase'
+import { Firestore, FieldPath } from '../../firebase'
 
 const FirestoreGeorefRecords = Firestore.collection('georefRecords')
+const FirestoreGeorefs = Firestore.collection('georefBackup')
 
 /**
- * 
+ * Finds the next georeference to verify, locks it, and returns its DocumentSnapshot.
  * @param {string} datasetID 
- * @param {string} georeferencerID 
+ * @param {string} currentUserID 
+ * @param {string|null} georeferencerID 
  * @param {string} startAtOrAfter 
- * @param {DocumentSnapshot} queuePosition 
- * @returns DocSnapshot for a georeference or null if there are no more georeferences 
+ * @param {string|DocumentSnapshot} queuePosition 
+ * @returns {Promise<DocumentSnapshot|null>} DocSnapshot for a georeference or null if there are no more georeferences 
  */
 const findNextGeorefToVerify = async (datasetID, currentUserID, georeferencerID, startAtOrAfter, queuePosition) => {
 
@@ -20,45 +22,53 @@ const findNextGeorefToVerify = async (datasetID, currentUserID, georeferencerID,
     throw new Error('no currentUserID provided to findNextGeorefToVerify')
   }
 
-  //build the query
-  let query = FirestoreGeorefRecords
-    .where('datasetIDs', 'array-contains', datasetID)
-    .where('verified', '==', false)
-    .where('locked', '==', false)
-    .orderBy(FieldPath.documentId())
+  let currentCursor = queuePosition
+  let currentAtOrAfter = startAtOrAfter || 'startAt'
 
-  if(georeferencerID) {
-    console.log('filtering georefs for user', georeferencerID)
-    query = query.where('createdByID', '==', georeferencerID)
-  }
-  else {
-    query = query.where('createdByID', '!=', currentUserID) //we can't verify our own georeferences
-  }
+  while(true) {
+    //build the query
+    let query = FirestoreGeorefRecords
+      .where('datasetIDs', 'array-contains', datasetID)
+      .where('verified', '==', false)
+      .where('locked', '==', false)
+      .orderBy(FieldPath.documentId())
 
-  if(startAtOrAfter && queuePosition) {
-    query = query[startAtOrAfter](queuePosition)
-  }
+    if(georeferencerID) {
+      query = query.where('createdByID', '==', georeferencerID)
+    }
 
-  query = query.limit(1)
+    if(currentAtOrAfter && currentCursor) {
+      query = query[currentAtOrAfter](currentCursor)
+    }
 
-  //run the query
-  let querySnap
-  try {
-    querySnap = await query.get()
-  }
-  catch(err) {
-    console.error('Error reading georefRecords:')
-    console.error(err)
-    return
-  }
+    query = query.limit(1)
 
-  if(querySnap.empty) { //there are no more georeferences to verify
-    return null
-  }
-  else {
-    const docSnap = querySnap.docs.pop() //only one remember!
+    //run the query
+    let querySnap
+    try {
+      querySnap = await query.get()
+    }
+    catch(err) {
+      console.error('Error reading georefRecords:', err)
+      throw err
+    }
 
-    //now we need to try and lock it
+    if(querySnap.empty) { //there are no more georeferences to verify
+      return null
+    }
+
+    const docSnap = querySnap.docs[0]
+    const docData = docSnap.data()
+
+    // If reviewing "all", skip records created by current user (can't verify own georeferences)
+    if(!georeferencerID && docData.createdByID === currentUserID) {
+      currentCursor = docSnap.id
+      currentAtOrAfter = 'startAfter'
+      continue
+    }
+
+    // Try to lock it
+    let lockedSuccessfully = false
     try {
       await Firestore.runTransaction(async transaction => {
         let snap = await transaction.get(docSnap.ref)
@@ -69,19 +79,32 @@ const findNextGeorefToVerify = async (datasetID, currentUserID, georeferencerID,
           await transaction.update(docSnap.ref, {locked: true})
         }
       })
-    }
-    catch(err) { //the transaction failed or it got locked!
-      throw(err)
-    }
-
-    //get the georeference
-    try {
-      const georefSnap = await FirestoreGeorefs.doc(docSnap.id).get()
-      return 
+      lockedSuccessfully = true
     }
     catch(err) {
-      const msg = 'Error reading georefBackup: ' + err.message
-      throw new Error(msg)
+      if(err.message === 'already locked') {
+        // Locked by another reviewer, advance cursor and try the next record
+        currentCursor = docSnap.id
+        currentAtOrAfter = 'startAfter'
+        continue
+      }
+      throw err
+    }
+
+    if(lockedSuccessfully) {
+      // Get the georeference
+      try {
+        const georefSnap = await FirestoreGeorefs.doc(docSnap.id).get()
+        return georefSnap
+      }
+      catch(err) {
+        // Revert lock if reading backup fails
+        try {
+          await docSnap.ref.update({locked: false})
+        } catch(e) {}
+        const msg = 'Error reading georefBackup: ' + err.message
+        throw new Error(msg)
+      }
     }
   }
 }

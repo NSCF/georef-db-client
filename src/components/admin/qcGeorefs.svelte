@@ -1,308 +1,318 @@
 <script>
-  import html2canvas from 'html2canvas'
-  import {onMount, onDestroy} from 'svelte'
-  import {Firestore, Realtime as Firebase, ServerValue, FieldPath, Auth, Storage} from '../../firebase'
-  import GeorefForm from '../georef/georefForm.svelte'
-  import MatchList from '../georef/georefMatchList.svelte'
-  import Loader from '../loader.svelte'
-  import VerifyMap from './qcGeorefMap.svelte'
-  import Georef from '../georef/Georef'
-  import Toast from '../toast.svelte'
+  import html2canvas from 'html2canvas';
+  import { onMount, onDestroy } from 'svelte';
+  import {
+    Firestore,
+    Realtime as Firebase,
+    ServerValue,
+    FieldPath,
+    Auth,
+    Storage,
+  } from '../../firebase';
+  import GeorefForm from '../georef/georefForm.svelte';
+  import MatchList from '../georef/georefMatchList.svelte';
+  import Loader from '../loader.svelte';
+  import VerifyMap from './qcGeorefMap.svelte';
+  import Georef from '../georef/Georef';
+  import Toast from '../toast.svelte';
 
-  import {getNextGeorefToVerify} from './qcGeorefFunctions'
-  import { flagGeoref } from '../georef/georefFuncs.js'
-  import { dataStore } from '../georef/dataStore.js'
+  import { getNextGeorefToVerify } from './qcGeorefFunctions';
+  import { flagGeoref, fetchGeorefsForLoc } from '../georef/georefFuncs.js';
+  import { dataStore } from '../georef/dataStore.js';
 
-  import { fetchGeorefsForLoc } from '../georef/georefFuncs.js'
+  const FirestoreGeorefRecords = Firestore.collection('georefRecords');
+  const FirestoreGeorefs = Firestore.collection('georefBackup');
 
-  const FirestoreGeorefRecords = Firestore.collection('georefRecords')
-  const FirestoreGeorefs = Firestore.collection('georefBackup')
+  export let profile;
+  export let dataset;
+  export let selectedGeoreferencer;
+  export let selectedRole = null;
 
-  export let profile
-  export let dataset
-  export let selectedGeoreferencer
+  $: verifierRole =
+    (selectedRole && typeof selectedRole === 'object'
+      ? selectedRole.value
+      : selectedRole) || 'quality controller';
 
-  let elasticindex
+  let elasticindex;
 
-  let georefQueue = []
-  let desiredQueueLength = 3 //just setting a param here
-  let noMoreGeorefs = false
-  let showNoMoreGeorefs = false
+  let georefQueue = [];
+  let desiredQueueLength = 3; //just setting a param here
+  let noMoreGeorefs = false;
+  let showNoMoreGeorefs = false;
 
-  let georefMap
-  let mapReady = false
+  let georefMap;
+  let mapReady = false;
 
-  let verifyGeorefContainer
-  let similarGeorefContainer
+  let verifyGeorefContainer;
+  let similarGeorefContainer;
+  let matchMapContainer;
+  let georefBusy = false;
 
-  let currentGeoref
-  let currentGeorefVals //for recording the key properties of a georef for feedback
-  let currentMapData //for storing change history
-  let history = [] //just so we hand handle accidental pin moves
+  let currentGeoref;
+  let currentGeorefVals; //for recording the key properties of a georef for feedback
+  let currentMapData; //for storing change history
+  let history = []; //just so we hand handle accidental pin moves
 
-  let georefIndexQueue = []
-  let fetchingGeorefIndex = false
-  let selectedGeoref //the similar georef that is selected
-  let similarGeorefIndex
-  let changesMade = false
+  let georefIndexQueue = [];
+  let fetchingGeorefIndex = false;
+  let selectedGeoref; //the similar georef that is selected
+  let similarGeorefIndex;
+  let changesMade = false;
 
   //and for keeping our place in the georef queue
-  let queuePositions
-  let queuePath
+  let queuePositions = undefined;
+  let queuePath;
 
-  onMount(async _ => {
-    queuePath = `verifierDatasetQueuePositions/${profile.uid}/${dataset.datasetID}`
-    const snap = await Firebase.ref(queuePath).once('value')
-    if(snap.exists()) {
-      queuePositions = snap.val()
+  const loadQueuePositions = async () => {
+    if (!queuePath) {
+      queuePath = `verifierDatasetQueuePositions/${profile.uid}/${dataset.datasetID}`;
     }
-    else {
-      queuePositions = null
+    if (queuePositions === undefined) {
+      const snap = await Firebase.ref(queuePath).once('value');
+      queuePositions = snap.exists() ? snap.val() : null;
     }
-  })
+    return queuePositions;
+  };
 
+  onMount(async (_) => {
+    await loadQueuePositions();
+  });
 
-  $: if(dataset) {
-    elasticindex = (dataset.region + dataset.domain).toLowerCase().replace(/\s+/g, '')
+  $: if (dataset) {
+    elasticindex = (dataset.region + dataset.domain).toLowerCase().replace(/\s+/g, '');
   }
 
+  $: if (selectedGeoreferencer) {
+    console.log('fetching georefs on selectedGeoreferencer change...');
 
-  $: if(selectedGeoreferencer) {
-
-    console.log('fetching georefs on selectedGeoreferencer change...')
-
-    resetQCGeoref()
-
+    resetQCGeoref();
   }
 
+  $: georefQueue,
+    georefQueue.length
+      ? console.log('georef queue has', georefQueue.length, 'georefs')
+      : console.log('no georefs in georef queue');
 
-  $: georefQueue, georefQueue.length? console.log('georef queue has', georefQueue.length, 'georefs') : console.log('no georefs in georef queue')
-
-  
   //This populates georefQueue and gives a currentGeoref if we don't have one
-  const getGeorefsToVerify = async _ => {
+  const getGeorefsToVerify = async (_) => {
+    await loadQueuePositions();
+
+    let selectedGeoreferencerID =
+      selectedGeoreferencer && selectedGeoreferencer.value ? selectedGeoreferencer.value : null;
+
+    let searchCursor = null;
+    let atOrAfter = 'startAt';
+
+    if (queuePositions) {
+      if (selectedGeoreferencerID) {
+        searchCursor = queuePositions[selectedGeoreferencerID];
+      } else {
+        searchCursor = queuePositions.all;
+      }
+    }
+
+    if (currentGeoref) {
+      atOrAfter = 'startAfter';
+      if (!searchCursor) {
+        searchCursor = currentGeoref.georefID;
+      }
+    }
+
+    if (georefQueue.length > 0) {
+      atOrAfter = 'startAfter';
+      searchCursor = georefQueue[georefQueue.length - 1].georefID;
+    }
 
     while (!noMoreGeorefs && georefQueue.length < desiredQueueLength) {
-
-      let atOrAfter = 'startAt'
-      if(currentGeoref) {
-        atOrAfter = 'startAfter'
-      }
-
-      let searchDocSnap = null
-      if(queuePositions) {
-        if(selectedGeoreferencer != null) {
-          searchDocSnap = queuePositions[selectedGeoreferencer.uid]
-        }
-        else {
-          searchDocSnap = queuePositions.all
-        }
-      }
-      
-      let georefDocSnap
+      let georefDocSnap;
       try {
-
-        let selectedGeoreferencerID = null
-        if(selectedGeoreferencer) {
-          selectedGeoreferencerID = selectedGeoreferencer.uid
-        }
-
-        georefDocSnap = getNextGeorefToVerify(dataset.datasetID, selectedGeoreferencerID, atOrAfter, searchDocSnap)
-
-      }
-      catch(err) {
-        console.error(err.message)
-        continue
+        georefDocSnap = await getNextGeorefToVerify(
+          dataset.datasetID,
+          profile.uid,
+          selectedGeoreferencerID,
+          atOrAfter,
+          searchCursor
+        );
+      } catch (err) {
+        console.error('Error fetching next georef:', err.message);
+        break;
       }
 
-      if(georefDocSnap) {
-
+      if (!georefDocSnap || !georefDocSnap.exists) {
+        noMoreGeorefs = true;
+        if (!currentGeoref && georefQueue.length === 0) {
+          showNoMoreGeorefs = true;
+        }
+        break;
       }
-      else {
-        noMoreGeorefs = true
-      }
 
-      if(querySnap.empty) {
-        console.log('no more georefs')
-        noMoreGeorefs = true
-        continue;
-      }
-      else {
-        const docSnap = querySnap.docs.pop() //only one remember!
-        try {
-          await Firestore.runTransaction(async transaction => {
-            let snap = await transaction.get(docSnap.ref)
-            if(snap.data().locked) { //it might have been locked between query time and now
-              throw new Error()
-            }
-            else {
-              await transaction.update(docSnap.ref, {locked: true})
-              return
-            }
-          })
-        }
-        catch(err) { //the transaction failed or it got locked!
-          continue;
-        }
+      const data = georefDocSnap.data();
+      const georef = Object.assign(new Georef(), data);
 
-        let georefSnap
-        try {
-          georefSnap = await FirestoreGeorefs.doc(docSnap.id).get()
-        }
-        catch(err) {
-          console.error('Error reading georefBackup')
-          console.error(err)
-          return
-        }
- 
-        if(georefSnap.exists) { //it should
-          const data = georefSnap.data()
-          const georef = Object.assign(new Georef(), data)
+      searchCursor = georef.georefID;
+      atOrAfter = 'startAfter';
 
-          if(currentGeoref){
-            georefQueue = [...georefQueue, georef]
-            georefIndexQueue = [...georefIndexQueue, getSimilarGeoreferences(georef.locality)]
-          }
-          else {
-            currentGeoref = georef
-            georefMap.setMapWithNewGeoref(currentGeoref)
-            changesMade = false
-            history = []
-            currentGeorefVals = getCurrentGeorefVals(georef)
-            fetchingGeorefIndex = true
-            similarGeorefIndex = await getSimilarGeoreferences(georef.locality)
-            delete similarGeorefIndex[georef.georefID] 
-            fetchingGeorefIndex = false
-            $dataStore.georefIndex = similarGeorefIndex
-          }
+      if (currentGeoref) {
+        georefQueue = [...georefQueue, georef];
+        georefIndexQueue = [...georefIndexQueue, getSimilarGeoreferences(georef.locality)];
+      } else {
+        currentGeoref = georef;
+        if (georefMap) {
+          georefMap.setMapWithNewGeoref(currentGeoref);
         }
+        changesMade = false;
+        history = [];
+        currentGeorefVals = getCurrentGeorefVals(georef);
+        fetchingGeorefIndex = true;
+        similarGeorefIndex = await getSimilarGeoreferences(georef.locality);
+        if (similarGeorefIndex) {
+          delete similarGeorefIndex[georef.georefID];
+        }
+        fetchingGeorefIndex = false;
+        $dataStore.georefIndex = similarGeorefIndex || {};
       }
     }
-  }
+  };
 
-  const getSimilarGeoreferences = async locality => {
+  const getSimilarGeoreferences = async (locality) => {
+    if (!locality || typeof locality !== 'string') {
+      return {};
+    }
     //remove elevation, etc
-    locality = locality.replace(/(alt|elev)[:;\.]{0,1}\s+\d+(m|ft|f)/i, "").trim()
-    let elasticgeorefs
+    locality = locality.replace(/(alt|elev)[:;\.]{0,1}\s+\d+(m|ft|f)/i, '').trim();
+    let elasticgeorefs;
     try {
-      elasticgeorefs = await fetchGeorefsForLoc(locality, elasticindex, 20, false)
-    }
-    catch(err) {
-      console.error(err)
-      alert('error fetching similar georeferences, see console')
-      return
+      elasticgeorefs = await fetchGeorefsForLoc(locality, elasticindex, 20, false);
+    } catch (err) {
+      console.error(err);
+      return {};
     }
 
-
-
-    if(elasticgeorefs.length) {
-      let georefIndex = {}
+    if (elasticgeorefs && elasticgeorefs.length) {
+      let georefIndex = {};
       for (let georefdata of elasticgeorefs) {
-        let georef = Object.assign(new Georef, georefdata._source)
-        georefIndex[georef.georefID] = georef
+        let georef = Object.assign(new Georef(), georefdata._source);
+        georefIndex[georef.georefID] = georef;
       }
-      return georefIndex
+      return georefIndex;
+    } else {
+      return {};
     }
-    else {
-      return {}
-    }
+  };
 
-  }
-
-  const getCurrentGeorefVals = currentGeoref => {
+  const getCurrentGeorefVals = (currentGeoref) => {
     const vals = {
       locality: currentGeoref.locality,
       decimalCoordinates: currentGeoref.decimalCoordinates,
       by: currentGeoref.by,
-      date:currentGeoref.date,
+      date: currentGeoref.date,
       sources: currentGeoref.sources,
-      protocol: currentGeoref.protocol
+      protocol: currentGeoref.protocol,
+    };
+
+    if (currentGeoref.uncertaintyUnit && currentGeoref.uncertainty) {
+      vals.uncertainty = `${currentGeoref.uncertainty}${currentGeoref.uncertaintyUnit}`;
+    } else {
+      vals.uncertainty = null;
     }
 
-    if(currentGeoref.uncertaintyUnit && currentGeoref.uncertainty) {
-      vals.uncertainty = `${currentGeoref.uncertainty}${currentGeoref.uncertaintyUnit}`
-    }
-    else {
-      vals.uncertainty = null
-    }
+    return vals;
+  };
 
-    return vals
-  }
-
-  const resetQCGeoref = async _ => {
-    await unlockGeorefs()
-    currentGeoref = null
-    changesMade = false
-    history = []
-    currentGeorefVals = null
-    georefQueue = []
-    getGeorefsToVerify()
-  }
+  const resetQCGeoref = async (_) => {
+    await unlockGeorefs();
+    currentGeoref = null;
+    changesMade = false;
+    history = [];
+    currentGeorefVals = null;
+    georefQueue = [];
+    georefIndexQueue = [];
+    noMoreGeorefs = false;
+    showNoMoreGeorefs = false;
+    selectedGeoref = null;
+    similarGeorefIndex = null;
+    $dataStore.georefIndex = {};
+    if ($dataStore.markers) {
+      $dataStore.markers = null;
+    }
+    getGeorefsToVerify();
+  };
 
   //for undoing coordinate changes on the georef being verified
-  const handleKeyUp = ev => {
+  const handleKeyUp = (ev) => {
+    if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA')) {
+      return;
+    }
     if (ev.code == 'KeyZ' && (ev.ctrlKey || ev.metaKey)) {
-      if(history.length) {
-        georefMap.updateGeorefDetails(history.pop())
+      if (history.length) {
+        const prev = history.pop();
+        if (prev) {
+          currentMapData = prev;
+          if (currentGeoref && prev.decimalCoordinates) {
+            currentGeoref.decimalCoordinates = prev.decimalCoordinates;
+          }
+          if (georefMap) {
+            georefMap.updateGeorefDetails(prev);
+          }
+        }
       }
     }
-  }
+  };
 
-  const handleNewCoordsFromMap = ev => {
+  const handleNewCoordsFromMap = (ev) => {
     const temp = {
-      decimalCoordinates: ev.detail, 
-    }
-    history.push(currentMapData)
-    currentMapData = temp
-    currentGeoref.decimalCoordinates = ev.detail
-    changesMade = true
-  }
+      decimalCoordinates: ev.detail,
+    };
+    history.push(currentMapData);
+    currentMapData = temp;
+    currentGeoref.decimalCoordinates = ev.detail;
+    changesMade = true;
+  };
 
-  const handleNewCoordsFromGeoref = ev => {
+  const handleNewCoordsFromGeoref = (ev) => {
     const temp = {
-      decimalCoordinates: ev.detail, 
-    }
-    history.push(currentMapData)
-    currentMapData = temp
-    georefMap.updateGeorefDetails(currentMapData)
-    changesMade = true
-  }
+      decimalCoordinates: ev.detail,
+    };
+    history.push(currentMapData);
+    currentMapData = temp;
+    georefMap.updateGeorefDetails(currentMapData);
+    changesMade = true;
+  };
 
-  const handleGeorefChanged = ev => {
-    let temp = ev.detail
-    history.push(currentMapData)
-    currentMapData = temp
-    georefMap.updateGeorefDetails(currentMapData)
-    Object.assign(currentGeoref, currentMapData) //a sneaky here so svelte doesnt see the update!
-    changesMade = true
-  }
+  const handleGeorefChanged = (ev) => {
+    let temp = ev.detail;
+    history.push(currentMapData);
+    currentMapData = temp;
+    georefMap.updateGeorefDetails(currentMapData);
+    Object.assign(currentGeoref, currentMapData); //a sneaky here so svelte doesnt see the update!
+    changesMade = true;
+  };
 
   //promisify canvas.toBlob
   const canvasToBlob = (canvas, fileType, fileQuality) => {
-    return new Promise(resolve => {
-      canvas.toBlob(blob => {
-        resolve(blob)
-      }, fileType, fileQuality)
-    })
-  }
+    return new Promise((resolve) => {
+      canvas.toBlob(
+        (blob) => {
+          resolve(blob);
+        },
+        fileType,
+        fileQuality
+      );
+    });
+  };
 
-  const saveFeedback = async (georef, mapCanvas) => {
-
-    let imageURL = null
-    if(!georef.ambiguous) {
-      const blob = await canvasToBlob(mapCanvas, 'image/jpeg', 0.95)
-
-      let snap
+  const saveFeedback = async (georef, mapCanvas, georefVals) => {
+    let imageURL = null;
+    if (!georef.ambiguous && mapCanvas) {
       try {
-        snap = await Storage.ref().child(`verificationImages/${georef.georefID}.jpg`).put(blob)
+        const blob = await canvasToBlob(mapCanvas, 'image/jpeg', 0.95);
+        if (blob) {
+          let snap = await Storage.ref().child(`verificationImages/${georef.georefID}.jpg`).put(blob);
+          imageURL = await snap.ref.getDownloadURL();
+        }
+      } catch (err) {
+        console.error('Error saving map image file:', err);
       }
-      catch(err) {
-        console.error(err)
-        alert('Error saving map image file, see console')
-        return
-      }
-
-      imageURL = await snap.ref.getDownloadURL()
     }
 
     const verificationRecord = {
@@ -312,369 +322,426 @@
       georeferencerID: georef.createdByID,
       imageURL,
       reviewerID: profile.uid,
-      georefVals: currentGeorefVals,
-      feedbackMessage: georef.verificationRemarks
-    }
+      georefVals: georefVals || currentGeorefVals,
+      feedbackMessage: georef.verificationRemarks,
+    };
 
     try {
-      await Firestore.collection('verificationFeedback').doc(georef.georefID).set(verificationRecord)
-    }
-    catch(err) {
-      console.error(err)
-      alert('Error saving feedback record for previous georef, see console')
-      return
+      await Firestore.collection('verificationFeedback')
+        .doc(georef.georefID)
+        .set(verificationRecord);
+    } catch (err) {
+      console.error(err);
+      alert('Error saving feedback record for previous georef, see console');
+      return;
     }
 
-    const countUpdates = {}
-    countUpdates[`georefVerificationFeedback/${dataset.datasetID}/${profile.uid}/all`] = ServerValue.increment(1)
-    countUpdates[`georefVerificationFeedback/${dataset.datasetID}/${profile.uid}/${georef.createdByID}`] = ServerValue.increment(1)
+    const countUpdates = {};
+    countUpdates[`georefVerificationFeedback/${dataset.datasetID}/${profile.uid}/all`] =
+      ServerValue.increment(1);
+    countUpdates[
+      `georefVerificationFeedback/${dataset.datasetID}/${profile.uid}/${georef.createdByID}`
+    ] = ServerValue.increment(1);
     try {
-      await Firebase.ref().update(countUpdates)
+      await Firebase.ref().update(countUpdates);
+    } catch (err) {
+      console.error(err);
+      alert('error updating feedback counts, see console');
+      return;
     }
-    catch(err) {
-      console.error(err)
-      alert('error updating feedback counts, see console')
-      return
-    }
-    
-    if(window.pushToast) {
-      window.pushToast('feedback saved')
-    }
-    else {
-      console.log('feedback saved')
-    }
-  }
 
-  const updateGeoref = async georef => {
+    if (window.pushToast) {
+      window.pushToast('feedback saved');
+    } else {
+      console.log('feedback saved');
+    }
+  };
+
+  const updateGeoref = async (georef) => {
     //this has to update on elastic and two collections in firestore
 
-    const url = 'https://us-central1-georef-745b9.cloudfunctions.net/updategeorefV2'
-    
+    const url = 'https://us-central1-georef-745b9.cloudfunctions.net/updategeorefV2';
+
     //send it off async and hope for the best, we don't want to slow down!!
-    let res
+    let res;
     try {
       let token = await Auth.currentUser.getIdToken(true);
-      
+
       res = await fetch(url, {
         method: 'POST',
         headers: {
-          'Authorization': token,
-          'Content-Type': 'application/json'
+          Authorization: token,
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({georef, index: elasticindex}) 
-      })
-    }
-    catch(err) {
-      console.error(err)
-      alert('Oops, something went wrong while trying to save georef with ID ' + georef.georefID + ', see the console')
-      return
+        body: JSON.stringify({ georef, index: elasticindex }),
+      });
+    } catch (err) {
+      console.error(err);
+      alert(
+        'Oops, something went wrong while trying to save georef with ID ' +
+          georef.georefID +
+          ', see the console'
+      );
+      return;
     }
 
-    if(res.ok) {
+    if (res.ok) {
       try {
-        const georefRecordUpdate = FirestoreGeorefRecords.doc(georef.georefID).update({verified: true, locked: false})
-        const georefBackupsUpdate = FirestoreGeorefs.doc(georef.georefID).set(georef)
+        const plainGeoref = Object.assign({}, georef);
+        const georefRecordUpdate = FirestoreGeorefRecords.doc(georef.georefID).update({
+          verified: true,
+          locked: false,
+        });
+        const georefBackupsUpdate = FirestoreGeorefs.doc(georef.georefID).set(plainGeoref);
 
-        await Promise.all([georefRecordUpdate, georefBackupsUpdate])
-        console.log('georef', georef.georefID, 'successfully verified')
+        await Promise.all([georefRecordUpdate, georefBackupsUpdate]);
+        console.log('georef', georef.georefID, 'successfully verified');
+      } catch (err) {
+        alert(
+          'Oops, something went wrong with the georef verification update to Firestore for georef with ID ' +
+            georef.georefID +
+            ': ' +
+            err.message
+        );
       }
-      catch(err) {
-        alert('Oops, something went wrong with the georef verification update to Firestore for georef with ID ' + georef.georefID + ': ' + err.message)
-      }
+    } else {
+      alert(
+        'Oops, something went wrong while trying to save georef with ID' +
+          georef.georefID +
+          ': ' +
+          res.statusText
+      );
     }
-    else {
-      alert('Oops, something went wrong while trying to save georef with ID' + georef.georefID + ': ' + res.statusText)
-    }
-  }
+  };
 
   //save the verified georef
   //update firebase
   //if sendVerificationFeedback save the map and feedback for the georeferencer
-  const handleSetGeoref = async ev => {
+  const handleSetGeoref = async (ev) => {
+    let georef = ev.detail;
+    console.log(georef);
 
-    let georef = ev.detail
-    console.log(georef)
-
-    if(!georef.ambiguous && !georef.verified) {
-      alert('verifiedBy, verifiedDate, and verifierRole must be added in order to verify this georeference')
-      return
+    if (!georef.verifiedBy) {
+      georef.verifiedBy = profile.formattedName;
     }
-    
-    let savingFeedback
-    if(georef.sendVerificationFeedback && georef.verificationRemarks) {
+    if (!georef.verifiedByORCID && profile.orcid) {
+      georef.verifiedByORCID = profile.orcid;
+    }
+    if (!georef.verifierRole) {
+      georef.verifierRole = verifierRole || 'quality controller';
+    }
+    georef.verifiedByRole = georef.verifierRole;
+    if (!georef.verifiedDate) {
+      let now = new Date();
+      georef.verifiedDate = new Date(
+        now.getTime() - now.getTimezoneOffset() * 60 * 1000
+      )
+        .toISOString()
+        .split('T')[0];
+    }
+    georef.verified = true;
+
+    if (!georef.ambiguous && !georef.verified) {
+      alert(
+        'verifiedBy, verifiedDate, and verifierRole must be added in order to verify this georeference'
+      );
+      georefBusy = false;
+      return;
+    }
+
+    let savingFeedback;
+    if (georef.sendVerificationFeedback && georef.verificationRemarks) {
       //grab the map image
-      let mapCanvas = null
-      if(changesMade) {
-        mapCanvas = await html2canvas(georefMap)
-      } 
-      savingFeedback = saveFeedback(georef, mapCanvas) //this is now a promise...
+      let mapCanvas = null;
+      if (changesMade && matchMapContainer) {
+        try {
+          mapCanvas = await html2canvas(matchMapContainer);
+        } catch (err) {
+          console.error('Error capturing map canvas:', err);
+        }
+      }
+      savingFeedback = saveFeedback(georef, mapCanvas, currentGeorefVals); //this is now a promise...
     }
 
-    let savingGeorefVerification = null
-    if(georef.verified) {
-      savingGeorefVerification = updateGeoref(georef)
+    let savingGeorefVerification = null;
+    if (georef.verified) {
+      savingGeorefVerification = updateGeoref(georef);
     }
-     
+
     //get the next one
-    getNextForValidation() //sync because this can run already while the stuff below completes
+    getNextForValidation(); //sync because this can run already while the stuff below completes
 
-    let proms = []
-    if(savingFeedback) {
-      proms.push(savingFeedback)
+    let proms = [];
+    if (savingFeedback) {
+      proms.push(savingFeedback);
     }
 
-    if(savingGeorefVerification) {
-      proms.push(savingGeorefVerification)
+    if (savingGeorefVerification) {
+      proms.push(savingGeorefVerification);
     }
 
-    if(proms.length) {
+    if (proms.length) {
       try {
-        await Promise.all(proms)
-      }
-      catch(err) {
-        console.error(err)
-        alert('There was an error saving feedback or verification, see the console')
-        return
+        await Promise.all(proms);
+      } catch (err) {
+        console.error(err);
+        alert('There was an error saving feedback or verification, see the console');
+        georefBusy = false;
+        return;
       }
 
-      if(window.pushToast) {
-        window.pushToast('last georef updated')
-      }
-      else {
-        console.log('last georef verification updated successfully')
+      if (window.pushToast) {
+        window.pushToast('last georef updated');
+      } else {
+        console.log('last georef verification updated successfully');
       }
     }
-    
+
     //no else here because there is nothing to be done and the user has the next georef already
-    
-  }
+  };
 
-  const handleFlagGeoref = async ev => {
-    const georefID = ev.detail
+  const handleFlagGeoref = async (ev) => {
+    const georefID = ev.detail;
     try {
-      await flagGeoref(georefID, elasticindex)
+      await flagGeoref(georefID, elasticindex);
+      if (currentGeoref && currentGeoref.georefID === georefID) {
+        currentGeoref.flagged = true;
+      }
+    } catch (err) {
+      console.error(err);
+      alert('there was an error flagging the georef, see console');
+      return;
     }
-    catch(err) {
-      console.error(err)
-      alert('there was an error flagging the georef, see console')
-      return
-    }
-    
-  }
+  };
 
-  const unlockGeorefs = async _ => {
-    if(georefQueue.length || currentGeoref) {
-      /* let ids = georefQueue.map(x => x.georefID)
-      if(currentGeoref){
-        ids.push(currentGeoref.georefID)
+  const unlockGeorefs = async (_) => {
+    if (georefQueue.length || currentGeoref) {
+      let proms = [];
+      if (currentGeoref) {
+        const update = FirestoreGeorefRecords.doc(currentGeoref.georefID).update({ locked: false });
+        proms.push(update);
+      }
+      for (let georef of georefQueue) {
+        const update = FirestoreGeorefRecords.doc(georef.georefID).update({ locked: false });
+        proms.push(update);
       }
 
-      navigator.sendBeacon(`https://us-central1-georef-745b9.cloudfunctions.net/updateVerifyGeorefLockV2?georefids=${ids.join(',')}`, '')
-      */
-    
-      let proms = []
-      if(currentGeoref) {
-        const update = FirestoreGeorefRecords.doc(currentGeoref.georefID).update({locked:false})
-        proms.push(update)
-      }
-      for(let georef of georefQueue) {
-        const update = FirestoreGeorefRecords.doc(georef.georefID).update({locked:false})
-        proms.push(update)
-      }
-
-      await Promise.all(proms)
-
+      await Promise.all(proms);
     }
-  }
+  };
 
-  const confirmUnload = ev =>{
-    if(changesMade) {
-      ev.preventDefault()
+  const confirmUnload = (ev) => {
+    if (changesMade) {
+      ev.preventDefault();
       ev.returnValue = 'the string is not used but is required';
-      return 'the string is not used by is required'
+      return 'the string is not used by is required';
     }
-  }
+  };
 
-  const handleUnload = ev => {
-    unlockGeorefs()
-  }
+  const handleUnload = (ev) => {
+    let ids = georefQueue.map((x) => x.georefID);
+    if (currentGeoref) {
+      ids.push(currentGeoref.georefID);
+    }
+    if (ids.length && navigator.sendBeacon) {
+      navigator.sendBeacon(
+        `https://us-central1-georef-745b9.cloudfunctions.net/updateVerifyGeorefLockV2?georefids=${ids.join(',')}`,
+        ''
+      );
+    }
+    unlockGeorefs();
+  };
 
   //COPIED EXACTLY FROM georef.svelte :-/
-  const handleGeorefSelected = ev => {
-
-    if($dataStore.selectedGeorefID){
-      resetTableAndMap($dataStore.selectedGeorefID)
+  const handleGeorefSelected = (ev) => {
+    if ($dataStore.selectedGeorefID) {
+      resetTableAndMap($dataStore.selectedGeorefID);
     }
 
-    if(ev && ev.detail){
-      let georefID = ev.detail
-      
-      $dataStore.georefIndex[georefID].selected = true
-      selectedGeoref = $dataStore.georefIndex[georefID]
-      if(selectedGeoref.ambiguous) {
-        similarGeorefContainer.scrollTop = 0 //to make sure the user sees the message!
+    if (ev && ev.detail) {
+      let georefID = ev.detail;
+
+      if ($dataStore.georefIndex && $dataStore.georefIndex[georefID]) {
+        $dataStore.georefIndex[georefID].selected = true;
+        selectedGeoref = $dataStore.georefIndex[georefID];
+        if (selectedGeoref.ambiguous && similarGeorefContainer) {
+          similarGeorefContainer.scrollTop = 0; //to make sure the user sees the message!
+        }
       }
 
-      let selectedMarker = $dataStore.markers[georefID]
-      if(selectedMarker) {
+      let selectedMarker = $dataStore.markers ? $dataStore.markers[georefID] : null;
+      if (selectedMarker) {
         selectedMarker.setIcon({
           path: google.maps.SymbolPath.CIRCLE,
-          scale: 5, 
-          fillColor: 'grey', 
+          scale: 5,
+          fillColor: 'grey',
           fillOpacity: 1,
-          strokeColor: 'grey'
-        })
+          strokeColor: 'grey',
+        });
 
         if (selectedMarker.circle) {
-          selectedMarker.circle.setOptions ({strokeColor: 'grey'})
+          selectedMarker.circle.setOptions({ strokeColor: 'grey' });
         }
-        
-        selectedMarker.setZIndex(1)
-        selectedMarker.panToMe()
-      }
-      
-      $dataStore.selectedGeorefID = georefID
-      $dataStore.georefIndex = $dataStore.georefIndex //svelte
-    } 
-  }
 
-  const resetTableAndMap = georefID => {
-    let selectedMarker = $dataStore.markers[georefID]
-    if(selectedMarker) {
+        selectedMarker.setZIndex(1);
+        if (typeof selectedMarker.panToMe === 'function') {
+          selectedMarker.panToMe();
+        }
+      }
+
+      $dataStore.selectedGeorefID = georefID;
+      $dataStore.georefIndex = $dataStore.georefIndex; //svelte
+    }
+  };
+
+  const resetTableAndMap = (georefID) => {
+    let selectedMarker = $dataStore.markers ? $dataStore.markers[georefID] : null;
+    if (selectedMarker) {
       selectedMarker.setIcon({
         path: google.maps.SymbolPath.CIRCLE,
-        scale: 5, 
-        fillColor: 'lightgrey', 
+        scale: 5,
+        fillColor: 'lightgrey',
         fillOpacity: 1,
-        strokeColor: 'lightgrey'
-      })
+        strokeColor: 'lightgrey',
+      });
 
       if (selectedMarker.circle) {
-        selectedMarker.circle.setOptions ({strokeColor: 'lightgrey'})
+        selectedMarker.circle.setOptions({ strokeColor: 'lightgrey' });
       }
 
-      selectedMarker.setZIndex(0)
+      selectedMarker.setZIndex(0);
     }
-    
-    if($dataStore.georefIndex[georefID]) {
-      $dataStore.georefIndex[georefID].selected = false
-    }
-    $dataStore.selectedGeorefID = null
-  }
 
-  
+    if ($dataStore.georefIndex && $dataStore.georefIndex[georefID]) {
+      $dataStore.georefIndex[georefID].selected = false;
+    }
+    $dataStore.selectedGeorefID = null;
+  };
+
   //exported so that it can be called from parent
-  const getNextForValidation = async _ => {
-
-    if(georefQueue.length) {
-      currentGeoref = georefQueue.shift()
-      verifyGeorefContainer.scrollTop = 0
-      georefMap.setMapWithNewGeoref(currentGeoref)
-      changesMade = false
-      history = []
-      currentGeorefVals = getCurrentGeorefVals(currentGeoref)
+  const getNextForValidation = async (_) => {
+    georefBusy = false;
+    if (georefQueue.length) {
+      currentGeoref = georefQueue.shift();
+      if (verifyGeorefContainer) {
+        verifyGeorefContainer.scrollTop = 0;
+      }
+      if (georefMap) {
+        georefMap.setMapWithNewGeoref(currentGeoref);
+      }
+      changesMade = false;
+      history = [];
+      currentGeorefVals = getCurrentGeorefVals(currentGeoref);
 
       //update the queue positions
-      if(queuePositions) {
-        if(selectedGeoreferencer.value) {
-          queuePositions[selectedGeoreferencer.value] = currentGeoref.georefID
-          Firebase.ref(queuePath).child(selectedGeoreferencer.value).set(currentGeoref.georefID)
+      const selectedID =
+        selectedGeoreferencer && selectedGeoreferencer.value ? selectedGeoreferencer.value : null;
+      if (queuePositions) {
+        if (selectedID) {
+          queuePositions[selectedID] = currentGeoref.georefID;
+          Firebase.ref(queuePath).child(selectedID).set(currentGeoref.georefID);
+        } else {
+          queuePositions.all = currentGeoref.georefID;
+          Firebase.ref(queuePath).child('all').set(currentGeoref.georefID);
         }
-        else {
-          queuePositions.all = currentGeoref.georefID
-          Firebase.ref(queuePath).child('all').set(currentGeoref.georefID)
-        }
-      }
-      else {
-        if(selectedGeoreferencer.value) {
+      } else {
+        if (selectedID) {
           queuePositions = {
-            [selectedGeoreferencer.value]: currentGeoref.georefID
-          }
-          Firebase.ref(queuePath).child(selectedGeoreferencer.value).set(currentGeoref.georefID)
-        }
-        else {
+            [selectedID]: currentGeoref.georefID,
+          };
+          Firebase.ref(queuePath).child(selectedID).set(currentGeoref.georefID);
+        } else {
           queuePositions = {
-            all: currentGeoref.georefID
-          }
-          Firebase.ref(queuePath).child('all').set(currentGeoref.georefID)
+            all: currentGeoref.georefID,
+          };
+          Firebase.ref(queuePath).child('all').set(currentGeoref.georefID);
         }
       }
 
       //georefIndexQueue is a queue of promises
       //we want to 'fake' a database fetch so the user sees the new georefIndex
-      let similarGeorefIndexProm = georefIndexQueue.shift()
-      fetchingGeorefIndex = true
-      setTimeout(async _ => {
-        similarGeorefIndex = await similarGeorefIndexProm
-        $dataStore.georefIndex = similarGeorefIndex
-        fetchingGeorefIndex = false
-      }, 100)
+      let similarGeorefIndexProm = georefIndexQueue.shift();
+      fetchingGeorefIndex = true;
+      setTimeout(async (_) => {
+        similarGeorefIndex = await similarGeorefIndexProm;
+        if (similarGeorefIndex && currentGeoref) {
+          delete similarGeorefIndex[currentGeoref.georefID];
+        }
+        $dataStore.georefIndex = similarGeorefIndex || {};
+        fetchingGeorefIndex = false;
+      }, 100);
+    } else {
+      currentGeoref = null;
+      if (noMoreGeorefs) {
+        showNoMoreGeorefs = true;
+      }
     }
 
-    getGeorefsToVerify() //get another one...
+    getGeorefsToVerify(); //get another one...
+  };
 
-  }
-
-  export const skipCurrentGeoref = _ => {
-    if(currentGeoref) {
+  export const skipCurrentGeoref = (_) => {
+    if (currentGeoref) {
       //if it's been flagged we don't want to unlock it other verifiers, otherwise...
-      if(!currentGeoref.flagged) {
-        FirestoreGeorefRecords.doc(currentGeoref.georefID).update({locked: false})
+      if (!currentGeoref.flagged) {
+        FirestoreGeorefRecords.doc(currentGeoref.georefID).update({ locked: false });
       }
 
-      getNextForValidation()
+      getNextForValidation();
+    }
+  };
+
+  export const resetQueuePosition = (_) => {
+    console.log('running reset queue position');
+    const selectedID =
+      selectedGeoreferencer && selectedGeoreferencer.value ? selectedGeoreferencer.value : null;
+    if (queuePositions) {
+      if (selectedID) {
+        delete queuePositions[selectedID];
+        Firebase.ref(queuePath).child(selectedID).remove();
+      } else {
+        delete queuePositions.all;
+        Firebase.ref(queuePath).child('all').remove();
+      }
     }
 
-  }
+    resetQCGeoref();
+  };
 
-  export const resetQueuePosition = _ => {
-    console.log('running reset queue position')
-    if(queuePositions) {
-      if(selectedGeoreferencer.value) {
-        delete queuePositions[selectedGeoreferencer.value]
-        Firebase.ref(queuePath).child(selectedGeoreferencer.value).remove()
-      }
-      else {
-        delete queuePositions.all
-        Firebase.ref(queuePath).child('all').remove()
-      }
-    }
-
-    resetQCGeoref()
-    
-  }
-
-  onDestroy(unlockGeorefs)
-
+  onDestroy(unlockGeorefs);
 </script>
 
 <!-- ############################################## -->
 <!-- HTML -->
-<svelte:window on:beforeunload={confirmUnload} on:unload={handleUnload} /> <!--in case the user just closes-->
+<svelte:window on:beforeunload={confirmUnload} on:unload={handleUnload} />
+<!--in case the user just closes-->
 <div on:keyup={handleKeyUp} class="qcgeoref-container">
-  
   {#if showNoMoreGeorefs}
     <div class="center">
       <h4>No more georeferences to verify for this dataset</h4>
     </div>
   {:else}
     <div class="grid-container">
-      <div class="georef-form-container current-georef-container">
+      <div class="georef-form-container current-georef-container" bind:this={verifyGeorefContainer}>
         {#if currentGeoref}
           <h4>Verification</h4>
-          <GeorefForm georef={currentGeoref} 
+          <GeorefForm
+            georef={currentGeoref}
+            bind:busy={georefBusy}
             showResetButton={false}
-            submitButtonText="Confirm this georeference" 
+            submitButtonText="Verify georef"
             showVerification={true}
+            showVerifierFields={false}
             defaultGeorefBy={profile.formattedName}
             defaultGeorefByORCID={profile.orcid}
-            requiredFields={['verifiedBy', 'verifiedDate', 'verifierRole']}
-            bind:this={verifyGeorefContainer}
+            defaultVerifierRole={verifierRole}
+            requiredFields={[]}
             on:coords-from-paste={handleNewCoordsFromGeoref}
             on:uncertainty-changed={handleGeorefChanged}
             on:locality-changed={handleGeorefChanged}
             on:georef-flagged={handleFlagGeoref}
-            on:set-georef={handleSetGeoref} />
+            on:set-georef={handleSetGeoref}
+          />
         {:else}
           <div class="center">
             <Loader />
@@ -689,28 +756,27 @@
         {:else}
           <h4>Similar georeferences</h4>
           <div class="matchlist-flex">
-            <MatchList on:georef-selected={handleGeorefSelected}/>
+            <MatchList on:georef-selected={handleGeorefSelected} />
           </div>
           <div class="matchlist-flex-plug" />
         {/if}
       </div>
-      <div class="matchmap-container">
-        <VerifyMap 
-          on:new-coords={handleNewCoordsFromMap} 
-          on:map-ready={_ => mapReady = true}
+      <div class="matchmap-container" bind:this={matchMapContainer}>
+        <VerifyMap
+          on:new-coords={handleNewCoordsFromMap}
+          on:map-ready={(_) => (mapReady = true)}
           on:georef-selected={handleGeorefSelected}
-          bind:this={georefMap} 
+          bind:this={georefMap}
         />
       </div>
-      <div class="georef-form-container similar-georef-container">
+      <div class="georef-form-container similar-georef-container" bind:this={similarGeorefContainer}>
         <h4>Georeference</h4>
-        <GeorefForm 
-          editable={false} 
-          showVerification={true} 
-          georef={selectedGeoref} 
+        <GeorefForm
+          editable={false}
+          showVerification={true}
+          georef={selectedGeoref}
           showResetButton={false}
-          showSubmitButton={false} 
-          bind:this={similarGeorefContainer}
+          showSubmitButton={false}
           on:georef-flagged={handleFlagGeoref}
         />
       </div>
@@ -721,22 +787,21 @@
 
 <!-- ############################################## -->
 <style>
-
   h4 {
-    color:  #86afe8;
+    color: #86afe8;
     text-transform: uppercase;
     font-size: 1.5em;
     font-weight: 600;
     text-align: center;
-    margin:0;
+    margin: 0;
   }
 
   .qcgeoref-container {
-    position:relative;
-    display:flex;
+    position: relative;
+    display: flex;
     flex-direction: column;
-    width:100%;
-    height:100%;
+    width: 100%;
+    height: 100%;
   }
 
   .grid-container {
@@ -744,21 +809,21 @@
     flex: 1 1 auto;
     width: 100%;
     padding: 10px;
-    margin-top:10px;
-    overflow:hidden;
+    margin-top: 10px;
+    overflow: hidden;
     box-sizing: border-box;
     grid-template-columns: minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-    grid-column-gap:1%;
-    border-radius:4px;
+    grid-column-gap: 1%;
+    border-radius: 4px;
     border: 2px solid #bcd0ec;
   }
 
   .georef-form-container {
-    height:100%;
-    max-height:100%;
+    height: 100%;
+    max-height: 100%;
     width: 100%;
-    position:relative;
+    position: relative;
     display: flex;
     flex-flow: column;
     padding-right: 5px;
@@ -768,14 +833,14 @@
   .current-georef-container {
     grid-column: 1/2;
     grid-row: 1 / 3;
-    padding-right:15px;
+    padding-right: 15px;
   }
 
   .matchlist-container {
-    grid-column: 2/2; 
+    grid-column: 2/2;
     grid-row: 1 / 2;
     max-height: 100%;
-    position:relative;
+    position: relative;
     display: flex;
     flex-flow: column;
   }
@@ -807,5 +872,4 @@
     width: 100%;
     height: 100%;
   }
-
 </style>
